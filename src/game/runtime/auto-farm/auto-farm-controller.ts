@@ -19,6 +19,7 @@ import {
 import { formatCompactNumber } from '../../../../shared/compact-number';
 import { isSoulMap, SOUL_STAT_DETAILS, type SoulStatId } from '../../../../shared/soul-dimension';
 import { soulStatOfCampName } from '../../soul-world';
+import { smartMove } from './auto-farm-kite';
 
 export type AutoFarmController = ReturnType<typeof createAutoFarmController>;
 const idle = (): Movement => ({ x: 0, y: 0, source: 'none' });
@@ -197,14 +198,18 @@ export function createAutoFarmController(options: {
    */
   const choiceKey = (site: Pick<SpawnSite, 'type' | 'definition' | 'campName'>) => farmGroupOf(site);
   function choices() {
-    const counts = new Map<string, { key: AutoFarmGroup; type: EnemyKind; kinds: EnemyKind[]; label: string;
-      alive: number; total: number; reward: FarmReward; maxReward: number; soul: SoulStatId | null }>();
+    const counts = new Map<string, {
+      key: AutoFarmGroup; type: EnemyKind; kinds: EnemyKind[]; label: string;
+      alive: number; total: number; reward: FarmReward; maxReward: number; soul: SoulStatId | null
+    }>();
     for (const site of spawnSites) {
       const key = choiceKey(site), definition = site.definition ?? ENEMY_TYPES[site.type];
       // A soul enemy pays its soul stat, flat, and nothing to the run.
       const soul = soulStatOfCampName(site.campName), reward: FarmReward = soul ? soulFarmReward(soul) : definition.reward;
-      const choice = counts.get(key) ?? { key, type: site.type, kinds: [], label: soul ? `Soul ${SOUL_STAT_DETAILS[soul].label}` : rewardStatLabel(reward),
-        alive: 0, total: 0, reward: { ...reward }, maxReward: reward.amount, soul };
+      const choice = counts.get(key) ?? {
+        key, type: site.type, kinds: [], label: soul ? `Soul ${SOUL_STAT_DETAILS[soul].label}` : rewardStatLabel(reward),
+        alive: 0, total: 0, reward: { ...reward }, maxReward: reward.amount, soul
+      };
       choice.total++;
       if (!choice.kinds.includes(site.type)) choice.kinds.push(site.type);
       choice.reward.amount = Math.min(choice.reward.amount, reward.amount);
@@ -518,10 +523,14 @@ export function createAutoFarmController(options: {
    */
   function farmWeights(all: ReturnType<typeof choices>) {
     const switched = new Set(aggroGroups()), pulledNow = pulledGroups();
-    const weights = all.map(entry => ({ key: entry.key, alive: entry.alive,
-      weight: switched.has(entry.key) && !pulledNow.has(entry.key) ? 0 : (shares[entry.key] ?? 0) * (entry.reward.type === 'damage' ? DAMAGE_FARM_WEIGHT : 1) }));
-    const open = weights.map((entry, index) => ({ ...entry,
-      weight: entry.weight > 0 && !options.rewardCapped?.(all[index].reward, all[index].soul) ? entry.weight : 0 }));
+    const weights = all.map(entry => ({
+      key: entry.key, alive: entry.alive,
+      weight: switched.has(entry.key) && !pulledNow.has(entry.key) ? 0 : (shares[entry.key] ?? 0) * (entry.reward.type === 'damage' ? DAMAGE_FARM_WEIGHT : 1)
+    }));
+    const open = weights.map((entry, index) => ({
+      ...entry,
+      weight: entry.weight > 0 && !options.rewardCapped?.(all[index].reward, all[index].soul) ? entry.weight : 0
+    }));
     // Every one capped: farm them anyway rather than stand idle.
     return open.some(entry => entry.weight > 0) ? open : weights;
   }
@@ -640,6 +649,11 @@ export function createAutoFarmController(options: {
     }
     let threat: EnemyState | null = null;
     // On the way to the boss or the next map it shoots what it passes but chases nobody. A pulled group is coming anyway.
+    if (phase === 'farm') {
+      const smartTarget = smartMove(player, enemies);
+      const length = distance(smartTarget), magnitude = Math.min(1, length / Math.max(1, options.speed() * dt));
+      return { x: (smartTarget.x - player.x) / length * magnitude, y: (smartTarget.y - player.y) / length * magnitude, source: 'steer' };
+    }
     if (phase === 'farm' && !pulling()) for (const enemy of enemies) {
       if (!enemy.generatedBoss && isEnemyAttackingPlayer(enemy, options.localIdentity?.()) && (!threat || distance(enemy) < distance(threat))) threat = enemy;
     }
@@ -750,8 +764,8 @@ export function createAutoFarmController(options: {
     const crowd = [...near].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([tag, count]) => `${tag}:${count}`).join(',');
     const here = options.mapReady ? cachedReady(`map:${options.mapId()}:1`, () => options.mapReady!(options.mapId(), 1)) : null;
     return [`map=${options.mapId()}`, `st=${status}`, `ph=${phase}`, `sel=${selected ?? '-'}`, `mv=${movePower}`, `fb=${bossPower}`,
-      `pull=${pulling() ? pulledGroups().size : 0}/${pullLimit()}`, `near=${crowd || '-'}`, `burst=${((now() - lastHealthyAt) / 1000).toFixed(1)}s`,
-      `pw=${atPower(currentPower())}`, `need=${here ? here.needs ?? 'none' : '?'}`].join(';').slice(0, 240);
+    `pull=${pulling() ? pulledGroups().size : 0}/${pullLimit()}`, `near=${crowd || '-'}`, `burst=${((now() - lastHealthyAt) / 1000).toFixed(1)}s`,
+    `pw=${atPower(currentPower())}`, `need=${here ? here.needs ?? 'none' : '?'}`].join(';').slice(0, 240);
   }
 
   const atPower = (power: number) => formatCompactNumber(Math.ceil(power));
@@ -782,10 +796,13 @@ export function createAutoFarmController(options: {
     return check.ready ? 'Boss Next' : check.line;
   }
 
-  return { start, stop: (reason?: string) => { zeroWaiting = false; stop(reason); }, defeated, refresh, choices, movement, travelStarted,
+  return {
+    start, stop: (reason?: string) => { zeroWaiting = false; stop(reason); }, defeated, refresh, choices, movement, travelStarted,
     /** `waiting`: stopped for travel, and starting again on the next map with enemies. The player can still Stop it. */
-    state: () => ({ active, waiting: !active && Boolean(pendingResume), selected, selectedLabel, shares: { ...shares }, phase, advance, fightBosses,
-      status: active && !recovering && options.paused() ? 'Paused' : status }),
+    state: () => ({
+      active, waiting: !active && Boolean(pendingResume), selected, selectedLabel, shares: { ...shares }, phase, advance, fightBosses,
+      status: active && !recovering && options.paused() ? 'Paused' : status
+    }),
     /** The camp being farmed; null at the boss or on the way out, so the boss and anything in the way are fair game. */
     targetType: () => active && !manualControl && phase === 'farm' ? selectedType : null,
     /** What combat aims at: the farmed camp, or, with every farmed group pulled, whatever is nearest. */

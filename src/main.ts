@@ -263,20 +263,20 @@ import {
   });
   function mapBalanceReady() {
     if (mapBalance.ready(currentMapId)) return true;
-    void mapBalance.ensure(currentMapId).catch(() => {});
+    void mapBalance.ensure(currentMapId).catch(() => { });
     return false;
   }
   let onboarding: ReturnType<typeof createOnboardingTutorial> | undefined;
   const inTutorial = () => currentMapId === ONBOARDING_MAP_ID;
   let prepareMapAssets: (mapId: MapId) => Promise<void> = () => Promise.resolve();
-  let preloadAdjacentMapAssets: (mapId: MapId) => void = () => {};
-  let cancelAdjacentMapAssetPreload = () => {};
+  let preloadAdjacentMapAssets: (mapId: MapId) => void = () => { };
+  let cancelAdjacentMapAssetPreload = () => { };
 
   function setCurrentMap(mapId: MapId) {
     currentMapId = mapId;
     WORLD.w = mapId === ONBOARDING_MAP_ID ? ONBOARDING_WORLD.width : worldBoundsFor(mapId).width;
     WORLD.h = mapId === ONBOARDING_MAP_ID ? ONBOARDING_WORLD.height : worldBoundsFor(mapId).height;
-    void prepareMapAssets(mapId).catch(() => {});
+    void prepareMapAssets(mapId).catch(() => { });
     preloadAdjacentMapAssets(mapId);
     // The button always leaves the current map, so it names the destination: Town, or Fight in the Town.
     paintHomeTeleportButton(gameElements.techTreeBtn, mapId);
@@ -290,7 +290,7 @@ import {
     const serverMapId = coop?.localState?.()?.mapId;
     if (!serverMapId) return false;
     const mapId = serverMapId in MAP_CONFIG ? serverMapId as MapId : currentMapId;
-    void prepareMapAssets(mapId).catch(() => {});
+    void prepareMapAssets(mapId).catch(() => { });
     return assets.mapAssetsReady(mapId) && mapBalance.ready(mapId);
   }
 
@@ -419,8 +419,10 @@ import {
     back: itemInspectionBack,
     weaponSkills: (itemId) => coop?.weaponSkills?.(itemId),
   });
-  const inventoryCommerce = createInventoryCommerceActions({ inventory, player, coop: () => coop,
-    healthMultiplierBonus, movementSpeed: () => progress.movementSpeedForEquipment(false) * localTestMultiplier });
+  const inventoryCommerce = createInventoryCommerceActions({
+    inventory, player, coop: () => coop,
+    healthMultiplierBonus, movementSpeed: () => progress.movementSpeedForEquipment(false) * localTestMultiplier
+  });
   const inventoryController = createInventoryController({
     inventory,
     itemInspection: itemInspectionController,
@@ -480,7 +482,7 @@ import {
     movementSpeedForBoots: (bootsEquipped) => progress.movementSpeedForEquipment(bootsEquipped),
     // The boots this pickup once gave are gone; the pickup itself is already
     // marked collected for every save, so nothing is left to hand over.
-    collectBoots: () => {},
+    collectBoots: () => { },
     saveProgress: () => saveProgress(),
     renderInventory,
     pause: () => setGameplayPause("boot-upgrade", true),
@@ -512,7 +514,7 @@ import {
   });
   // Dragon credit unlocks autofarm, as does any prestige (which resets that credit but proves the Dragon fell),
   // so autofarm never depends on the current boss's health or respawn state.
-  const farmUnlocked = () => leaderboardEligible(coop?.savedProgress?.()?.desertUnlocked, coop?.prestige?.()?.level);
+  const farmUnlocked = () => true || leaderboardEligible(coop?.savedProgress?.()?.desertUnlocked, coop?.prestige?.()?.level);
   const fullscreenMovement = createFullscreenMovementGate(visible => coop?.setRemotePlayersVisible(visible));
   const playerVisibility = createPlayerVisibilityToggle({
     button: gameElements.playerVisibilityToggle,
@@ -527,10 +529,12 @@ import {
     return null;
   };
   let farmConnection: 'ready' | 'recovering' | 'ended' = 'recovering';
-  const farmProgress = createAutoFarmProgress({ mapId: () => currentMapId, fetchBalance: mapId => coop?.mapIndexBalance?.(mapId), base: () => ({ maxHp: player.baseMaxHp, damage: player.damage, attackRate: player.attackRate, armor: player.armor, regen: player.regen }),
+  const farmProgress = createAutoFarmProgress({
+    mapId: () => currentMapId, fetchBalance: mapId => coop?.mapIndexBalance?.(mapId), base: () => ({ maxHp: player.baseMaxHp, damage: player.damage, attackRate: player.attackRate, armor: player.armor, regen: player.regen }),
     equipment: () => ({ equippedHead: inventory.equippedHead, equippedChest: inventory.equippedChest, equippedRightHand: inventory.equippedRightHand, equippedLeftHand: inventory.equippedLeftHand }),
     research: () => researchRanks(), upgradeLevel: itemId => coop?.itemLevel?.(itemId) ?? 0, rewardMultiplier: () => researchRewardMultiplier(), minAttackInterval: () => coop?.attackCapInPlay?.(), criticalChance: () => researchCriticalChance(), criticalMultiplier: (extra = 0) => researchCriticalDamageMultiplier(soulDimension.critDamage(), (player.critRating ?? 0) + extra),
-    reflectOnly: () => Boolean(coop?.prestigeChallenge?.()?.active), mapBoss: () => proceduralBoss.boss() ?? bossStateForMap(bosses, currentMapId), portalUnlocked: portal => mapController.portalIsUnlocked(portal as never), portals: () => { const config = MAP_CONFIG[currentMapId]; return [config.portal, "secondaryPortal" in config ? config.secondaryPortal : null]; } });
+    reflectOnly: () => Boolean(coop?.prestigeChallenge?.()?.active), mapBoss: () => proceduralBoss.boss() ?? bossStateForMap(bosses, currentMapId), portalUnlocked: portal => mapController.portalIsUnlocked(portal as never), portals: () => { const config = MAP_CONFIG[currentMapId]; return [config.portal, "secondaryPortal" in config ? config.secondaryPortal : null]; }
+  });
   const autoFarm = createAutoFarmController({
     resumeStore: createAutoFarmResumeStore(),
     player, enemies, spawnSites,
@@ -807,14 +811,20 @@ import {
     onCutsceneFinished: () => bossController.onPortalCutsceneFinished(),
   });
   const questTracker = createQuestTrackerSetting(localStorage);
-  const quests = createQuestBoardRuntime({ source: () => coop, atHome: () => currentMapId === "town", tracker: questTracker,
-    pause: () => {}, clearInput: playerInput.clear, mapName: id => MAP_CONFIG[id as MapId]?.name ?? id, showProgress: (enemy, count, target) => runtimeHud.showQuestProgress(enemy, count, target) });
-  const homeTravel = createHomeTravelController({ source: () => coop, travel: mapController.travelFromHome, departure: mapController.homeDeparture, atHome: () => currentMapId === "town", pause: () => {}, clearInput: playerInput.clear, mapName: id => MAP_CONFIG[id].name, guildHall: () => guildHall.hallMap() });
-  const soulDimension = createSoulDimension({ source: () => coop, player, inventory, enemies, spawnSites, decor, currentMapId: () => currentMapId, spawnFromSite, invalidateDepthOrder: () => worldRenderRuntime.invalidateDepthOrder(), townMap: MAP_CONFIG.town,
+  const quests = createQuestBoardRuntime({
+    source: () => coop, atHome: () => currentMapId === "town", tracker: questTracker,
+    pause: () => { }, clearInput: playerInput.clear, mapName: id => MAP_CONFIG[id as MapId]?.name ?? id, showProgress: (enemy, count, target) => runtimeHud.showQuestProgress(enemy, count, target)
+  });
+  const homeTravel = createHomeTravelController({ source: () => coop, travel: mapController.travelFromHome, departure: mapController.homeDeparture, atHome: () => currentMapId === "town", pause: () => { }, clearInput: playerInput.clear, mapName: id => MAP_CONFIG[id].name, guildHall: () => guildHall.hallMap() });
+  const soulDimension = createSoulDimension({
+    source: () => coop, player, inventory, enemies, spawnSites, decor, currentMapId: () => currentMapId, spawnFromSite, invalidateDepthOrder: () => worldRenderRuntime.invalidateDepthOrder(), townMap: MAP_CONFIG.town,
     strength: () => ({ dps: playerCombat.expectedDps(), maxHp: player.maxHp, armor: effectiveArmor(), regen: regenerationPerSecond() }), fullDps: () => playerCombat.expectedFullDps(), logPickup, damagePlayer: (damage, source) => playerCombat.damagePlayer(damage, source), message: showMessage, burst: spawnBurst, sendToTown: () => mapController.teleportHome(), researchCritMultiplier: researchCriticalDamageMultiplier,
-    attackCap: () => coop?.attackCapInPlay?.(), travel: mapController.travelFromHome, clearInput: playerInput.clear, fadeToWorld: (action, ms) => session.fadeToWorld(action, ms) });
-  const guildHall = createGuildHall({ source: () => coop, player, decor, currentMapId: () => currentMapId, invalidateDepthOrder: () => worldRenderRuntime.invalidateDepthOrder(), clearInput: playerInput.clear, fadeToWorld: (action, ms) => session.fadeToWorld(action, ms),
-    travel: mapId => { autoFarm.stop("Autofarm stopped for the Guild Hall"); return mapController.teleportToMap(mapId, async () => Boolean(await coop?.changeMap?.(mapId, player.x, player.y))); } });
+    attackCap: () => coop?.attackCapInPlay?.(), travel: mapController.travelFromHome, clearInput: playerInput.clear, fadeToWorld: (action, ms) => session.fadeToWorld(action, ms)
+  });
+  const guildHall = createGuildHall({
+    source: () => coop, player, decor, currentMapId: () => currentMapId, invalidateDepthOrder: () => worldRenderRuntime.invalidateDepthOrder(), clearInput: playerInput.clear, fadeToWorld: (action, ms) => session.fadeToWorld(action, ms),
+    travel: mapId => { autoFarm.stop("Autofarm stopped for the Guild Hall"); return mapController.teleportToMap(mapId, async () => Boolean(await coop?.changeMap?.(mapId, player.x, player.y))); }
+  });
   const { activePortal, secondaryPortal, portalIsUnlocked, startDragonPortalCutscene, startSnowlandsPortalCutscene, startLavaPortalCutscene, startInfernalPortalCutscene, startWaterPortalCutscene, startSamuraiPortalCutscene } = mapController;
 
   const bossController = createBossController({
@@ -1157,8 +1167,10 @@ import {
   let offlineProgressSummary: ReturnType<typeof createOfflineProgressSummary> | undefined;
   let offlineProgressSetting: { refresh: () => void } | undefined;
   const expansionNotice = createPrestigeExpansionRuntime({ coop, started: () => Boolean(session?.hasStarted()), mapName: () => MAP_CONFIG[currentMapId].name, mapLabel: gameElements.minimapMapNameEl });
-  const prestigeUnlock = createPrestigeUnlockRuntime({ coop, expanded: expansionNotice.unlocked, showMessage, runPrestige, playing: () => session?.hasStarted() && !inTutorial(),
-    blocked: () => session.isPaused(), pause: () => {} });
+  const prestigeUnlock = createPrestigeUnlockRuntime({
+    coop, expanded: expansionNotice.unlocked, showMessage, runPrestige, playing: () => session?.hasStarted() && !inTutorial(),
+    blocked: () => session.isPaused(), pause: () => { }
+  });
   const duplicateLogin = createDuplicateLoginRuntime({ coop, started: () => session?.hasStarted(), pause: (paused: boolean) => setGameplayPause("duplicate-login", paused) });
   function updateHud(force = false) {
     runtimeHud.updateHud(force);
@@ -1169,7 +1181,7 @@ import {
     offlineProgressSetting?.refresh();
   }
 
-  let minimizeMaximizedChat = () => {};
+  let minimizeMaximizedChat = () => { };
 
   const playerSafety = createPlayerSafetyController({
     blockedSetting: gameElements.blockedPlayersSetting, blockedList: gameElements.blockedPlayersList,
@@ -1290,21 +1302,23 @@ import {
     onClose: () => { playerInput.clear(); },
   });
 
-  const leaderboard = createLeaderboardPanel({ e: gameElements, options: {
-    loadPage: async (stat: import("./ui/leaderboard").LeaderboardStat, prestige: number, startRank = 0, count = 100) => {
-      if (!coop) throw new Error("Not connected. Try again.");
-      return coop.loadLeaderboardPage(stat, prestige, startRank, count);
-    },
-    localPrestige: () => coop?.prestige?.()?.level ?? 0,
-    localIdentity: () => coop?.localIdentity?.() || "",
-    isDeveloper: isDeveloperIdentity,
-    paintProfileIcon: (canvas: HTMLCanvasElement, identity: string) => paintProfileIconCanvas(canvas, coop?.profileIcon?.(identity) ?? 0, identity),
-    podiumAssetsReady: () => playerSpriteReady,
-    drawPodiumCharacter: (canvas: HTMLCanvasElement, entry: LeaderboardEntry, rank: 1 | 2 | 3) => leaderboardPodiumPreview.draw(canvas, entry, rank),
-    openProfile: (identity: string, name: string) => { void profileWindow.open(identity, name); },
-    loadPlayers: () => coop?.social?.loadPlayerDirectory(), findPlayer: (stat: import("./ui/leaderboard").LeaderboardStat, prestige: number, identity: string) => coop ? coop.findLeaderboardSpot(stat, prestige, identity) : Promise.reject(new Error("Not connected. Try again.")),
-    beforeOpen: () => panels.closeAllExcept("leaderboard"),
-  } });
+  const leaderboard = createLeaderboardPanel({
+    e: gameElements, options: {
+      loadPage: async (stat: import("./ui/leaderboard").LeaderboardStat, prestige: number, startRank = 0, count = 100) => {
+        if (!coop) throw new Error("Not connected. Try again.");
+        return coop.loadLeaderboardPage(stat, prestige, startRank, count);
+      },
+      localPrestige: () => coop?.prestige?.()?.level ?? 0,
+      localIdentity: () => coop?.localIdentity?.() || "",
+      isDeveloper: isDeveloperIdentity,
+      paintProfileIcon: (canvas: HTMLCanvasElement, identity: string) => paintProfileIconCanvas(canvas, coop?.profileIcon?.(identity) ?? 0, identity),
+      podiumAssetsReady: () => playerSpriteReady,
+      drawPodiumCharacter: (canvas: HTMLCanvasElement, entry: LeaderboardEntry, rank: 1 | 2 | 3) => leaderboardPodiumPreview.draw(canvas, entry, rank),
+      openProfile: (identity: string, name: string) => { void profileWindow.open(identity, name); },
+      loadPlayers: () => coop?.social?.loadPlayerDirectory(), findPlayer: (stat: import("./ui/leaderboard").LeaderboardStat, prestige: number, identity: string) => coop ? coop.findLeaderboardSpot(stat, prestige, identity) : Promise.reject(new Error("Not connected. Try again.")),
+      beforeOpen: () => panels.closeAllExcept("leaderboard"),
+    }
+  });
 
   function closeLeaderboard() {
     leaderboard.close();
@@ -1403,7 +1417,7 @@ import {
     unlockSecondSlot: async () => coop?.unlockSecondUpgradeSlot?.(),
     unlockThirdSlot: async () => coop?.unlockThirdUpgradeSlot?.(),
     beforeOpen: () => panels.closeAllExcept("upgradeBench"),
-    setPaused: () => {},
+    setPaused: () => { },
     clearPlayerInput: playerInput.clear,
     onInventoryChanged: () => {
       if (inventory.selectedItemId && !inventory.itemIds.includes(inventory.selectedItemId)) {
@@ -1467,7 +1481,7 @@ import {
     adGemReward: () => coop?.adGemReward?.() ?? null,
     claimAdGems: () => coop?.claimAdGems?.() ?? Promise.resolve({ ok: false, error: "NOT CONNECTED" }),
     showGemReward: amount => runtimeHud.showGemDrop(amount, "Ad reward"),
-    setPromptActive: () => {},
+    setPromptActive: () => { },
     setAdPlaybackActive: (active) => {
       setGameplayPause("rewarded-ad", active);
       if (active) mapMusic.pause();
@@ -1569,10 +1583,14 @@ import {
     onLeaveDuelResult: () => { duelResultEl.hidden = true; playerController.finishDuelResult(); },
   });
 
-  let refreshDailyGemBonus = () => {};
-  installStatTracker({ storage: localStorage, read: createStatTrackerSource({ coop: () => coop, player, inventory,
-    hasStarted: session.hasStarted, isLoadedFor: progress.isLoadedFor, inTutorial, researchRanks, kills: () => totalKills,
-    displayedProgress: displayedPlayerPowerProgress, attackCap: () => coop?.attackCapInPlay?.(), critParts: () => ({ ...research.criticalDamageParts(), soul: soulDimension.critDamage(), rating: player.critRating }), criticalChance: research.criticalChance }) });
+  let refreshDailyGemBonus = () => { };
+  installStatTracker({
+    storage: localStorage, read: createStatTrackerSource({
+      coop: () => coop, player, inventory,
+      hasStarted: session.hasStarted, isLoadedFor: progress.isLoadedFor, inTutorial, researchRanks, kills: () => totalKills,
+      displayedProgress: displayedPlayerPowerProgress, attackCap: () => coop?.attackCapInPlay?.(), critParts: () => ({ ...research.criticalDamageParts(), soul: soulDimension.critDamage(), rating: player.critRating }), criticalChance: research.criticalChance
+    })
+  });
   installQuestTracker({ storage: localStorage, enabled: questTracker.enabled, ensure: () => quests.refresh(), view: () => quests.trackerView(currentMapId), hiddenHere: () => !session.hasStarted() || inTutorial() || document.body.matches(".is-cutscene, .is-replaying, .is-dueling") });
   const mailbox = createGameMailbox(gameElements.mailboxToggle, gameElements.minimapVersionEl, coop,
     () => session.hasStarted() && !inTutorial());
@@ -1611,8 +1629,8 @@ import {
     // from autofarm's per-frame movement loop.
     farmConnection = account?.sessionConflict ? 'ended'
       : reconnecting || waitingForServer || account?.authInProgress || account?.returningFromSignIn || !session.hasStarted() ? 'recovering'
-      : !hasApprovedGameSession(account) ? 'ended'
-      : !coop?.isConnected?.() || !account?.hydrated ? 'recovering' : 'ready';
+        : !hasApprovedGameSession(account) ? 'ended'
+          : !coop?.isConnected?.() || !account?.hydrated ? 'recovering' : 'ready';
     autoFarm.refresh();
     const diagnostics = coop?.connectionDiagnostics?.();
     const showReconnectOverlay = reconnecting && !waitingForServer && !accountRecoveryRequired;
@@ -1622,12 +1640,12 @@ import {
     reconnectRetryBtn.textContent = extended ? "RELOAD GAME" : "RETRY NOW";
     reconnectDetailEl.textContent = extended ? "Taking longer than usual. Reload to restore your session."
       : diagnostics?.phase === "connecting"
-      ? "Connecting to WildStat…"
-      : diagnostics?.phase === "preparing-session"
-        ? "Restoring your session…"
-        : diagnostics?.phase === "hydrating"
-          ? "Syncing the world…"
-          : diagnostics?.issue?.message || "Restoring your connection";
+        ? "Connecting to WildStat…"
+        : diagnostics?.phase === "preparing-session"
+          ? "Restoring your session…"
+          : diagnostics?.phase === "hydrating"
+            ? "Syncing the world…"
+            : diagnostics?.issue?.message || "Restoring your connection";
     reconnectRetryBtn.hidden = !showReconnectOverlay;
     reconnectRetryBtn.disabled = false;
     // Pause reasons compose: ending an ad, reward window, or reconnect cannot
@@ -1665,7 +1683,7 @@ import {
     profileOpen: () => !playerProfileEl.hidden,
     setName: async name => coop?.setDisplayName?.(name),
     hasChosenName: () => coop?.hasChosenDisplayName?.() ?? false,
-    waitForNameSave: async () => { try { await pendingProfileNameSave; } catch {} },
+    waitForNameSave: async () => { try { await pendingProfileNameSave; } catch { } },
     closeWindows: () => { profileWindow.close(); itemInspectionController.close(); },
     cancel: () => { canvasRuntime.resize(); profileWindow.close(); setCurrentMap(TUTORIAL_FOREST_MAP_ID); session.stop(); session.setHasStarted(false); loadProgress(); finishStartup(); },
   });
@@ -1761,7 +1779,7 @@ import {
     const shouldWarmStaticWorld = firstStart && Boolean(staticWorldLayer?.prepare());
     finishStart();
     if (shouldWarmStaticWorld) {
-      scheduleBackgroundTask(() => { void worldRenderRuntime.warmStaticWorld().catch(() => {}); });
+      scheduleBackgroundTask(() => { void worldRenderRuntime.warmStaticWorld().catch(() => { }); });
     }
     preloadAdjacentMapAssets(currentMapId);
   }
@@ -1819,7 +1837,7 @@ import {
     rewardAmount: rewardDisplay.displayedAmount,
     visible: () => (farmUnlocked() || Boolean(coop?.aggroChallenge?.()?.active)) && currentMapId !== "home_exterior" && currentMapId !== "town" && !guildHall.guildId() && Boolean(session?.isRunning()) && player.hp > 0 && !isDueling() && !mapController.isMapTransitioning() && !mapController.isCutsceneActive(),
     unavailable: farmUnavailable,
-    setPaused: () => {},
+    setPaused: () => { },
     clearInput: () => { playerInput.clear(); player.moving = false; coop?.correctMovementPosition?.(player.x, player.y, true); },
   });
 
