@@ -1,6 +1,7 @@
 import { createInventoryLockMode } from "./inventory-lock-mode";
 import { createInventoryFilters, type InventoryFilter } from "./inventory-filters";
 import {
+  bagInventoryStacks,
   type EquipmentSlot,
   type InventoryState,
 } from "../game/inventory";
@@ -12,6 +13,7 @@ import { inventoryMoveActions, inventoryWeaponSlot, renderInventoryView, type In
 import type { ItemInspectionController } from "./item-inspection-controller";
 import {
   MAX_INVENTORY_SLOT_CAPACITY,
+  bagSlotCapacity,
   inventorySlotCapacity,
   inventorySlotUnlockCost,
 } from "../../shared/gems";
@@ -23,6 +25,8 @@ import { withRefineStars } from "./refine-badge";
 import { REFINE_ORES, type OreId } from "../../shared/refine";
 import { createCardsTab } from "./cards-tab";
 import { canHoldCards } from "../../shared/cards";
+import { oreKindsHeld } from "../../shared/ore-bag";
+import { createPickaxeSprite } from "../game/runtime/town/pickaxe-sprite";
 
 type InventoryLocation = EquipmentSlot | "BAG" | "";
 type SelectableInventory = InventoryState & { selectedItemId: string; selectedItemLocation?: InventoryLocation };
@@ -50,6 +54,8 @@ type InventoryDependencies = {
   ores?: () => Readonly<Partial<Record<OreId, number>>>;
   /** Cards held, by card id: the Cards tab. */
   cards?: () => Readonly<Record<string, number>>;
+  /** Cards in any gear's slots: they count as found in the Cards tab. */
+  slottedCards?: () => ReadonlySet<string>;
   /** One copy's card slots and the cards in them; `copyId` 0n is the first copy. */
   gearSlots?: (itemId: string, copyId?: bigint) => { slots: number; cards: readonly string[] };
   destroyOre?: (oreId: OreId, expectedCount: number) => Promise<Result>;
@@ -59,6 +65,10 @@ type InventoryDependencies = {
   equipmentRequirement?: (itemId: string) => string | null;
   itemInspection: ItemInspectionController;
   inventorySlotsUnlocked: () => number;
+  /** Bag Slots research ranks: a slot each, on top of the ones bought. */
+  researchBagSlots?: () => number;
+  /** The mining pickaxe, kept from the Smith: shown in the loadout's Tool slot. */
+  hasPickaxe?: () => boolean;
   gemBalance: () => bigint;
   destroyEquipment: (itemId: string) => Promise<{ ok: boolean; error?: string } | undefined>;
   convertItemToCosmetic?: (itemId: string) => Promise<{ ok: boolean; error?: string } | undefined>;
@@ -93,13 +103,40 @@ export function createInventoryController(dependencies: InventoryDependencies) {
   const cardsTab = document.getElementById("inventoryCardsTab") as HTMLButtonElement | null;
   const content = requiredElement("inventoryContent");
   const loadout = panel.querySelector<HTMLElement>(".inventory-loadout");
+  // The pickaxe works from the bag, never equipped: its slot only shows it is there and what it does.
+  const toolSlot = document.createElement("button");
+  toolSlot.type = "button";
+  toolSlot.className = "equipment-slot slot-tool";
+  loadout?.append(toolSlot);
+  let pickaxeArt = "";
+  toolSlot.addEventListener("click", () => dependencies.showMessage(dependencies.hasPickaxe?.()
+    ? "Pickaxe · Mines ore in the Copper Hills. Always ready, no need to equip." : "Get a pickaxe from the Smith in Town.", "#ffd75e"));
+  function renderToolSlot() {
+    const owned = Boolean(dependencies.hasPickaxe?.());
+    toolSlot.hidden = mode === "COSMETICS";
+    toolSlot.classList.toggle("is-equipped", owned);
+    toolSlot.setAttribute("aria-label", owned ? "Tool: Pickaxe, always ready" : "Tool slot, empty");
+    if (owned) {
+      pickaxeArt ||= createPickaxeSprite()?.src ?? "";
+      const image = document.createElement("span");
+      image.className = "inventory-item-art slot-tool-art";
+      image.setAttribute("aria-hidden", "true");
+      if (pickaxeArt) image.style.backgroundImage = `url(${pickaxeArt})`;
+      toolSlot.replaceChildren(image);
+    } else {
+      const label = document.createElement("span");
+      label.textContent = "TOOL";
+      toolSlot.replaceChildren(label);
+    }
+  }
   const bagSection = items.closest<HTMLElement>(".bag-section");
   const tabs = equipmentTab.closest(".inventory-tabs");
   if (tabs) {
+    // Only the content scrolls; the tabs stay pinned above it.
     const scroll = document.createElement("div");
     scroll.className = "inventory-scroll";
-    tabs.before(scroll);
-    scroll.append(tabs, content);
+    content.before(scroll);
+    scroll.append(content);
   }
   const countRow = count.closest(".inventory-section-title");
   if (countRow) items.after(countRow);
@@ -182,7 +219,20 @@ export function createInventoryController(dependencies: InventoryDependencies) {
     if (typeof navigator.vibrate === "function") navigator.vibrate(10);
   }
 
+  /** The bag's count as its header shows it: gear, kept copies and ore stacks against the slots bought. */
+  function bagFull() {
+    const inventory = dependencies.inventory;
+    const copies = (dependencies.equipmentCopies?.() ?? []).filter(copy => inventory.itemIds.includes(copy.itemId)).length;
+    const used = bagInventoryStacks(inventory).length + copies + oreKindsHeld(dependencies.ores?.() ?? {}).length;
+    return used >= bagSlotCapacity(dependencies.inventorySlotsUnlocked(), dependencies.researchBagSlots?.() ?? 0);
+  }
+
   function move(itemId: string, destination: EquipmentSlot | "BAG") {
+    // Unequipping puts the item in the bag, so it needs a free slot like a drop does.
+    if (mode === "EQUIPMENT" && destination === "BAG" && bagFull()) {
+      dependencies.showMessage("Your bag is full. Free a slot first.", "#ff9b91");
+      return false;
+    }
     const moved = mode === "COSMETICS"
       ? dependencies.moveCosmetic(itemId, destination)
       : dependencies.move(itemId, destination);
@@ -223,7 +273,8 @@ export function createInventoryController(dependencies: InventoryDependencies) {
 
   const cardsView = cardsTab && dependencies.cards ? createCardsTab({
     cards: dependencies.cards,
-    onInspect: cardId => dependencies.itemInspection.openCard?.({ cardId, count: dependencies.cards?.()[cardId] ?? 0 }),
+    slotted: dependencies.slottedCards,
+    onInspect: (cardId, found) => dependencies.itemInspection.openCard?.({ cardId, count: dependencies.cards?.()[cardId] ?? 0, found }),
   }) : null;
   if (cardsView) content.append(cardsView.element);
   else cardsTab?.remove();
@@ -368,7 +419,7 @@ export function createInventoryController(dependencies: InventoryDependencies) {
     const inventory = dependencies.inventory;
     const copies = dependencies.equipmentCopies?.() ?? [];
     const held = dependencies.ores?.() ?? {};
-    const nextState = JSON.stringify([cardsShown, mode, filter, inventory, held, inventory.itemIds.map(id => dependencies.equipmentLocked?.(id)), dependencies.inventorySlotsUnlocked(), unlockingSlot,
+    const nextState = JSON.stringify([cardsShown, mode, filter, inventory, held, inventory.itemIds.map(id => dependencies.equipmentLocked?.(id)), dependencies.inventorySlotsUnlocked(), dependencies.researchBagSlots?.() ?? 0, dependencies.hasPickaxe?.() ?? false, unlockingSlot,
       ["HEAD", "CHEST", "HAND"].map(slot => dependencies.slotTier?.(slot as "HEAD" | "CHEST" | "HAND")), inventory.itemIds.map(itemId => `${dependencies.upgradeLevel(itemId)}:${dependencies.refineLevel?.(itemId, 0n)}`),
       copies.map(copy => `${copy.id}:${copy.itemId}:${dependencies.equipmentLocked?.(copy.itemId, copy.id)}:${dependencies.refineLevel?.(copy.itemId, copy.id)}`)]);
     if (nextState === renderedState) return;
@@ -386,11 +437,14 @@ export function createInventoryController(dependencies: InventoryDependencies) {
     }
     content.setAttribute("aria-labelledby", activeTab.id);
     if (loadout) loadout.hidden = cardsShown;
+    renderToolSlot();
     if (bagSection) bagSection.hidden = cardsShown;
     cardsView?.show(cardsShown);
     if (loadout) loadout.setAttribute("aria-label", cosmeticsActive ? "Cosmetic items" : "Equipped items");
     const slotsUnlocked = dependencies.inventorySlotsUnlocked();
-    const slotCapacity = inventorySlotCapacity(slotsUnlocked);
+    // Gems buy up to the maximum; research slots sit on top of it.
+    const boughtCapacity = inventorySlotCapacity(slotsUnlocked);
+    const slotCapacity = bagSlotCapacity(slotsUnlocked, dependencies.researchBagSlots?.() ?? 0);
     renderInventoryView(
       { items, count, equippedHead, equippedChest, equippedFeet, equippedRightHand },
       dependencies.inventory,
@@ -405,10 +459,10 @@ export function createInventoryController(dependencies: InventoryDependencies) {
         slotTier: dependencies.slotTier,
         refineLevel: dependencies.refineLevel,
         slotCapacity,
-        nextSlotCost: slotCapacity < MAX_INVENTORY_SLOT_CAPACITY
+        nextSlotCost: boughtCapacity < MAX_INVENTORY_SLOT_CAPACITY
           ? inventorySlotUnlockCost(slotsUnlocked)
           : undefined,
-        onUnlockSlot: unlockingSlot || slotCapacity >= MAX_INVENTORY_SLOT_CAPACITY
+        onUnlockSlot: unlockingSlot || boughtCapacity >= MAX_INVENTORY_SLOT_CAPACITY
           ? undefined
           : () => { void unlockNextSlot(); },
       },
@@ -423,8 +477,9 @@ export function createInventoryController(dependencies: InventoryDependencies) {
   async function unlockNextSlot() {
     if (unlockingSlot) return;
     const slotsUnlocked = dependencies.inventorySlotsUnlocked();
-    const capacity = inventorySlotCapacity(slotsUnlocked);
-    if (capacity >= MAX_INVENTORY_SLOT_CAPACITY) return;
+    if (inventorySlotCapacity(slotsUnlocked) >= MAX_INVENTORY_SLOT_CAPACITY) return;
+    // Numbered as the bag shows it, research slots included.
+    const capacity = bagSlotCapacity(slotsUnlocked, dependencies.researchBagSlots?.() ?? 0);
     const cost = inventorySlotUnlockCost(slotsUnlocked);
     if (dependencies.gemBalance() < cost) {
       dependencies.showMessage(`NOT ENOUGH GEMS · NEED ${cost}`, "#ff9b91");

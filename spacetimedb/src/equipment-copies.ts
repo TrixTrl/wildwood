@@ -5,7 +5,7 @@ import { isSkillBow } from "../../shared/bow-skills";
 import { isSkillSword } from "../../shared/sword-skills";
 import { isSkillWeapon, rollWeaponSkills, weaponSkillColumns, weaponSkillRollOf, weaponSkillScore, type WeaponSkillRoll } from "../../shared/weapon-skills";
 import { canDestroyEquipment, canonicalItemId } from "../../shared/items";
-import { inventorySlotCapacity } from "../../shared/gems";
+import { bagCapacityFor } from "./bag-capacity";
 import {
   EQUIPMENT_OFFER_LIFETIME_MS, MAX_PENDING_EQUIPMENT_OFFERS, bagSlotsUsed, isDuplicateOfferItem,
 } from "../../shared/equipment-copies";
@@ -14,7 +14,7 @@ import { setSwordSkillRoll } from "./sword-skills";
 import { ensureWeaponSkillRoll, weaponSkillRollFor } from "./weapon-skills";
 import { lootSettingsFor } from "./loot-settings";
 import { oreKindsHeldFor, promoteCopyRefine, refineLevelFor, setRefineLevel, swapFirstCopyRefine } from "./item-refine";
-import { clearGearSlots, gearSlotsFor, promoteCopySlots, rollDropSlots, swapFirstCopySlots } from "./gear-cards";
+import { clearGearSlots, gearSlotsFor, promoteCopySlots, rollCopySlots, rollDropSlots, swapFirstCopySlots } from "./gear-cards";
 import { readPlayerProgress } from "./wide-stats";
 
 /**
@@ -87,18 +87,26 @@ function trimOffers(ctx: Ctx, identity: Identity) {
   }
 }
 
+/** One copy with this roll, waiting for Keep or Ignore. The caller trims the offers. */
+function insertOffer(ctx: Ctx, identity: Identity, itemId: string, roll: WeaponSkillRoll) {
+  const expiresAt = new Timestamp(ctx.timestamp.microsSinceUnixEpoch + BigInt(EQUIPMENT_OFFER_LIFETIME_MS) * 1_000n);
+  ctx.db.pendingEquipmentOffer.insert({ id: 0n, identity, itemId, ...weaponSkillColumns(roll), createdAt: ctx.timestamp, expiresAt });
+}
+
 /** Offers `count` copies of an item the player already holds. Anything that is not equipment is dropped as before. */
 export function offerDuplicateEquipment(ctx: Ctx, identity: Identity, itemId: string, count = 1) {
   const canonical = canonicalItemId(itemId);
   if (!canonical || !isDuplicateOfferItem(canonical)) return;
   const offers = Math.min(MAX_PENDING_EQUIPMENT_OFFERS, Math.max(0, Math.floor(count)));
   if (!offers) return;
-  const expiresAt = new Timestamp(ctx.timestamp.microsSinceUnixEpoch + BigInt(EQUIPMENT_OFFER_LIFETIME_MS) * 1_000n);
-  for (let offer = 0; offer < offers; offer += 1) {
-    const roll = weaponSkillColumns(rollWeaponSkills(canonical, () => ctx.random()));
-    ctx.db.pendingEquipmentOffer.insert({ id: 0n, identity, itemId: canonical, ...roll, createdAt: ctx.timestamp, expiresAt });
-  }
+  for (let offer = 0; offer < offers; offer += 1) insertOffer(ctx, identity, canonical, rollWeaponSkills(canonical, () => ctx.random()));
   trimOffers(ctx, identity);
+}
+
+/** A new item that found the bag full. Each weapon roll differs, so each waits; other gear waits once. */
+export function offerItemForFullBag(ctx: Ctx, identity: Identity, itemId: string, count = 1) {
+  if (isSkillWeapon(itemId)) { offerDuplicateEquipment(ctx, identity, itemId, count); return; }
+  if (!pendingOffersOf(ctx, identity).some(offer => offer.itemId === itemId)) offerDuplicateEquipment(ctx, identity, itemId, 1);
 }
 
 /**
@@ -113,22 +121,27 @@ export function offerDuplicateEquipment(ctx: Ctx, identity: Identity, itemId: st
  * does. Kept extra copies are never touched. Copies of an item without skills
  * are identical, so they are always thrown away.
  *
- * A refined first copy is never replaced, as a locked one is not: its refine is
- * the player's work, and a better roll is not worth losing it for.
+ * A refined or locked first copy is never replaced: its refine or lock is the
+ * player's work. A better copy waits as a Keep/Ignore offer instead, so the
+ * roll is not thrown away unseen; a worse one still goes without a word.
  */
 export function keepBestCopies(ctx: Ctx, identity: Identity, itemId: string, count = 1) {
   const canonical = canonicalItemId(itemId);
-  if (!canonical || !isDuplicateOfferItem(canonical) || !isSkillWeapon(canonical) || equipmentLocked(ctx, identity, canonical)) return;
-  if (refineLevelFor(ctx, identity, canonical) > 0) return;
+  if (!canonical || !isDuplicateOfferItem(canonical) || !isSkillWeapon(canonical)) return;
+  const kept = equipmentLocked(ctx, identity, canonical) || refineLevelFor(ctx, identity, canonical) > 0;
   const copies = Math.min(MAX_PENDING_EQUIPMENT_OFFERS, Math.max(0, Math.floor(count)));
+  let offered = false;
   for (let copy = 0; copy < copies; copy += 1) {
     const roll = rollWeaponSkills(canonical, () => ctx.random());
     const best = Math.max(
       weaponSkillScore(canonical, weaponSkillRollFor(ctx, identity, canonical)),
       ...extraCopiesOf(ctx, identity, canonical).map(row => weaponSkillScore(canonical, rollOf(row))),
     );
-    if (weaponSkillScore(canonical, roll) > best) setFirstCopyRoll(ctx, identity, canonical, roll);
+    if (weaponSkillScore(canonical, roll) <= best) continue;
+    if (kept) { insertOffer(ctx, identity, canonical, roll); offered = true; }
+    else setFirstCopyRoll(ctx, identity, canonical, roll);
   }
+  if (offered) trimOffers(ctx, identity);
 }
 
 /**
@@ -211,6 +224,11 @@ function setFirstCopyRoll(ctx: Ctx, identity: Identity, itemId: string, roll: We
 const equippedFields = (progress: any): string[] =>
   [progress.equippedHead, progress.equippedChest, progress.equippedFeet, progress.equippedRightHand, progress.equippedLeftHand];
 
+/** Bag slots still free: the capacity bought less what bagSlotsUsed counts. */
+export function freeBagSlots(ctx: Ctx, identity: Identity, progress: any, inventory: readonly string[]) {
+  return bagCapacityFor(ctx, identity) - bagSlotsUsed(inventory, equippedFields(progress), extraCopiesOf(ctx, identity).length, oreKindsHeldFor(ctx, identity));
+}
+
 /** The reducer bodies, wired to the entry module's progress helpers. */
 export function createEquipmentCopies(deps: {
   requireControllingPlayer: (ctx: Ctx) => unknown;
@@ -252,19 +270,18 @@ export function createEquipmentCopies(deps: {
     const progress = readPlayerProgress(ctx, ctx.sender);
     if (!progress) throw new SenderError("Player unavailable.");
     const inventory = deps.inventoryForProgress(progress);
-    const capacity = inventorySlotCapacity(ctx.db.playerInventoryCapacity.identity.find(ctx.sender)?.slotsUnlocked ?? 0);
-    if (bagSlotsUsed(inventory, equippedFields(progress), extraCopiesOf(ctx, ctx.sender).length, oreKindsHeldFor(ctx, ctx.sender)) >= capacity) {
-      throw new SenderError("Your bag is full. Free a slot to keep it.");
-    }
+    if (freeBagSlots(ctx, ctx.sender, progress, inventory) <= 0) throw new SenderError("Your bag is full. Free a slot to keep it.");
     const roll = rollOf(offer);
     if (inventory.includes(offer.itemId)) {
-      ctx.db.playerEquipmentCopy.insert({ id: 0n, identity: ctx.sender, itemId: offer.itemId, ...weaponSkillColumns(roll), acquiredAt: ctx.timestamp });
+      const copy = ctx.db.playerEquipmentCopy.insert({ id: 0n, identity: ctx.sender, itemId: offer.itemId, ...weaponSkillColumns(roll), acquiredAt: ctx.timestamp });
+      rollCopySlots(ctx, ctx.sender, offer.itemId, copy.id);
     } else {
-      // The copy they had is gone since the offer was made: this one becomes the first, unrefined.
+      // Not held (a drop into a full bag, or the copy they had is gone): this one becomes the first, unrefined.
       deps.writeProgressAndPresentation(ctx, deps.restoreItemToProgress(progress, offer.itemId));
       setFirstCopyRoll(ctx, ctx.sender, offer.itemId, roll);
       setRefineLevel(ctx, ctx.sender, offer.itemId, 0n, 0);
       clearGearSlots(ctx, ctx.sender, offer.itemId);
+      rollDropSlots(ctx, ctx.sender, offer.itemId, false);
     }
     ctx.db.pendingEquipmentOffer.id.delete(offer.id);
   }

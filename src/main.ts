@@ -436,9 +436,9 @@ import {
       showMessage("BEST EQUIPMENT EQUIPPED", "#72ef58");
       return true;
     },
-    upgradeLevel: (itemId) => coop?.itemUpgradeLevel?.(itemId) ?? 0, refineLevel: (itemId, copyId) => coop?.itemRefine?.(itemId, copyId) ?? 0, ores: () => coop?.ores?.() ?? {}, cards: () => coop?.cards?.() ?? {},
+    upgradeLevel: (itemId) => coop?.itemUpgradeLevel?.(itemId) ?? 0, refineLevel: (itemId, copyId) => coop?.itemRefine?.(itemId, copyId) ?? 0, ores: () => coop?.ores?.() ?? {}, cards: () => coop?.cards?.() ?? {}, slottedCards: () => coop?.slottedCards?.() ?? new Set<string>(),
     slotTier: slot => coop?.slotUpgradeTier?.(slot) ?? 0, gearSlots: (itemId, copyId) => coop?.gearSlots?.(itemId, copyId) ?? { slots: 0, cards: [] },
-    inventorySlotsUnlocked: () => coop?.inventorySlotsUnlocked?.() ?? 0,
+    inventorySlotsUnlocked: () => coop?.inventorySlotsUnlocked?.() ?? 0, researchBagSlots: () => coop?.research?.().inventorySlots ?? 0, hasPickaxe: () => coop?.hasPickaxe?.() ?? false,
     gemBalance: () => coop?.gemBalance?.() ?? 0n,
     unlockInventorySlot: async () => coop?.unlockInventorySlot?.(),
     ...inventoryCommerce,
@@ -687,7 +687,7 @@ import {
     spawnBurst,
     spawnParticle,
     spawnDamageNumber, skillEffects: effects, onCombat: () => gameBridge?.engaged(),
-    playBowAttackSound: mapMusic.playBowAttackSound,
+    playBowAttackSound: mapMusic.playBowAttackSound, playSwordAttackSound: mapMusic.playSwordAttackSound,
     logPickup,
     saveProgress,
     recordDeath: () => { soulDimension.playerDied(); if (coop?.aggroChallenge?.()?.active && currentMapId !== TUTORIAL_FOREST_MAP_ID) autoFarm.stop("Autofarm stopped: a death restarts the Aggro run"); if (!inTutorial()) void coop?.recordPlayerDeath?.(currentMapId); },
@@ -1916,7 +1916,7 @@ import {
     readyToShow: () => !inTutorial() && Boolean(session?.isRunning()),
   });
   if (coop?.setOnChange) coop.setOnChange(coopSession.onChange);
-  coop?.setOnGemDrop?.(({ amount }) => runtimeHud.showGemDrop(amount)); watchCardDrops(coop, runtimeHud.showItemDrop);
+  coop?.setOnGemDrop?.(({ amount }) => runtimeHud.showGemDrop(amount)); watchCardDrops(coop);
   // A duplicate of held equipment is not revealed here: Auto keep best or a Keep/Ignore offer settles it.
   createEquipmentOfferPrompt({ coop, inventory, renderInventory, showMessage, ready: () => Boolean(session?.isRunning()) });
   coop?.setOnItemDrop?.(({ itemId, alreadyOwned }) => {
