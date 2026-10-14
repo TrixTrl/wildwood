@@ -4,7 +4,7 @@ import { residentDrawable } from "./resident-image";
 import { isMeleeWeapon } from "../../weapon-combat";
 import { paintArrowProjectile, paintRockProjectile, rockProjectileSize } from "./weapon-projectile-renderer";
 export { rockProjectileSize } from "./weapon-projectile-renderer";
-import { ENEMY_TYPES, REWARD_DATA, rewardAmountLabel, rewardStatLabel, type EnemyDefinition, type LoadedEnemySprite, type LoadedSpriteLayer } from "../../enemies";
+import { ENEMY_TYPES, EnemyKind, REWARD_DATA, rewardAmountLabel, rewardStatLabel, type EnemyDefinition, type LoadedEnemySprite, type LoadedSpriteLayer } from "../../enemies";
 import { clamp } from "../../math";
 import type { RemotePlayer } from "../../../wildstat-coop";
 import type { PlayerGender } from "../../../../shared/player-gender";
@@ -28,6 +28,7 @@ import { drawScreenSpaceAt, snapWorldRenderCoordinate } from "./render-space";
 import { createTintedImageCanvas } from "./image-tint";
 import { createEnemyAnimationSampler } from "../enemies/enemy-animation";
 import { ENEMY_HP_LOSS_FLASH_SECONDS } from "../../constants";
+import { ENEMY_BASE_VALUES } from "../../../../shared/enemy-base-values";
 
 
 type Viewport = { width: number; height: number };
@@ -228,7 +229,7 @@ export function createActorRenderer(options: {
   const sampleEnemyAnimation = createEnemyAnimationSampler();
   const screenX = (worldX: number) => snapWorldRenderCoordinate(worldX - camera.x, camera.zoom, options.devicePixelRatio());
   const screenY = (worldY: number) => snapWorldRenderCoordinate(worldY - camera.y, camera.zoom, options.devicePixelRatio());
-  const enemyLabelCache = new Map<string, { name: LabelBitmap; reward: LabelBitmap }>();
+  const enemyLabelCache = new Map<string, { name: LabelBitmap; reward: LabelBitmap, dps: LabelBitmap }>();
   // Labels and plates are packed onto a few shared pages instead of a canvas each (canvas-atlas.ts).
   // Two atlases: a plate is drawn from a label, and a page is never drawn onto itself.
   const labelAtlas = createCanvasAtlas();
@@ -377,6 +378,7 @@ export function createActorRenderer(options: {
     const labels = {
       name: createLabelBitmap([{ text: `Soul ${detail.label}`, color: "#f5e9c4" }], "bottom"),
       reward: createLabelBitmap([{ text: amount, color: "#ffffff" }, { text: " ", color: "#ffffff" }, { text: detail.label, color: detail.color }], "top"),
+      dps: createLabelBitmap([{ text: "DPS not implemented yet", color: "#ffffff" }], "top"),
     };
     enemyLabelCache.set(cacheKey, labels);
     return labels;
@@ -394,6 +396,8 @@ export function createActorRenderer(options: {
     const cacheKey = `${type}:${reward.type}:${amountText}`;
     const cached = enemyLabelCache.get(cacheKey);
     if (cached) return cached;
+    const enemyDefinition = ENEMY_BASE_VALUES[type as EnemyKind];
+    const dps = enemyDefinition ? enemyDefinition.damage * enemyDefinition.attackSpeed : -1;
     const labels = {
       name: createLabelBitmap([{ text: type, color: "#f5e9c4" }], "bottom"),
       reward: createLabelBitmap([
@@ -401,6 +405,7 @@ export function createActorRenderer(options: {
         { text: " ", color: "#ffffff" },
         { text: reward.type === "speed" ? "Atk Speed" : reward.type === "crit" ? "Crit Multiplier" : rewardStatLabel(reward), color: REWARD_DATA[reward.type].color },
       ], "top"),
+      dps: createLabelBitmap([{ text: dps != -1 ? `DPS ${formatCompactNumber(dps)}` : `???`, color: "#ffffff" }], "top"),
     };
     enemyLabelCache.set(cacheKey, labels);
     return labels;
@@ -877,6 +882,8 @@ export function createActorRenderer(options: {
       if (!enemy.remoteCombatGhost && !enemy.generatedBoss) {
         const label = labels.reward;
         drawAtlasImage(ctx, label, -label.width / 2, rewardY - label.anchorY, label.width, label.height);
+        const dpsLabel = labels.dps;
+        drawAtlasImage(ctx, dpsLabel, -dpsLabel.width / 2, rewardY - label.anchorY + 15 - dpsLabel.anchorY, dpsLabel.width, dpsLabel.height);
       }
     });
   }
