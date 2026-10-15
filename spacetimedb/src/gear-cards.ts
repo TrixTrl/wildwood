@@ -82,15 +82,30 @@ export function setGearSlots(ctx: Ctx, identity: Identity, itemId: string, copyI
   else ctx.db.playerCopySlots.insert({ copyId, identity, itemId, slots: next.slots, cards: [...next.cards] });
 }
 
-/** A new item rolls its slots; each duplicate rolls too and raises them if higher, keeping the cards. */
+/**
+ * A new item rolls its slots; each duplicate rolls too and raises them if higher, keeping the cards. Once the
+ * first copy has every slot, a duplicate's roll raises the kept copy with the fewest instead.
+ */
 export function rollDropSlots(ctx: Ctx, identity: Identity, itemId: string, alreadyOwned: boolean, quantity = 1) {
   if (!canHoldCards(itemId) || Math.floor(quantity) < 1) return;
   let next: GearSlots | null = alreadyOwned ? gearSlotsFor(ctx, identity, itemId) : null;
   for (let drop = 0; drop < Math.floor(quantity); drop++) {
     const slots = rollGearSlots(ctx.random() * 1000);
-    next = next ? { ...next, slots: Math.max(next.slots, slots) } : { slots, cards: [] };
+    if (next && next.slots >= MAX_CARD_SLOTS) raiseSpareCopySlots(ctx, identity, itemId, slots);
+    else next = next ? { ...next, slots: Math.max(next.slots, slots) } : { slots, cards: [] };
   }
   if (next) setGearSlots(ctx, identity, itemId, 0n, next);
+}
+
+/** Raises the kept copy of `itemId` with the fewest slots, oldest first on a tie, when `slots` beats it. */
+function raiseSpareCopySlots(ctx: Ctx, identity: Identity, itemId: string, slots: number) {
+  let lowest: { copyId: bigint; value: GearSlots } | null = null;
+  for (const copy of rowsOf(ctx.db.playerEquipmentCopy, identity)) {
+    if (copy.itemId !== itemId) continue;
+    const value = gearSlotsFor(ctx, identity, itemId, copy.id);
+    if (!lowest || value.slots < lowest.value.slots || (value.slots === lowest.value.slots && copy.id < lowest.copyId)) lowest = { copyId: copy.id, value };
+  }
+  if (lowest && slots > lowest.value.slots) setGearSlots(ctx, identity, itemId, lowest.copyId, { ...lowest.value, slots });
 }
 
 /** A copy kept from an offer rolls its own slots, as a drop does. */
@@ -98,7 +113,12 @@ export function rollCopySlots(ctx: Ctx, identity: Identity, itemId: string, copy
   if (canHoldCards(itemId)) setGearSlots(ctx, identity, itemId, copyId, { slots: rollGearSlots(ctx.random() * 1000), cards: [] });
 }
 
-/** A destroyed copy takes its slots and cards with it. */
+/** A destroyed copy's cards go back to the player's cards: taking one out is free, so destroying never costs one. */
+export function returnSlottedCards(ctx: Ctx, identity: Identity, itemId: string, copyId = 0n) {
+  for (const cardId of gearSlotsFor(ctx, identity, itemId, copyId).cards) addCard(ctx, identity, cardId);
+}
+
+/** A destroyed copy takes its slots with it; the caller returns its cards first. */
 export function clearGearSlots(ctx: Ctx, identity: Identity, itemId: string, copyId = 0n) {
   if (copyId === 0n) {
     const key = gearSlotsKey(identity, itemId);
@@ -153,11 +173,24 @@ export function removeCardData(ctx: Ctx, identity: Identity) {
   for (const row of rowsOf(ctx.db.playerGearSlots, identity)) ctx.db.playerGearSlots.key.delete(row.key);
   for (const row of rowsOf(ctx.db.playerCopySlots, identity)) ctx.db.playerCopySlots.copyId.delete(row.copyId);
   if (ctx.db.playerCardDrop.identity.find(identity)) ctx.db.playerCardDrop.identity.delete(identity);
+  if (ctx.db.playerCardAttackCap?.identity.find(identity)) ctx.db.playerCardAttackCap.identity.delete(identity);
+  for (const row of ctx.db.playerBossCardRoll ? rowsOf(ctx.db.playerBossCardRoll, identity) : []) ctx.db.playerBossCardRoll.key.delete(row.key);
+  for (const row of ctx.db.playerBuild ? rowsOf(ctx.db.playerBuild, identity) : []) ctx.db.playerBuild.key.delete(row.key);
+  for (const row of ctx.db.playerCardMeter ? rowsOf(ctx.db.playerCardMeter, identity) : []) ctx.db.playerCardMeter.key.delete(row.key);
 }
 
 /** On link the guest's cards and slots replace the account's, as the bag does. */
 export function mergeCardData(ctx: Ctx, guest: Identity, account: Identity) {
   removeCardData(ctx, account);
+  for (const row of ctx.db.playerCardMeter ? rowsOf(ctx.db.playerCardMeter, guest) : []) {
+    ctx.db.playerCardMeter.key.delete(row.key);
+    ctx.db.playerCardMeter.insert({ ...row, key: `${account.toHexString()}:${row.cardId}`, identity: account });
+  }
+  // The guest's builds come across with the cards they hold.
+  for (const row of ctx.db.playerBuild ? rowsOf(ctx.db.playerBuild, guest) : []) {
+    ctx.db.playerBuild.key.delete(row.key);
+    ctx.db.playerBuild.insert({ ...row, key: `${account.toHexString()}:${row.slot}`, identity: account });
+  }
   for (const row of rowsOf(ctx.db.playerCard, guest)) {
     ctx.db.playerCard.key.delete(row.key);
     ctx.db.playerCard.insert({ ...row, key: cardKey(account, row.cardId), identity: account });
@@ -168,6 +201,10 @@ export function mergeCardData(ctx: Ctx, guest: Identity, account: Identity) {
   }
   for (const row of rowsOf(ctx.db.playerCopySlots, guest)) ctx.db.playerCopySlots.copyId.update({ ...row, identity: account });
   if (ctx.db.playerCardDrop.identity.find(guest)) ctx.db.playerCardDrop.identity.delete(guest);
+  for (const row of ctx.db.playerBossCardRoll ? rowsOf(ctx.db.playerBossCardRoll, guest) : []) ctx.db.playerBossCardRoll.key.delete(row.key);
+  // The guest's saved attack speed comes across with its cards, so the cap it sits under does too.
+  const basis = ctx.db.playerCardAttackCap?.identity.find(guest);
+  if (basis) { ctx.db.playerCardAttackCap.identity.delete(guest); ctx.db.playerCardAttackCap.insert({ ...basis, identity: account }); }
 }
 
 export type GearCardDeps = {
@@ -175,6 +212,8 @@ export type GearCardDeps = {
   activeDuelFor: (ctx: Ctx, identity: Identity) => unknown;
   inventoryForProgress: (progress: any) => string[];
   writeProgressAndPresentation: (ctx: Ctx, progress: any) => void;
+  /** Quick Draw cards move the attack speed cap: the saved speed follows (card-attack-cap.ts). */
+  syncAttackCap?: (ctx: Ctx, identity: Identity) => void;
 };
 
 const GEAR_NAMES: Readonly<Record<CardSlot, string>> = { HAND: "a weapon", HEAD: "a helmet", CHEST: "armor" };
@@ -204,13 +243,45 @@ export function slotCardFor(ctx: Ctx, args: { itemId: string; copyId: bigint; ca
   if (!takeCard(ctx, ctx.sender, card.id)) throw new SenderError(`You have no ${card.enemy} Card.`);
   setGearSlots(ctx, ctx.sender, itemId, copyId, { slots: current.slots, cards: [...current.cards, card.id] });
   // A worn item's new card changes the player's stats now.
-  if (copyId === 0n && equippedFields(progress).includes(itemId)) deps.writeProgressAndPresentation(ctx, progress);
+  if (copyId === 0n && equippedFields(progress).includes(itemId)) {
+    deps.syncAttackCap?.(ctx, ctx.sender);
+    deps.writeProgressAndPresentation(ctx, readPlayerProgress(ctx, ctx.sender) ?? progress);
+  }
 }
 
-/** The slot_card reducer and the caller's own card views. */
+/** Lifts the card at `index` back out of a copy at the Smith, free; the card returns to the player's cards. */
+export function removeCardFor(ctx: Ctx, args: { itemId: string; copyId: bigint; index: number; expectedCards: number }, deps: GearCardDeps) {
+  const player = deps.requireControllingPlayer(ctx);
+  if (!standsAtTheSmith(ctx, player)) throw new SenderError("Talk to the Smith first.");
+  if (deps.activeDuelFor(ctx, ctx.sender)) throw new SenderError("Finish your duel first.");
+  const itemId = canonicalItemId(args.itemId);
+  if (!itemId || !canHoldCards(itemId)) throw new SenderError("That item takes no cards.");
+  const progress = readPlayerProgress(ctx, ctx.sender);
+  if (!progress || !deps.inventoryForProgress(progress).includes(itemId)) throw new SenderError("That item is not in your inventory.");
+  const copyId = args.copyId;
+  if (copyId !== 0n) {
+    const copy = ctx.db.playerEquipmentCopy.id.find(copyId);
+    if (!copy || !copy.identity.isEqual(ctx.sender) || copy.itemId !== itemId) throw new SenderError("That copy is not in your inventory.");
+  }
+  const current = gearSlotsFor(ctx, ctx.sender, itemId, copyId);
+  if (current.cards.length !== args.expectedCards) throw new SenderError("That item's cards changed. Try again.");
+  const cardId = current.cards[args.index];
+  if (cardId === undefined) throw new SenderError("That slot is empty.");
+  setGearSlots(ctx, ctx.sender, itemId, copyId, { slots: current.slots, cards: current.cards.filter((_, index) => index !== args.index) });
+  addCard(ctx, ctx.sender, cardId);
+  // A worn item losing a card changes the player's stats now, attack speed cap included.
+  if (copyId === 0n && equippedFields(progress).includes(itemId)) {
+    deps.syncAttackCap?.(ctx, ctx.sender);
+    deps.writeProgressAndPresentation(ctx, readPlayerProgress(ctx, ctx.sender) ?? progress);
+  }
+}
+
+/** The slot_card and remove_card reducers and the caller's own card views. */
 export function registerGearCards(spacetimedb: typeof spacetimedbType, deps: GearCardDeps) {
   const slotCard = spacetimedb.reducer({ itemId: t.string(), copyId: t.u64(), cardId: t.string(), expectedCards: t.u8() },
     (ctx: any, args: { itemId: string; copyId: bigint; cardId: string; expectedCards: number }) => slotCardFor(ctx, args, deps));
+  const removeCard = spacetimedb.reducer({ itemId: t.string(), copyId: t.u64(), index: t.u8(), expectedCards: t.u8() },
+    (ctx: any, args: { itemId: string; copyId: bigint; index: number; expectedCards: number }) => removeCardFor(ctx, args, deps));
   const myCards = spacetimedb.view({ name: "my_cards", public: true }, t.array(playerCard.rowType),
     (ctx: any) => [...ctx.db.playerCard.identity.filter(ctx.sender)]);
   const myGearSlots = spacetimedb.view({ name: "my_gear_slots", public: true }, t.array(playerGearSlots.rowType),
@@ -221,5 +292,5 @@ export function registerGearCards(spacetimedb: typeof spacetimedbType, deps: Gea
     const row = ctx.db.playerCardDrop.identity.find(ctx.sender);
     return row ? [row] : [];
   });
-  return { slotCard, myCards, myGearSlots, myCopySlots, myCardDrop };
+  return { slotCard, removeCard, myCards, myGearSlots, myCopySlots, myCardDrop };
 }

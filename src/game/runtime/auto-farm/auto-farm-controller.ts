@@ -21,6 +21,9 @@ import { isSoulMap, SOUL_STAT_DETAILS, type SoulStatId } from '../../../../share
 import { soulStatOfCampName } from '../../soul-world';
 import { smartMove } from './auto-farm-kite';
 
+/** An attacker of another kind is fought off on the way only if it dies within this many seconds. */
+const QUICK_DEFENCE_SECONDS = 3;
+
 export type AutoFarmController = ReturnType<typeof createAutoFarmController>;
 const idle = (): Movement => ({ x: 0, y: 0, source: 'none' });
 /** How far inside its full reach autofarm stops: enough that a target at the stop point is still in range. */
@@ -184,6 +187,8 @@ export function createAutoFarmController(options: {
   const distance = (point: Position) => Math.hypot(point.x - player.x, point.y - player.y);
   const validEnemy = (enemy: EnemyState) => !enemy.dead && !enemy.remoteCombatGhost && !enemy.generatedBoss && selectedType !== null
     && farmGroupMatches(enemy, selectedType) && enemy.hp > 0;
+  /** A stat with a share on Farm, or one an Aggro run chases. */
+  const farmedGroup = (enemy: EnemyState) => order.includes(choiceKey(enemy)) || forcedGroups().has(choiceKey(enemy));
   // Power is read for every decision; the build changes a kill at a time, so twice a second is plenty.
   let powerAt = -Infinity, powerNow = 0;
   function currentPower() {
@@ -654,8 +659,13 @@ export function createAutoFarmController(options: {
       const length = distance(smartTarget), magnitude = Math.min(1, length / Math.max(1, options.speed() * dt));
       return { x: (smartTarget.x - player.x) / length * magnitude, y: (smartTarget.y - player.y) / length * magnitude, source: 'steer' };
     }
+    // Only a stat it farms is fought off: one set to Off is walked away from, and leashes home, as a player would leave it.
+    // On the way to its target it stops only for an attacker of the same kind or one it kills in a moment; a slow fight
+    // with another kind is walked away from, so a weak character is never pinned for minutes.
+    const quickKill = (enemy: EnemyState) => enemy.hp <= player.damage / Math.max(.05, player.attackRate) * QUICK_DEFENCE_SECONDS;
+    const worthDefending = (enemy: EnemyState) => !target || choiceKey(enemy) === choiceKey(target) || quickKill(enemy);
     if (phase === 'farm' && !pulling()) for (const enemy of enemies) {
-      if (!enemy.generatedBoss && isEnemyAttackingPlayer(enemy, options.localIdentity?.()) && (!threat || distance(enemy) < distance(threat))) threat = enemy;
+      if (!enemy.generatedBoss && farmedGroup(enemy) && worthDefending(enemy) && isEnemyAttackingPlayer(enemy, options.localIdentity?.()) && (!threat || distance(enemy) < distance(threat))) threat = enemy;
     }
     // Everything it farms comes to it: it stands its ground.
     if (phase === 'farm' && pullCoversFarm()) {

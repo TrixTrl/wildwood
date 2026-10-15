@@ -45,6 +45,8 @@ export function createSmithController(deps: {
   cards?: () => Readonly<Record<string, number>>;
   gearSlots?: (itemId: string, copyId: bigint) => GearSlots;
   slotCard?: (itemId: string, copyId: bigint, cardId: string, expectedCards: number) => Promise<Result>;
+  /** Lifts a slotted card back out for Starshards; without it the slots show no Remove. */
+  removeCard?: (itemId: string, copyId: bigint, index: number, expectedCards: number) => Promise<Result>;
 }) {
   const dialog = document.createElement("dialog");
   dialog.className = "farm-sheet quest-sheet smith-sheet";
@@ -77,6 +79,8 @@ export function createSmithController(deps: {
   let tab: "refine" | "cards" = "refine";
   let pickedCard: string | null = null;
   let slotting = false;
+  /** The slot whose Remove was tapped once: the next tap on it removes the card. */
+  let armedRemoval: string | null = null;
   let selected: string | null = null;
   let refining = false;
   /** Taken here and on its way: the button goes before the server's row arrives. */
@@ -172,6 +176,7 @@ export function createSmithController(deps: {
         const name = document.createElement("span");
         name.textContent = cardName(card);
         chip.append(art, name);
+        if (deps.removeCard) chip.append(removeButton(item, index, cards.length));
       } else chip.textContent = "Empty Slot";
       row.append(chip);
     }
@@ -194,7 +199,7 @@ export function createSmithController(deps: {
       button.addEventListener("click", () => { void slot(item, card.id, cards.length); });
       const warning = document.createElement("p");
       warning.className = "smith-empty";
-      warning.textContent = "A slotted card stays in for good.";
+      warning.textContent = deps.removeCard ? "Cards come back out free here, and return to your cards if the gear is destroyed." : "A slotted card stays in for good.";
       focus.append(effects, button, warning);
     }
     appendOutcome();
@@ -227,7 +232,7 @@ export function createSmithController(deps: {
     const chosen = items.find(item => key(item) === selected);
     // Presence updates also refresh open windows. Keep focus and buttons in place until this window changes.
     const state = JSON.stringify([
-      tab, selected, pickedCard, slotting, refining, lastResult, pickaxeTaken, takingPickaxe,
+      tab, selected, pickedCard, slotting, armedRemoval, refining, lastResult, pickaxeTaken, takingPickaxe,
       deps.ores(), deps.hasPickaxe?.(), deps.mining?.(), deps.cards?.(),
       items.map(item => [key(item), item.equipped, deps.refineLevel(item.itemId, item.copyId), deps.slotTier(item.itemId), slotsOf(item)]),
     ]);
@@ -306,6 +311,45 @@ export function createSmithController(deps: {
       : { text: `It failed. ${result.toLevel < result.fromLevel ? `Dropped to ${refineStars(result.toLevel) || "★0"}` : "Nothing lost but the ore"}.`, good: false };
     deps.showMessage(result.succeeded ? `Refined · ${name}` : `Refine Failed · ${name}`, result.succeeded ? "#ffd75e" : "#ff9b91");
     if (dialog.open) render();
+  }
+
+  /** Remove on a slotted card: a first tap arms it, a second takes it out, free. */
+  function removeButton(item: SmithItem, index: number, expectedCards: number) {
+    const slotKey = `${key(item)}:${index}`;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "smith-slot-remove";
+    const armed = armedRemoval === slotKey;
+    button.textContent = slotting ? "Working…" : armed ? "Confirm Remove" : "Remove";
+    button.classList.toggle("is-armed", armed);
+    button.disabled = slotting;
+    button.addEventListener("click", () => {
+      if (armedRemoval !== slotKey) { armedRemoval = slotKey; render(); return; }
+      armedRemoval = null;
+      void removeSlotted(item, index, expectedCards);
+    });
+    return button;
+  }
+
+  async function removeSlotted(item: SmithItem, index: number, expectedCards: number) {
+    const card = cardDefinition(slotsOf(item).cards[index]);
+    if (slotting || !card || !deps.removeCard) return;
+    slotting = true;
+    lastResult = null;
+    render();
+    try {
+      const result = await deps.removeCard(item.itemId, item.copyId, index, expectedCards);
+      if (result?.ok) {
+        lastResult = { text: `${cardName(card)} is back in your cards.`, good: true };
+        deps.showMessage(`Card Removed · ${cardName(card)}`, "#ffd75e");
+      } else {
+        lastResult = { text: result?.error ?? "Not connected", good: false };
+        deps.showMessage(result?.error ?? "Not Connected", "#ff9b91");
+      }
+    } finally {
+      slotting = false;
+      if (dialog.open) render();
+    }
   }
 
   async function slot(item: SmithItem, cardId: string, expectedCards: number) {
@@ -401,6 +445,7 @@ export function createSmithRuntime(deps: {
     cards?: () => Readonly<Record<string, number>>;
     gearSlots?: (itemId: string, copyId?: bigint) => GearSlots;
     slotCard?: (itemId: string, copyId: bigint, cardId: string, expectedCards: number) => Promise<Result>;
+    removeCard?: (itemId: string, copyId: bigint, index: number, expectedCards: number) => Promise<Result>;
   } | null | undefined;
   inventory: { itemIds: string[]; equippedHead: string; equippedChest: string; equippedRightHand: string; equippedLeftHand: string };
   showMessage: (text: string, color: string) => void;
@@ -428,6 +473,7 @@ export function createSmithRuntime(deps: {
     cards: () => deps.coop()?.cards?.() ?? {},
     gearSlots: (itemId, copyId) => deps.coop()?.gearSlots?.(itemId, copyId) ?? { slots: 0, cards: [] },
     slotCard: async (itemId, copyId, cardId, expectedCards) => deps.coop()?.slotCard?.(itemId, copyId, cardId, expectedCards) ?? { ok: false, error: "Not Connected" },
+    removeCard: async (itemId, copyId, index, expectedCards) => deps.coop()?.removeCard?.(itemId, copyId, index, expectedCards) ?? { ok: false, error: "Not Connected" },
   });
   let listening = false;
   return {

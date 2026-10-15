@@ -22,9 +22,12 @@ import { gameConfirm, type ConfirmPrompt, type ConfirmRequest } from "./confirm-
 import { type WeaponSkillRoll } from "../../shared/weapon-skills";
 import { createInventoryDeleteMode } from "./inventory-delete-mode";
 import { withRefineStars } from "./refine-badge";
-import { REFINE_ORES, type OreId } from "../../shared/refine";
+import { REFINE_ORES, salvageOre, type OreId } from "../../shared/refine";
 import { createCardsTab } from "./cards-tab";
 import { canHoldCards } from "../../shared/cards";
+import type { BuildActions } from "./build-actions";
+import { createBuildsTab } from "./builds-tab";
+import { itemInspectionButtonLabel } from "./item-inspection-controller";
 import { oreKindsHeld } from "../../shared/ore-bag";
 import { createPickaxeSprite } from "../game/runtime/town/pickaxe-sprite";
 
@@ -56,6 +59,8 @@ type InventoryDependencies = {
   cards?: () => Readonly<Record<string, number>>;
   /** Cards in any gear's slots: they count as found in the Cards tab. */
   slottedCards?: () => ReadonlySet<string>;
+  /** Saved loadouts for the Builds tab; without them the tab is not shown. */
+  builds?: BuildActions;
   /** One copy's card slots and the cards in them; `copyId` 0n is the first copy. */
   gearSlots?: (itemId: string, copyId?: bigint) => { slots: number; cards: readonly string[] };
   destroyOre?: (oreId: OreId, expectedCount: number) => Promise<Result>;
@@ -101,6 +106,7 @@ export function createInventoryController(dependencies: InventoryDependencies) {
   const equipmentTab = requiredElement<HTMLButtonElement>("inventoryEquipmentTab");
   const cosmeticsTab = requiredElement<HTMLButtonElement>("inventoryCosmeticsTab");
   const cardsTab = document.getElementById("inventoryCardsTab") as HTMLButtonElement | null;
+  const buildsTab = document.getElementById("inventoryBuildsTab") as HTMLButtonElement | null;
   const content = requiredElement("inventoryContent");
   const loadout = panel.querySelector<HTMLElement>(".inventory-loadout");
   // The pickaxe works from the bag, never equipped: its slot only shows it is there and what it does.
@@ -278,9 +284,17 @@ export function createInventoryController(dependencies: InventoryDependencies) {
   }) : null;
   if (cardsView) content.append(cardsView.element);
   else cardsTab?.remove();
-  let cardsShown = false;
-  const tabViews: Array<[HTMLButtonElement, InventoryMode | "CARDS"]> = [[equipmentTab, "EQUIPMENT"], [cosmeticsTab, "COSMETICS"]];
+  const buildsView = buildsTab && dependencies.builds ? createBuildsTab({
+    actions: dependencies.builds, itemName: itemId => itemInspectionButtonLabel(itemDisplayName(itemId)), showMessage: dependencies.showMessage,
+  }) : null;
+  if (buildsView) content.append(buildsView.element);
+  else buildsTab?.remove();
+  // Cards and Builds each replace the loadout and bag with their own view.
+  let cardsShown = false, buildsShown = false;
+  const sideShown = () => cardsShown || buildsShown;
+  const tabViews: Array<[HTMLButtonElement, InventoryMode | "CARDS" | "BUILDS"]> = [[equipmentTab, "EQUIPMENT"], [cosmeticsTab, "COSMETICS"]];
   if (cardsView && cardsTab) tabViews.push([cardsTab, "CARDS"]);
+  if (buildsView && buildsTab) tabViews.push([buildsTab, "BUILDS"]);
 
   /** `copyId` 0n is the item's first copy: the bag entry, or whatever its slot holds. */
   function inspect(itemId: string, location: Exclude<InventoryLocation, "">, copyId = 0n) {
@@ -394,21 +408,22 @@ export function createInventoryController(dependencies: InventoryDependencies) {
     if (!dependencies.inventory.itemIds.includes(itemId) || dependencies.equipmentLocked?.(itemId, copyId)) return [];
     const destroyCopy = dependencies.destroyEquipmentCopy;
     const oneOfSeveral = Boolean(destroyCopy) && (copyId !== 0n || keptCopiesOf(itemId).length > 0);
+    const ore = salvageOre(itemId);
     return canDestroyEquipment(itemId) ? [{
-      label: "Destroy item",
+      label: "Salvage Item",
       kind: "DESTROY" as const,
       onActivate: async () => {
         if (!await ask(confirmDestroy, {
           message: `Destroy ${oneOfSeveral ? "this copy of " : ""}${withRefineStars(itemDisplayName(itemId, dependencies.upgradeLevel(itemId)), dependencies.refineLevel?.(itemId, copyId) ?? 0)} permanently?`,
-          details: [{ label: "This cannot be undone", value: "No refund" }],
-          confirmLabel: "Destroy", danger: true,
+          details: [{ label: "This cannot be undone", value: ore ? `Gives back 1 ${REFINE_ORES[ore].name}` : "No refund" }],
+          confirmLabel: "Salvage", danger: true,
         })) return;
         dependencies.itemInspection.close();
         const result = oneOfSeveral ? await destroyCopy!(itemId, copyId) : await dependencies.destroyEquipment(itemId);
         if (result?.ok) {
           clearInventorySelection(dependencies.inventory);
           render();
-          dependencies.showMessage("ITEM DESTROYED", "#ff9b91");
+          dependencies.showMessage(ore ? `Item Salvaged · +1 ${REFINE_ORES[ore].name}` : "Item Destroyed", "#ff9b91");
         } else dependencies.showMessage(result?.error ?? "NOT CONNECTED", "#ff9b91");
       },
     }] : [];
@@ -416,10 +431,11 @@ export function createInventoryController(dependencies: InventoryDependencies) {
 
   function render() {
     if (cardsShown) cardsView?.render();
+    if (buildsShown) buildsView?.render();
     const inventory = dependencies.inventory;
     const copies = dependencies.equipmentCopies?.() ?? [];
     const held = dependencies.ores?.() ?? {};
-    const nextState = JSON.stringify([cardsShown, mode, filter, inventory, held, inventory.itemIds.map(id => dependencies.equipmentLocked?.(id)), dependencies.inventorySlotsUnlocked(), dependencies.researchBagSlots?.() ?? 0, dependencies.hasPickaxe?.() ?? false, unlockingSlot,
+    const nextState = JSON.stringify([cardsShown, buildsShown, mode, filter, inventory, held, inventory.itemIds.map(id => dependencies.equipmentLocked?.(id)), dependencies.inventorySlotsUnlocked(), dependencies.researchBagSlots?.() ?? 0, dependencies.hasPickaxe?.() ?? false, unlockingSlot,
       ["HEAD", "CHEST", "HAND"].map(slot => dependencies.slotTier?.(slot as "HEAD" | "CHEST" | "HAND")), inventory.itemIds.map(itemId => `${dependencies.upgradeLevel(itemId)}:${dependencies.refineLevel?.(itemId, 0n)}`),
       copies.map(copy => `${copy.id}:${copy.itemId}:${dependencies.equipmentLocked?.(copy.itemId, copy.id)}:${dependencies.refineLevel?.(copy.itemId, copy.id)}`)]);
     if (nextState === renderedState) return;
@@ -429,17 +445,18 @@ export function createInventoryController(dependencies: InventoryDependencies) {
     filters.setCosmetics(cosmeticsActive);
     deleteMode.element.hidden = cosmeticsActive;
     if (equipBestButton && deleteMode.active()) equipBestButton.hidden = true;
-    const activeTab = cardsShown && cardsTab ? cardsTab : cosmeticsActive ? cosmeticsTab : equipmentTab;
+    const activeTab = cardsShown && cardsTab ? cardsTab : buildsShown && buildsTab ? buildsTab : cosmeticsActive ? cosmeticsTab : equipmentTab;
     for (const [tab] of tabViews) {
       tab.classList.toggle("is-active", tab === activeTab);
       tab.setAttribute("aria-selected", String(tab === activeTab));
       tab.tabIndex = tab === activeTab ? 0 : -1;
     }
     content.setAttribute("aria-labelledby", activeTab.id);
-    if (loadout) loadout.hidden = cardsShown;
+    if (loadout) loadout.hidden = sideShown();
     renderToolSlot();
-    if (bagSection) bagSection.hidden = cardsShown;
+    if (bagSection) bagSection.hidden = sideShown();
     cardsView?.show(cardsShown);
+    buildsView?.show(buildsShown);
     if (loadout) loadout.setAttribute("aria-label", cosmeticsActive ? "Cosmetic items" : "Equipped items");
     const slotsUnlocked = dependencies.inventorySlotsUnlocked();
     // Gems buy up to the maximum; research slots sit on top of it.
@@ -530,12 +547,13 @@ export function createInventoryController(dependencies: InventoryDependencies) {
     clickEquipment(destination, itemInSlot(destination));
   });
   equippedFeet.addEventListener("click", () => clickEquipment("FEET", itemInSlot("FEET")));
-  const setView = (next: InventoryMode | "CARDS") => {
-    if (next === "CARDS" ? cardsShown : !cardsShown && mode === next) return;
+  const setView = (next: InventoryMode | "CARDS" | "BUILDS") => {
+    if (next === "CARDS" ? cardsShown : next === "BUILDS" ? buildsShown : !sideShown() && mode === next) return;
     deleteMode.exit();
     lockMode.exit();
     cardsShown = next === "CARDS";
-    if (next !== "CARDS") mode = next;
+    buildsShown = next === "BUILDS";
+    if (next !== "CARDS" && next !== "BUILDS") mode = next;
     clearInventorySelection(dependencies.inventory);
     render();
   };

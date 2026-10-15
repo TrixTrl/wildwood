@@ -3,18 +3,18 @@ import { SenderError, table, t } from "spacetimedb/server";
 import { Timestamp, type Identity } from "spacetimedb";
 import { isSkillBow } from "../../shared/bow-skills";
 import { isSkillSword } from "../../shared/sword-skills";
-import { isSkillWeapon, rollWeaponSkills, weaponSkillColumns, weaponSkillRollOf, weaponSkillScore, type WeaponSkillRoll } from "../../shared/weapon-skills";
+import { isSkillWeapon, mergeSkillRolls, rollWeaponSkills, weaponSkillColumns, weaponSkillRollOf, type WeaponSkillRoll } from "../../shared/weapon-skills";
 import { canDestroyEquipment, canonicalItemId } from "../../shared/items";
+import { salvageOre } from "../../shared/refine";
 import { bagCapacityFor } from "./bag-capacity";
 import {
   EQUIPMENT_OFFER_LIFETIME_MS, MAX_PENDING_EQUIPMENT_OFFERS, bagSlotsUsed, isDuplicateOfferItem,
 } from "../../shared/equipment-copies";
 import { bowSkillKey } from "./bow-skills";
-import { setSwordSkillRoll } from "./sword-skills";
+import { setSwordSkillRoll, swordSkillKey } from "./sword-skills";
 import { ensureWeaponSkillRoll, weaponSkillRollFor } from "./weapon-skills";
-import { lootSettingsFor } from "./loot-settings";
-import { oreKindsHeldFor, promoteCopyRefine, refineLevelFor, setRefineLevel, swapFirstCopyRefine } from "./item-refine";
-import { clearGearSlots, gearSlotsFor, promoteCopySlots, rollCopySlots, rollDropSlots, swapFirstCopySlots } from "./gear-cards";
+import { addOres, oreKindsHeldFor, promoteCopyRefine, refineLevelFor, setRefineLevel, swapFirstCopyRefine } from "./item-refine";
+import { clearGearSlots, gearSlotsFor, returnSlottedCards, promoteCopySlots, rollCopySlots, rollDropSlots, swapFirstCopySlots } from "./gear-cards";
 import { readPlayerProgress } from "./wide-stats";
 
 /**
@@ -42,6 +42,32 @@ export const playerEquipmentCopy = table({ name: "player_equipment_copy", public
   acquiredAt: t.timestamp(),
   whirlwind: t.f32().default(0), deflect: t.f32().default(0), shockwave: t.f32().default(0),
 });
+
+/**
+ * Every item a player has ever had drop, for the Gear Collection in the map window: one row per item, kept for
+ * good. Gear held from before it existed counts too, read from the bag on the client.
+ */
+export const playerItemCollection = table({ name: "player_item_collection", public: false }, {
+  key: t.string().primaryKey(),
+  identity: t.identity().index("btree"),
+  itemId: t.string(),
+});
+
+/** Marks an item collected, once. */
+export function collectItem(ctx: Ctx, identity: Identity, itemId: string) {
+  const canonical = canonicalItemId(itemId);
+  if (!canonical) return;
+  const key = `${identity.toHexString()}:${canonical}`;
+  if (!ctx.db.playerItemCollection.key.find(key)) ctx.db.playerItemCollection.insert({ key, identity, itemId: canonical });
+}
+
+/** Prestige keeps the collection; Reset Save and account deletion take it (removeEquipmentCopies). A guest's joins the account's. */
+export function mergeItemCollection(ctx: Ctx, guest: Identity, account: Identity) {
+  for (const row of [...ctx.db.playerItemCollection.identity.filter(guest)] as any[]) {
+    ctx.db.playerItemCollection.key.delete(row.key);
+    collectItem(ctx, account, row.itemId);
+  }
+}
 
 /**
  * A drop of equipment the player already had, waiting for Keep or Ignore.
@@ -105,63 +131,35 @@ export function offerDuplicateEquipment(ctx: Ctx, identity: Identity, itemId: st
 
 /** A new item that found the bag full. Each weapon roll differs, so each waits; other gear waits once. */
 export function offerItemForFullBag(ctx: Ctx, identity: Identity, itemId: string, count = 1) {
+  collectItem(ctx, identity, itemId);
   if (isSkillWeapon(itemId)) { offerDuplicateEquipment(ctx, identity, itemId, count); return; }
   if (!pendingOffersOf(ctx, identity).some(offer => offer.itemId === itemId)) offerDuplicateEquipment(ctx, identity, itemId, 1);
 }
 
 /**
- * Auto keep best: `count` duplicate copies settled on the spot, no offer.
- *
- * Each copy rolls like any new weapon and is compared, by skill score, with the
- * best copy the player has: the first copy, or a kept extra copy when one of
- * those is better. A copy strictly better than all of them becomes the first
- * copy: its roll replaces the first copy's in its weapon skill table, so the weapon in
- * the slot improves with nothing to press and kill bounds and duels read it at
- * once. The old first roll is gone. Anything else is thrown away, as Ignore
- * does. Kept extra copies are never touched. Copies of an item without skills
- * are identical, so they are always thrown away.
- *
- * A refined or locked first copy is never replaced: its refine or lock is the
- * player's work. A better copy waits as a Keep/Ignore offer instead, so the
- * roll is not thrown away unseen; a worse one still goes without a word.
- */
-export function keepBestCopies(ctx: Ctx, identity: Identity, itemId: string, count = 1) {
-  const canonical = canonicalItemId(itemId);
-  if (!canonical || !isDuplicateOfferItem(canonical) || !isSkillWeapon(canonical)) return;
-  const kept = equipmentLocked(ctx, identity, canonical) || refineLevelFor(ctx, identity, canonical) > 0;
-  const copies = Math.min(MAX_PENDING_EQUIPMENT_OFFERS, Math.max(0, Math.floor(count)));
-  let offered = false;
-  for (let copy = 0; copy < copies; copy += 1) {
-    const roll = rollWeaponSkills(canonical, () => ctx.random());
-    const best = Math.max(
-      weaponSkillScore(canonical, weaponSkillRollFor(ctx, identity, canonical)),
-      ...extraCopiesOf(ctx, identity, canonical).map(row => weaponSkillScore(canonical, rollOf(row))),
-    );
-    if (weaponSkillScore(canonical, roll) <= best) continue;
-    if (kept) { insertOffer(ctx, identity, canonical, roll); offered = true; }
-    else setFirstCopyRoll(ctx, identity, canonical, roll);
-  }
-  if (offered) trimOffers(ctx, identity);
-}
-
-/**
- * Duplicates from loot. With the player's Auto keep best on (the default)
- * they are settled at once by keepBestCopies; off, each becomes a Keep/Ignore
- * offer. Gifts and mail do not come through here and always offer.
+ * Duplicates from loot, settled on the spot: no offer, no spare copy. Each copy of a skill weapon rolls like
+ * any new one and merges into the first copy's roll (mergeSkillRolls): taken whole when at least as good on
+ * every skill, otherwise only adding the skills the weapon lacks. A skill never goes down. The weapon keeps
+ * its refine, cards, slots and lock. Gifts and mail do not come through here and always offer.
  */
 export function receiveDuplicateEquipment(ctx: Ctx, identity: Identity, itemId: string, count = 1) {
-  if (Math.floor(count) < 1) return;
-  if (lootSettingsFor(ctx, identity).autoKeepBest) keepBestCopies(ctx, identity, itemId, count);
-  else offerDuplicateEquipment(ctx, identity, itemId, count);
+  const canonical = canonicalItemId(itemId);
+  if (!canonical || !isDuplicateOfferItem(canonical) || !isSkillWeapon(canonical)) return;
+  const copies = Math.min(MAX_PENDING_EQUIPMENT_OFFERS, Math.max(0, Math.floor(count)));
+  for (let copy = 0; copy < copies; copy += 1) {
+    const roll = rollWeaponSkills(canonical, () => ctx.random());
+    const merged = mergeSkillRolls(canonical, weaponSkillRollFor(ctx, identity, canonical), roll);
+    if (merged) setFirstCopyRoll(ctx, identity, canonical, merged);
+  }
 }
 
 /**
  * Announces a drop to its player. The first copy of an item enters the bag and
  * rolls; a drop of equipment already held, and every copy past the first in
- * one batch, is settled by Auto keep best or becomes a Keep/Ignore offer,
- * whichever the player chose, instead of being thrown away unseen.
+ * one batch, can only raise the held weapon's skills (receiveDuplicateEquipment).
  */
 export function publishItemDrop(ctx: Ctx, identity: Identity, itemId: string, alreadyOwned: boolean, quantity = 1) {
+  collectItem(ctx, identity, itemId);
   if (!alreadyOwned) ensureWeaponSkillRoll(ctx, identity, itemId);
   receiveDuplicateEquipment(ctx, identity, itemId, alreadyOwned ? quantity : quantity - 1);
   const key = `${identity.toHexString()}:${itemId}`;
@@ -188,9 +186,10 @@ export function expireEquipmentOffers(ctx: Ctx) {
   }
 }
 
-/** Wherever a player's gear goes (reset, deletion), their extra copies and pending offers go with it. */
+/** Wherever a player's gear goes (reset, deletion), their extra copies, pending offers and Gear Collection go with it. */
 export function removeEquipmentCopies(ctx: Ctx, identity: Identity) {
   for (const row of extraCopiesOf(ctx, identity)) ctx.db.playerEquipmentCopy.id.delete(row.id);
+  for (const row of [...ctx.db.playerItemCollection.identity.filter(identity)] as any[]) ctx.db.playerItemCollection.key.delete(row.key);
   removeEquipmentOffers(ctx, identity);
 }
 
@@ -209,6 +208,20 @@ export function mergeEquipmentCopies(ctx: Ctx, guest: Identity, account: Identit
   for (const row of extraCopiesOf(ctx, guest)) ctx.db.playerEquipmentCopy.id.update({ ...row, identity: account });
   for (const offer of pendingOffersOf(ctx, guest)) ctx.db.pendingEquipmentOffer.id.update({ ...offer, identity: account });
   trimOffers(ctx, account);
+}
+
+/** Destroyed gear gives back one ore of its refine grade. */
+function salvage(ctx: Ctx, itemId: string) {
+  const ore = salvageOre(itemId);
+  if (ore) addOres(ctx, ctx.sender, ore, 1);
+}
+
+/** Deletes the first copy's roll, bow or sword. */
+function forgetFirstCopyRoll(ctx: Ctx, identity: Identity, itemId: string) {
+  const bow = ctx.db.playerBowSkill.key.find(bowSkillKey(identity, itemId));
+  if (bow) ctx.db.playerBowSkill.key.delete(bow.key);
+  const sword = ctx.db.playerSwordSkill.key.find(swordSkillKey(identity, itemId));
+  if (sword) ctx.db.playerSwordSkill.key.delete(sword.key);
 }
 
 /** Writes the first copy's roll. Anything that is not a skill weapon has none to write. */
@@ -306,24 +319,32 @@ export function createEquipmentCopies(deps: {
       const copy = ownCopy(ctx, copyId);
       if (copy.itemId !== canonical) throw new SenderError("That copy is not in your inventory.");
       setRefineLevel(ctx, ctx.sender, canonical, copy.id, 0);
+      returnSlottedCards(ctx, ctx.sender, canonical, copy.id);
       clearGearSlots(ctx, ctx.sender, canonical, copy.id);
       ctx.db.playerEquipmentCopy.id.delete(copy.id);
+      salvage(ctx, canonical);
       return;
     }
     const [replacement] = extraCopiesOf(ctx, ctx.sender, canonical);
+    returnSlottedCards(ctx, ctx.sender, canonical);
     if (replacement) {
       moveEquipmentLock(ctx, ctx.sender, canonical, replacement.id, 0n);
       setFirstCopyRoll(ctx, ctx.sender, canonical, rollOf(replacement));
       promoteCopyRefine(ctx, ctx.sender, canonical, replacement.id);
       promoteCopySlots(ctx, ctx.sender, canonical, replacement.id);
       ctx.db.playerEquipmentCopy.id.delete(replacement.id);
+      salvage(ctx, canonical);
       // The worn item may have changed level: its power follows.
       deps.writeProgressAndPresentation(ctx, progress);
       return;
     }
     setRefineLevel(ctx, ctx.sender, canonical, 0n, 0);
     clearGearSlots(ctx, ctx.sender, canonical);
-    deps.writeProgressAndPresentation(ctx, deps.removeItemFromProgress(progress, canonical));
+    salvage(ctx, canonical);
+    const next = deps.removeItemFromProgress(progress, canonical);
+    // The last one gone, its roll goes too: the next to drop rolls fresh instead of bringing this one back.
+    if (!deps.inventoryForProgress(next).includes(canonical)) forgetFirstCopyRoll(ctx, ctx.sender, canonical);
+    deps.writeProgressAndPresentation(ctx, next);
   }
 
   /**
@@ -351,4 +372,10 @@ export function createEquipmentCopies(deps: {
   }
 
   return { resolveOffer, destroy, select };
+}
+
+/** The caller's Gear Collection. */
+export function registerItemCollection(spacetimedb: any) {
+  return spacetimedb.view({ name: "my_item_collection", public: true }, t.array(playerItemCollection.rowType),
+    (ctx: any) => [...ctx.db.playerItemCollection.identity.filter(ctx.sender)]);
 }

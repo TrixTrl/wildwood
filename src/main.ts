@@ -25,12 +25,12 @@ import { createPersonalBosses } from "./game/runtime/boss/personal-bosses";
 import { createLocalCorpses } from "./game/runtime/enemies/local-corpses";
 import { ONBOARDING_MAP_ID, ONBOARDING_WORLD } from "../shared/onboarding";
 import { createOutOfCombatSpeed } from "./game/runtime/out-of-combat-speed";
-import { createOnboardingTutorial } from "./ui/onboarding-tutorial";
+import { createOnboardingTutorial } from "./ui/onboarding-tutorial"; import { installTutorialReplay, tutorialReplayBlocked } from "./ui/tutorial-replay"; import { createBuildActions } from "./ui/build-actions";
 import { createItemGiftController } from "./ui/item-gift-controller";
 import { createReconnectRecovery } from "./ui/reconnect-recovery";
 import { isProceduralMap, proceduralMapId } from "../shared/procedural-maps";
 import { createAutoFarmProgress } from "./game/runtime/auto-farm/auto-farm-build";
-import { playerAttackCap, prestigePerkValue } from "../shared/prestige-perks";
+import { prestigePerkValue } from "../shared/prestige-perks";
 import { aggroPullCamps, forcedAggroGroups } from "./game/runtime/auto-farm/aggro-picks";
 import { createPrestigeExpansionRuntime } from "./ui/prestige-expansion-runtime";
 import { leaderboardEligible } from "../shared/leaderboard-window";
@@ -114,7 +114,7 @@ import { createInventoryController } from "./ui/inventory-controller";
 import { createItemInspectionController, itemStatsWithWeaponSkills } from "./ui/item-inspection-controller";
 import { createUpgradeBenchController } from "./ui/upgrade-bench-controller";
 import { createProfileWindowController } from "./ui/profile-window-controller";
-import { formatPlayedTime, profilePower, profilePresenceText, profileSoulInPlay, renderProfileStats } from "./ui/profile";
+import { formatPlayedTime, profileAttackCap, profilePower, profilePresenceText, profileSoulInPlay, renderProfileStats } from "./ui/profile";
 import { campaignMapUnlocked, equipmentMapRequirement } from "../shared/equipment-access";
 import { createAppShellController } from "./ui/app-shell-controller";
 import { createStartupController } from "./ui/startup-controller";
@@ -126,7 +126,7 @@ import { hasApprovedGameSession } from "./coop/startup-state-machine";
 import { createHudTimerColumn } from "./ui/hud-timer-column";
 import { createGameElements } from "./ui/game-elements";
 import { bindGameInteractionListeners } from "./ui/game-interaction-bindings";
-import { attackCapInterval, createSmithRuntime, watchCardDrops, createDevPanel, createDuplicateLoginRuntime, createGameActionsRuntime, createGameOverlays, createGameRuntimeHud, createHomeStationTouchHandler, createLeaderboardPanel, createPrestigeUnlockRuntime, createTechTreePanel } from "./ui/game-ui-runtime";
+import { createSmithRuntime, watchCardDrops, createDevPanel, createDuplicateLoginRuntime, createGameActionsRuntime, createGameOverlays, createGameRuntimeHud, createHomeStationTouchHandler, createLeaderboardPanel, createPrestigeUnlockRuntime, createTechTreePanel } from "./ui/game-ui-runtime";
 import { formatCompactNumber, formatGemAmount } from "./ui/number-format";
 import { playerGenderIconPath } from "./ui/player-gender";
 import type { LeaderboardEntry } from "./wildstat-coop";
@@ -439,7 +439,7 @@ import {
     upgradeLevel: (itemId) => coop?.itemUpgradeLevel?.(itemId) ?? 0, refineLevel: (itemId, copyId) => coop?.itemRefine?.(itemId, copyId) ?? 0, ores: () => coop?.ores?.() ?? {}, cards: () => coop?.cards?.() ?? {}, slottedCards: () => coop?.slottedCards?.() ?? new Set<string>(),
     slotTier: slot => coop?.slotUpgradeTier?.(slot) ?? 0, gearSlots: (itemId, copyId) => coop?.gearSlots?.(itemId, copyId) ?? { slots: 0, cards: [] },
     inventorySlotsUnlocked: () => coop?.inventorySlotsUnlocked?.() ?? 0, researchBagSlots: () => coop?.research?.().inventorySlots ?? 0, hasPickaxe: () => coop?.hasPickaxe?.() ?? false,
-    gemBalance: () => coop?.gemBalance?.() ?? 0n,
+    gemBalance: () => coop?.gemBalance?.() ?? 0n, builds: createBuildActions({ coop: () => coop, inventory, requirement: itemId => equipmentMapRequirement(itemId, coop?.savedProgress?.()), blocked: () => isDueling() ? "Finish Your Duel First" : null, afterGearChange: () => { player.speed = progress.movementSpeedForEquipment(false) * localTestMultiplier; applyPlayerMaxHealthMultiplierBonus(player, healthMultiplierBonus()); saveProgress(true); } }),
     unlockInventorySlot: async () => coop?.unlockInventorySlot?.(),
     ...inventoryCommerce,
     showMessage,
@@ -671,7 +671,7 @@ import {
     equippedChest: () => inventory.equippedChest,
     equippedChestUpgradeLevel: () => coop?.itemLevel?.(inventory.equippedChest) ?? 0,
     healthMultiplierBonus,
-    minAttackInterval: () => attackCapInterval(coop?.attackCapInPlay?.()),
+    minAttackInterval: () => coop?.attackCapInPlay?.(),
     reflectOnly: () => Boolean(coop?.prestigeChallenge?.()?.active),
     effectiveArmor,
     isDueling,
@@ -1231,7 +1231,7 @@ import {
     renderCharacter: (identity, progress, visible) => profileCharacterPreview.draw({ visible, progress, skinTone: coop?.skinTone?.(identity) ?? DEFAULT_SKIN_TONE }),
     skinTone: (identity) => coop?.skinTone?.(identity) ?? DEFAULT_SKIN_TONE, setSkinTone: async (value) => coop?.setSkinTone?.(value),
     playerGender: (identity) => coop?.playerGender?.(identity) ?? 0, setGender: async (value) => coop?.setGender?.(value), openIconPicker: openProfileIconPicker, nameColor: (identity) => coop?.nameColor?.(identity) ?? 0, setNameColor: async (value) => coop?.setNameColor?.(value),
-    renderStats: (profile, element) => renderProfileStats(profile, element, formatArmorReduction, profile.identity === coop?.localIdentity?.() ? coop?.attackCapInPlay?.() : playerAttackCap(profile.prestigeChallenge, profile.prestigePerks), profile.identity === coop?.localIdentity?.() ? coop?.researchInPlay?.() ?? profile.research : profile.research,
+    renderStats: (profile, element) => renderProfileStats(profile, element, formatArmorReduction, profile.identity === coop?.localIdentity?.() ? coop?.attackCapInPlay?.() : profileAttackCap(profile), profile.identity === coop?.localIdentity?.() ? coop?.researchInPlay?.() ?? profile.research : profile.research,
       profile.identity === coop?.localIdentity?.() ? (coop?.prestigeStatGainInPlay?.() === false ? 0 : coop?.prestige?.()?.level ?? 0) : profile.prestigeLevel ?? 0,
       profile.identity === coop?.localIdentity?.() ? coop?.prestigePerks?.() : profile.prestigePerks,
       profile.identity === coop?.localIdentity?.() ? coop?.dailyQuests?.()?.bonus ?? 1 : 1,
@@ -1443,7 +1443,7 @@ import {
     back: mapGuideBack,
   }, {
     currentMapId: () => currentMapId,
-    mapName: (mapId) => MAP_CONFIG[mapId].name,
+    mapName: (mapId) => MAP_CONFIG[mapId].name, collected: itemId => Boolean(coop?.collectedItems?.().has(itemId)) || inventory.itemIds.includes(itemId),
     paths, enemies, rewardAmount: rewardDisplay.displayedAmount, rewardContext: rewardLabelContext, mapUnlocked: (mapId) => mapController.portalIsUnlocked({ destination: mapId } as never), mapBalance: (mapId) => coop?.mapIndexBalance?.(mapId) ?? Promise.resolve(null),
     spawnSites,
     player,
@@ -1683,10 +1683,10 @@ import {
     profileOpen: () => !playerProfileEl.hidden,
     setName: async name => coop?.setDisplayName?.(name),
     hasChosenName: () => coop?.hasChosenDisplayName?.() ?? false,
-    waitForNameSave: async () => { try { await pendingProfileNameSave; } catch { } },
-    closeWindows: () => { profileWindow.close(); itemInspectionController.close(); },
+    waitForNameSave: async () => { try { await pendingProfileNameSave; } catch {} },
+    closeWindows: () => { profileWindow.close(); itemInspectionController.close(); }, playWelcome: () => mapMusic.playVoiceLine("assets/wildstat/audio/tutorial-welcome.mp3"),
     cancel: () => { canvasRuntime.resize(); profileWindow.close(); setCurrentMap(TUTORIAL_FOREST_MAP_ID); session.stop(); session.setHasStarted(false); loadProgress(); finishStartup(); },
-  });
+  }); installTutorialReplay({ doc: document, showMessage, blocked: () => tutorialReplayBlocked({ running: session.isRunning(), inTutorial: Boolean(onboarding?.isActive()), dueling: isDueling(), challenge: Boolean(coop?.aggroChallenge?.()?.active || coop?.prestigeChallenge?.()?.active) }), begin: () => { autoFarm.stop(); playerInput.clear(); onboarding?.start(() => { canvasRuntime.resize(); setCurrentMap(TUTORIAL_FOREST_MAP_ID); loadProgress(); startGame(false, true); }, true); } });
 
   const scheduledUpdate = createScheduledUpdateController({
     now: () => Date.now(), release: () => coop?.releaseWindow?.() ?? null,
@@ -1917,7 +1917,7 @@ import {
   });
   if (coop?.setOnChange) coop.setOnChange(coopSession.onChange);
   coop?.setOnGemDrop?.(({ amount }) => runtimeHud.showGemDrop(amount)); watchCardDrops(coop);
-  // A duplicate of held equipment is not revealed here: Auto keep best or a Keep/Ignore offer settles it.
+  // A duplicate of held equipment is not revealed here: it can only upgrade the held weapon's skills.
   createEquipmentOfferPrompt({ coop, inventory, renderInventory, showMessage, ready: () => Boolean(session?.isRunning()) });
   coop?.setOnItemDrop?.(({ itemId, alreadyOwned }) => {
     if (alreadyOwned) return;

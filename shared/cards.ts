@@ -46,6 +46,13 @@ export type CardDefinition = {
 
 /** Kills per card drop; for bosses, boss kills. */
 export const CARD_DROP_OUTCOMES: Readonly<Record<CardRarity, number>> = Object.freeze({ regular: 10_000, elite: 20_000, boss: 1_000 });
+/**
+ * Each kill also fills its card's meter by the kill's odds; a full meter guarantees the card. Full is this many times
+ * the average kills a card takes, so the odds stay the same but nobody goes forever without one.
+ */
+export const CARD_METER_MULTIPLE = 2;
+/** The meter a card needs, in kills at plain odds. */
+export const cardMeterFull = (rarity: CardRarity) => CARD_DROP_OUTCOMES[rarity] * CARD_METER_MULTIPLE;
 export const MAX_CARD_SLOTS = 4;
 /** Gear owned before cards has one slot. */
 export const OWNED_GEAR_SLOTS = 1;
@@ -355,6 +362,10 @@ export function cardForBoss(mapId: string) {
 
 /** The same gear that can be refined. */
 /** The player_gear_slots row of a player's first copy of an item. */
+/** The most attacks a second worn Quick Draw cards could add: every slot of all five worn items holding the best one. */
+export const MAX_CARD_QUICK_DRAW = 5 * MAX_CARD_SLOTS
+  * Math.max(0, ...CARDS.flatMap(card => card.effects.filter(effect => effect.effect === "quickDraw").map(effect => effect.value)));
+
 export const gearSlotsKey = (identity: { toHexString(): string }, itemId: string) => `${identity.toHexString()}:${itemId}`;
 
 export function canHoldCards(itemId: unknown) {

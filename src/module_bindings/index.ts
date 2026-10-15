@@ -41,6 +41,7 @@ import AcceptTermsReducer from "./accept_terms_reducer";
 import AcknowledgeBalanceApologyGiftReducer from "./acknowledge_balance_apology_gift_reducer";
 import AcknowledgeOfflineSummaryReducer from "./acknowledge_offline_summary_reducer";
 import AcknowledgeReleaseReducer from "./acknowledge_release_reducer";
+import ApplyBuildCardsReducer from "./apply_build_cards_reducer";
 import AttackForestRewardPrototypeReducer from "./attack_forest_reward_prototype_reducer";
 import BeginAccountLinkReducer from "./begin_account_link_reducer";
 import BeginAdventureReducer from "./begin_adventure_reducer";
@@ -159,6 +160,7 @@ import RefineItemReducer from "./refine_item_reducer";
 import RefreshDailyQuestsReducer from "./refresh_daily_quests_reducer";
 import RegisterClientVersionReducer from "./register_client_version_reducer";
 import RegisterProtocolReducer from "./register_protocol_reducer";
+import RemoveCardReducer from "./remove_card_reducer";
 import ReportAutoFarmEnemyDefeatsReducer from "./report_auto_farm_enemy_defeats_reducer";
 import ReportChatMessageReducer from "./report_chat_message_reducer";
 import ReportEnemyDefeatsReducer from "./report_enemy_defeats_reducer";
@@ -174,6 +176,7 @@ import RespecPrestigePerksReducer from "./respec_prestige_perks_reducer";
 import RestoreChatMessageReducer from "./restore_chat_message_reducer";
 import RestoreMapBalanceReducer from "./restore_map_balance_reducer";
 import ResumeSessionReducer from "./resume_session_reducer";
+import SaveBuildReducer from "./save_build_reducer";
 import SavePlayerProgressReducer from "./save_player_progress_reducer";
 import SeedTemporaryGuildReducer from "./seed_temporary_guild_reducer";
 import SelectEquipmentCopyReducer from "./select_equipment_copy_reducer";
@@ -320,6 +323,7 @@ import MyAdGemRewardRow from "./my_ad_gem_reward_table";
 import MyAudioSettingsRow from "./my_audio_settings_table";
 import MyBalanceApologyNoticeRow from "./my_balance_apology_notice_table";
 import MyBowSkillsRow from "./my_bow_skills_table";
+import MyBuildsRow from "./my_builds_table";
 import MyCardDropRow from "./my_card_drop_table";
 import MyCardsRow from "./my_cards_table";
 import MyChatMuteRow from "./my_chat_mute_table";
@@ -338,6 +342,7 @@ import MyGemWalletRow from "./my_gem_wallet_table";
 import MyGuildHallRow from "./my_guild_hall_table";
 import MyIgnoredDropsRow from "./my_ignored_drops_table";
 import MyInventoryCapacityRow from "./my_inventory_capacity_table";
+import MyItemCollectionRow from "./my_item_collection_table";
 import MyItemGiftsRow from "./my_item_gifts_table";
 import MyItemRefinesRow from "./my_item_refines_table";
 import MyLegalConsentRow from "./my_legal_consent_table";
@@ -1518,6 +1523,13 @@ const tablesSchema = __schema({
     constraints: [
     ],
   }, MyBowSkillsRow),
+  myBuilds: __table({
+    name: 'my_builds',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, MyBuildsRow),
   myCardDrop: __table({
     name: 'my_card_drop',
     indexes: [
@@ -1644,6 +1656,13 @@ const tablesSchema = __schema({
     constraints: [
     ],
   }, MyInventoryCapacityRow),
+  myItemCollection: __table({
+    name: 'my_item_collection',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, MyItemCollectionRow),
   myItemGifts: __table({
     name: 'my_item_gifts',
     indexes: [
@@ -1823,6 +1842,7 @@ const reducersSchema = __reducers(
   __reducerSchema("acknowledge_balance_apology_gift", AcknowledgeBalanceApologyGiftReducer),
   __reducerSchema("acknowledge_offline_summary", AcknowledgeOfflineSummaryReducer),
   __reducerSchema("acknowledge_release", AcknowledgeReleaseReducer),
+  __reducerSchema("apply_build_cards", ApplyBuildCardsReducer),
   __reducerSchema("attack_forest_reward_prototype", AttackForestRewardPrototypeReducer),
   __reducerSchema("begin_account_link", BeginAccountLinkReducer),
   __reducerSchema("begin_adventure", BeginAdventureReducer),
@@ -1941,6 +1961,7 @@ const reducersSchema = __reducers(
   __reducerSchema("refresh_daily_quests", RefreshDailyQuestsReducer),
   __reducerSchema("register_client_version", RegisterClientVersionReducer),
   __reducerSchema("register_protocol", RegisterProtocolReducer),
+  __reducerSchema("remove_card", RemoveCardReducer),
   __reducerSchema("report_auto_farm_enemy_defeats", ReportAutoFarmEnemyDefeatsReducer),
   __reducerSchema("report_chat_message", ReportChatMessageReducer),
   __reducerSchema("report_enemy_defeats", ReportEnemyDefeatsReducer),
@@ -1956,6 +1977,7 @@ const reducersSchema = __reducers(
   __reducerSchema("restore_chat_message", RestoreChatMessageReducer),
   __reducerSchema("restore_map_balance", RestoreMapBalanceReducer),
   __reducerSchema("resume_session", ResumeSessionReducer),
+  __reducerSchema("save_build", SaveBuildReducer),
   __reducerSchema("save_player_progress", SavePlayerProgressReducer),
   __reducerSchema("seed_temporary_guild", SeedTemporaryGuildReducer),
   __reducerSchema("select_equipment_copy", SelectEquipmentCopyReducer),

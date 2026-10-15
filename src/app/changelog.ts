@@ -1,4 +1,41 @@
 export const RELEASE_NOTES: Record<string, string[]> = {
+  "0.904.0": [
+    "Builds: save your gear and cards in the Inventory, and swap between them in one tap",
+    "Salvaging gear gives back an ore of its tier",
+    "A weapon you delete no longer comes back with the same skills when it drops again",
+    "The map window marks every drop you've collected",
+  ],
+  "0.903.8": [
+    "Taking a card out at the Smith is free, and destroying gear gives its cards back",
+    "Crit Damage cards raise the crit damage cap",
+    "Auto Farm no longer gets pinned by attackers it's slow to kill",
+  ],
+  "0.903.7": [
+    "Controller support, and a Controls tab in Settings to remap keys and buttons",
+    "Replay the tutorial from Settings, now with a narrator",
+    "A smoother sword swing sound",
+    "Duplicate drops now raise your gear's skills instead of making copies; a skill never goes down",
+    "Simpler Loot Filter",
+  ],
+  "0.903.6": [
+    "Attack speed is no longer held at 6.00/s when Quick Draw cards raise the cap",
+    "With a raised attack speed cap, attack speed no longer jumps ahead and snaps back after kills",
+  ],
+  "0.903.5": [
+    "Once gear has 4 card slots, a duplicate's slot roll goes to your spare copy with the fewest",
+  ],
+  "0.903.4": [
+    "Take a card back out at the Smith for 5 Starshards; it returns to your Cards",
+    "Auto Farm walks past enemies of stats set to Off instead of getting stuck fighting them",
+  ],
+  "0.903.3": [
+    "Boss cards, refines and Starshards no longer roll far luckier than intended",
+    "Attack speed cap cards speed you up as soon as they're slotted or worn",
+    "The profile shows your attack speed cap beside your attack speed",
+    "The profile counts cards in Reflect, Double Strike and Split Shot",
+    "Other players' profiles count their attack speed cap cards",
+    "Soul crit damage says Max at its top",
+  ],
   "0.903.2": [
     "New Utility research: Bag Slots adds a bag slot a level, up to 5",
     "The crit damage cap is now 5×, plus 1× a Crit Cap rank (10× at most)",
@@ -3315,6 +3352,13 @@ const RELEASE_DATES: Record<string, string> = {
 };
 
 export const RELEASE_DAYS: Record<string, string> = {
+  "0.904.0": "2026-10-14",
+  "0.903.8": "2026-10-14",
+  "0.903.7": "2026-10-14",
+  "0.903.6": "2026-10-14",
+  "0.903.5": "2026-10-14",
+  "0.903.4": "2026-10-14",
+  "0.903.3": "2026-10-14",
   "0.903.2": "2026-10-14",
   "0.903.1": "2026-10-13",
   "0.903.0": "2026-10-13",

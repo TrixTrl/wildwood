@@ -1447,6 +1447,9 @@ export type MyBalanceApologyNotice = __Infer<typeof MyBalanceApologyNotice>;
 export const MyBowSkills = __t.object("MyBowSkills", {});
 export type MyBowSkills = __Infer<typeof MyBowSkills>;
 
+export const MyBuilds = __t.object("MyBuilds", {});
+export type MyBuilds = __Infer<typeof MyBuilds>;
+
 export const MyCardDrop = __t.object("MyCardDrop", {});
 export type MyCardDrop = __Infer<typeof MyCardDrop>;
 
@@ -1500,6 +1503,9 @@ export type MyIgnoredDrops = __Infer<typeof MyIgnoredDrops>;
 
 export const MyInventoryCapacity = __t.object("MyInventoryCapacity", {});
 export type MyInventoryCapacity = __Infer<typeof MyInventoryCapacity>;
+
+export const MyItemCollection = __t.object("MyItemCollection", {});
+export type MyItemCollection = __Infer<typeof MyItemCollection>;
 
 export const MyItemGifts = __t.object("MyItemGifts", {});
 export type MyItemGifts = __Infer<typeof MyItemGifts>;
@@ -1804,6 +1810,13 @@ export const PlayerBonusToggle = __t.object("PlayerBonusToggle", {
 });
 export type PlayerBonusToggle = __Infer<typeof PlayerBonusToggle>;
 
+export const PlayerBossCardRoll = __t.object("PlayerBossCardRoll", {
+  key: __t.string(),
+  identity: __t.identity(),
+  rolledAt: __t.timestamp(),
+});
+export type PlayerBossCardRoll = __Infer<typeof PlayerBossCardRoll>;
+
 export const PlayerBowSkill = __t.object("PlayerBowSkill", {
   key: __t.string(),
   identity: __t.identity(),
@@ -1814,6 +1827,16 @@ export const PlayerBowSkill = __t.object("PlayerBowSkill", {
 });
 export type PlayerBowSkill = __Infer<typeof PlayerBowSkill>;
 
+export const PlayerBuild = __t.object("PlayerBuild", {
+  key: __t.string(),
+  identity: __t.identity(),
+  slot: __t.u8(),
+  gearJson: __t.string(),
+  cardsJson: __t.string(),
+  savedAt: __t.timestamp(),
+});
+export type PlayerBuild = __Infer<typeof PlayerBuild>;
+
 export const PlayerCard = __t.object("PlayerCard", {
   key: __t.string(),
   identity: __t.identity(),
@@ -1822,6 +1845,12 @@ export const PlayerCard = __t.object("PlayerCard", {
 });
 export type PlayerCard = __Infer<typeof PlayerCard>;
 
+export const PlayerCardAttackCap = __t.object("PlayerCardAttackCap", {
+  identity: __t.identity(),
+  raise: __t.f64(),
+});
+export type PlayerCardAttackCap = __Infer<typeof PlayerCardAttackCap>;
+
 export const PlayerCardDrop = __t.object("PlayerCardDrop", {
   identity: __t.identity(),
   cardIds: __t.array(__t.string()),
@@ -1829,6 +1858,14 @@ export const PlayerCardDrop = __t.object("PlayerCardDrop", {
   droppedAt: __t.timestamp(),
 });
 export type PlayerCardDrop = __Infer<typeof PlayerCardDrop>;
+
+export const PlayerCardMeter = __t.object("PlayerCardMeter", {
+  key: __t.string(),
+  identity: __t.identity(),
+  cardId: __t.string(),
+  progress: __t.f64(),
+});
+export type PlayerCardMeter = __Infer<typeof PlayerCardMeter>;
 
 export const PlayerChatHearts = __t.object("PlayerChatHearts", {
   identity: __t.identity(),
@@ -1998,6 +2035,13 @@ export const PlayerInventoryCapacity = __t.object("PlayerInventoryCapacity", {
   updatedAt: __t.timestamp(),
 });
 export type PlayerInventoryCapacity = __Infer<typeof PlayerInventoryCapacity>;
+
+export const PlayerItemCollection = __t.object("PlayerItemCollection", {
+  key: __t.string(),
+  identity: __t.identity(),
+  itemId: __t.string(),
+});
+export type PlayerItemCollection = __Infer<typeof PlayerItemCollection>;
 
 export const PlayerItemDrop = __t.object("PlayerItemDrop", {
   key: __t.string(),

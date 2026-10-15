@@ -1,7 +1,7 @@
 import type { PlayerProfileData, PlayerResearch } from "../wildstat-coop";
 import { createEmptyResearchRanks, researchStatRewardMultiplier, utilityMovementSpeedBonus } from "../../shared/research";
 import { prestigeStatMultiplier } from "../../shared/prestige";
-import { PRESTIGE_PERKS, prestigePerkValue, type PrestigePerkRanks } from "../../shared/prestige-perks";
+import { PRESTIGE_PERKS, playerAttackCap, prestigePerkValue, type PrestigePerkRanks } from "../../shared/prestige-perks";
 import { CRITICAL_DAMAGE_BASE, criticalDamage, criticalDamageMultiplier } from "../../shared/critical-damage";
 import { effectivePlayerPower, effectivePlayerPowerStats } from "../../shared/player-power";
 import { equipmentDamageMultiplierBonus, equipmentMaxHealthMultiplierBonus, equipmentRegenerationMultiplierBonus } from "../../shared/items";
@@ -12,7 +12,7 @@ import { upgradeSlotForItem } from "../../shared/slot-upgrades";
 import { cleanSoulStats, soulAttackSpeedBonus, withSoulStats, type SoulStats } from "../../shared/soul-dimension";
 import { challengeMinimumInterval } from "../../shared/prestige-challenge";
 import { weaponAttackRange } from "../game/weapon-combat";
-import { cardStatFactors, cardTotalsForLevels } from "../../shared/card-effects";
+import { cardChance, cardStatFactors, cardTotalsForLevels } from "../../shared/card-effects";
 
 type ItemCardSlots = Readonly<Record<string, { cards: readonly string[] }>>;
 
@@ -115,6 +115,20 @@ export function slotUpgradeLevelFor(itemUpgradeLevels: Record<string, number>, i
  */
 export function profileSoulInPlay(profile: PlayerProfileData): SoulStats | null {
   return profile.prestigeChallenge?.active || profile.aggroChallenge?.active ? null : profile.soulStats ?? null;
+}
+
+/** The cards in the gear a profile wears, totalled as combat totals them. */
+function profileCardTotals(profile: PlayerProfileData) {
+  const cardsOf = (itemId: string) => ({ tier: 0, refine: 0, cards: profile.itemCardSlots?.[itemId]?.cards ?? [] });
+  const { equippedRightHand, equippedLeftHand, equippedHead, equippedChest } = profile.progress;
+  return cardTotalsForLevels(cardsOf(equippedRightHand || equippedLeftHand || ""), cardsOf(equippedHead), cardsOf(equippedChest));
+}
+
+/** Another player's attack speed cap: their Reflect Only wins and Quick Draw, and the Quick Draw cards they wear. */
+export function profileAttackCap(profile: PlayerProfileData) {
+  const cap = playerAttackCap(profile.prestigeChallenge, profile.prestigePerks);
+  const cards = cardStatFactors(profileCardTotals(profile)).attackCapRaise;
+  return cards > 0 ? { ...cap, raise: cap.raise + cards } : cap;
 }
 
 /** The profile's power, with the soul stats in play added as combat adds them, and crits counted (critPowerFactor). */
@@ -253,7 +267,8 @@ export function profileStatDisplayRows(
       kind: "attack", label: "Attack Speed:", base: baseAttackSpeed,
       equationOperator: "×",
       multiplier: multiplierValue(effective.multipliers.attackSpeed), total: ratingText(speedRating), equationTotal: attackSpeed,
-      expandedDetail: bracket(attackSpeedLabel(1 / effective.attackRate, 1 / minAttackInterval)),
+      // The cap beside the rate, as critical damage shows its own: how close the player is to the fastest.
+      expandedDetail: `${bracket(attackSpeedLabel(1 / effective.attackRate, 1 / minAttackInterval))} · ${(1 / minAttackInterval).toFixed(2)}/s Cap`,
       // The soul's own share, which adds to the run's and is kept through prestige.
       // The soul adds attacks a second flat (soulAttackSpeedBonus), so its line is that, not a rating.
       sources: soulSource(soulAttackSpeedBonus(soul.attackSpeed), value => Number.isFinite(value) ? `${value.toFixed(3)}/s` : "Max"),
@@ -317,7 +332,7 @@ export function profileStatDisplayRows(
     ],
   });
   // A rating on a curve toward 100× (shared/stat-rating.ts): crit camps' rating, the soul's on top, then
-  // research and Keen Edge, each a share closer. Combat stops at the cap (50×, 10× more a Crit Cap rank),
+  // research and Keen Edge, each a share closer. Combat stops at the cap (5×, 1× more a Crit Cap rank),
   // so the row does too, and says (Max) once it reads the same as the cap.
   const crit = criticalDamage({ researchRank: ranks.criticalDamage, perks, soul: soul.critDamage, rating: profile.progress.critRating, capRank: ranks.critCap,
     card: effective.cards.critDamage });
@@ -336,19 +351,21 @@ export function profileStatDisplayRows(
     ],
   });
   // The remaining perks have no research behind them, so a row only appears
-  // once a point is spent rather than sitting at zero for every player.
-  const perkRow = (perk: keyof PrestigePerkRanks, kind: string, expandedDetail: string) => {
-    const chance = prestigePerkValue(perks, perk);
-    if (!chance) return;
+  // once a point is spent or a worn card gives the chance, which combat adds to the perk's.
+  const worn = profileCardTotals(profile);
+  const perkRow = (perk: keyof PrestigePerkRanks, kind: string, expandedDetail: string, cardEffect: "doubleStrike" | "splitShot" | "reflect") => {
+    const chance = prestigePerkValue(perks, perk), card = cardChance(worn, cardEffect) / 100;
+    if (!chance && !card) return;
     stats.push({
-      kind, label: `${PRESTIGE_PERKS[perk].title}:`, base: "0%", equationOperator: "+", multiplier: percentPoints(chance),
-      expandedDetail, total: percentPoints(chance),
-      sources: [{ label: "Prestige", value: `+${percentPoints(chance)}` }],
+      kind, label: `${PRESTIGE_PERKS[perk].title}:`, base: "0%", equationOperator: "+", multiplier: percentPoints(chance + card),
+      expandedDetail, total: percentPoints(chance + card),
+      sources: [...(chance ? [{ label: "Prestige" as const, value: `+${percentPoints(chance)}` }] : []),
+        ...(card ? [{ label: "Cards" as const, value: `+${percentPoints(card)}` }] : [])],
     });
   };
-  perkRow("doubleStrike", "double-strike", "(Chance a hit lands twice)");
-  perkRow("splitShot", "split-shot", "(Chance to strike a second enemy)");
-  perkRow("riposte", "riposte", "(Reflects 100% of each hit before armor, up to your max health; no cap in Reflect Only; half in duels)");
+  perkRow("doubleStrike", "double-strike", "(Chance a hit lands twice)", "doubleStrike");
+  perkRow("splitShot", "split-shot", "(Chance to strike a second enemy)", "splitShot");
+  perkRow("riposte", "riposte", "(Reflects 100% of each hit before armor, up to your max health; no cap in Reflect Only; half in duels)", "reflect");
   return stats;
 }
 

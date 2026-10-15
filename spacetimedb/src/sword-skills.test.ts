@@ -47,15 +47,23 @@ it("carries the offered sword's roll through keeping, selecting and promoting it
   expect([...f.db.playerEquipmentCopy.iter()]).toHaveLength(0);
 });
 
-it("auto keeps a better sword roll and respects a locked first copy", () => {
+it("raises a sword's skills in place, locked or not, and never lowers one", () => {
   const f = swordsman();
   Object.assign(f.ctx, { random: () => .1 });
   f.transaction(() => publishItemDrop(f.ctx, f.ctx.sender, "ion_sword", true));
   expect(swordSkillRollFor(swordCtx(f), f.ctx.sender, "ion_sword").shockwave).toBeGreaterThan(0);
   f.run(server.setEquipmentLocked, { itemId: "ion_sword", copyId: 0n, locked: true });
-  f.transaction(() => setSwordSkillRoll(swordCtx(f), f.ctx.sender, "ion_sword", A));
+  const weak = { whirlwind: .1, deflect: 0, shockwave: 0 };
+  f.transaction(() => setSwordSkillRoll(swordCtx(f), f.ctx.sender, "ion_sword", weak));
   f.transaction(() => publishItemDrop(f.ctx, f.ctx.sender, "ion_sword", true));
-  expect(swordSkillRollFor(swordCtx(f), f.ctx.sender, "ion_sword")).toEqual(A);
+  expect(swordSkillRollFor(swordCtx(f), f.ctx.sender, "ion_sword").deflect).toBeGreaterThan(0);
+  // A high Whirlwind stays; the drop's Deflect and Shockwave are added beside it.
+  const strong = { whirlwind: 50, deflect: 0, shockwave: 0 };
+  f.transaction(() => setSwordSkillRoll(swordCtx(f), f.ctx.sender, "ion_sword", strong));
+  f.transaction(() => publishItemDrop(f.ctx, f.ctx.sender, "ion_sword", true));
+  const merged = swordSkillRollFor(swordCtx(f), f.ctx.sender, "ion_sword");
+  expect(merged.whirlwind).toBe(50);
+  expect(merged.deflect > 0 && merged.shockwave > 0).toBe(true);
 });
 
 it("keeps rolls private, moves a guest's roll to the account, and erases it with that account", () => {
