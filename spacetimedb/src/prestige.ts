@@ -8,11 +8,9 @@ import { researchStatRewardMultiplier } from "../../shared/research";
 import { playerPowerForStats } from "../../shared/player-power";
 import { PRESTIGE_CAP_HINT, PRESTIGE_PERK_POINTS_PER_LEVEL, prestigeCapped, prestigeCampaignTarget, prestigeCampaignComplete, prestigeEndlessRequirement, prestigeStatMultiplier, prestigeUnlocked } from "../../shared/prestige";
 import { PRESTIGE_PERK_IDS, isPrestigePerkId, playerAttackCap, prestigePerkMaxRank, type PrestigePerkRanks } from "../../shared/prestige-perks";
-import { PRESTIGE_EXPANSION_PERK_IDS } from "../../shared/prestige-expansion";
-import { prestigeExpanded } from "./prestige-expansion";
 import { readPlayerProgress } from "./wide-stats";
 import { wornCardTotalsFor } from "./worn-cards";
-import { cardStatFactors, cardStatGainFactor } from "../../shared/card-effects";
+import { cardStatFactors, cardStatGainFactor, type CardTotals } from "../../shared/card-effects";
 import { aggroChallengeActive } from "./aggro-challenge";
 import { bonusOffFor, researchInPlay } from "./bonus-toggles";
 import { perksInPlayFor, prestigeStatGainOn, reflectRewardsOn } from "../../shared/bonus-toggles";
@@ -36,9 +34,9 @@ export function statRewardMultiplier(ctx: any, identity: any) {
     * guildQuestBonusFor(ctx, identity);
 }
 
-/** The stat gain for each type of reward: statRewardMultiplier, and the worn Bounty cards on top. */
-export function statRewardMultiplierFor(ctx: any, identity: any) {
-  const base = statRewardMultiplier(ctx, identity), cards = wornCardTotalsFor(ctx, identity);
+/** The stat gain for each type of reward: statRewardMultiplier, and the worn Bounty cards on top. `cards` saves the read when the caller has them. */
+export function statRewardMultiplierFor(ctx: any, identity: any, cards: CardTotals = wornCardTotalsFor(ctx, identity)) {
+  const base = statRewardMultiplier(ctx, identity);
   return (type: string) => base * cardStatGainFactor(cards, type);
 }
 
@@ -55,19 +53,19 @@ export function prestigePerkRanks(ctx: any, identity: any): PrestigePerkRanks {
  * The attack speed cap in play (playerAttackCap): Reflect Only's wins and Quick Draw, each unless switched off
  * (bonus-toggles.ts). An Aggro run keeps both, though it plays without every other prestige bonus.
  */
-export function attackCapInPlay(ctx: any, identity: any) {
+export function attackCapInPlay(ctx: any, identity: any, worn?: CardTotals) {
   const off = bonusOffFor(ctx, identity);
   const cap = playerAttackCap(reflectRewardsOn(off) ? ctx.db.playerPrestigeChallenge.identity.find(identity) : null,
     perksInPlayFor(storedPrestigePerkRanks(ctx, identity), off));
   // Quick Draw cards raise the cap as the perk does.
-  const cards = cardStatFactors(wornCardTotalsFor(ctx, identity)).attackCapRaise;
+  const cards = cardStatFactors(worn ?? wornCardTotalsFor(ctx, identity)).attackCapRaise;
   return cards > 0 ? { ...cap, raise: cap.raise + cards } : cap;
 }
 
 /** The ranks the player owns, whether or not they are in play: what spending and respeccing work from. */
 export function storedPrestigePerkRanks(ctx: any, identity: any): PrestigePerkRanks {
   const row = ctx.db.playerPrestigePerk.identity.find(identity);
-  const expansion = prestigeExpanded(ctx) ? ctx.db.playerPrestigeExpansionPerk.identity.find(identity) : null;
+  const expansion = ctx.db.playerPrestigeExpansionPerk.identity.find(identity);
   return { keenEdge: row?.keenEdge ?? 0, doubleStrike: row?.doubleStrike ?? 0, splitShot: row?.splitShot ?? 0, riposte: row?.riposte ?? 0,
     bossSlayer: expansion?.bossSlayer ?? 0, secondWind: expansion?.secondWind ?? 0, longShot: expansion?.longShot ?? 0, fleetFoot: expansion?.fleetFoot ?? 0,
     quickDraw: expansion?.quickDraw ?? 0 };
@@ -134,7 +132,7 @@ export function createPrestige(deps: PrestigeDeps) {
       return current;
     }
     const nextLevel = (current?.level ?? 0) + 1;
-    const expanded = prestigeExpanded(ctx);
+    const expanded = true;
     if (prestigeCapped(nextLevel, expanded)) throw new SenderError(PRESTIGE_CAP_HINT);
     const completedEndless = ctx.db.proceduralProgress.identity.find(ctx.sender)?.completed ?? 0;
     if (!progress || !prestigeUnlocked(progress.bossRewardClaims, completedEndless, nextLevel, undefined, expanded)) {
@@ -163,9 +161,6 @@ export function createPrestige(deps: PrestigeDeps) {
     const activePlayer = requireControllingPlayer(ctx);
     if (challengeActive(ctx, ctx.sender)) throw new SenderError("Finish or abandon the prestige challenge before spending perk points.");
     if (!isPrestigePerkId(perk)) throw new SenderError("Unknown prestige perk.");
-    if ((PRESTIGE_EXPANSION_PERK_IDS as readonly string[]).includes(perk) && !prestigeExpanded(ctx)) {
-      throw new SenderError("New prestige perks unlock when the countdown finishes.");
-    }
     const current = ctx.db.playerPrestige.identity.find(ctx.sender);
     if (!current || current.perkPoints < 1) throw new SenderError("No perk points to spend.");
     const ranks = storedPrestigePerkRanks(ctx, ctx.sender);

@@ -2,6 +2,7 @@
 // version stamping, effective power, and researched damage/armor/regen. Moved
 // out of index.ts unchanged.
 import { syncPlayerJoinDate } from "./mailbox";
+import { syncWornSkill } from "./worn-skill";
 import { cardStatFactors, cardTotalsForLevels } from "../../shared/card-effects";
 import { wornCardTotalsFor } from "./worn-cards";
 import { ATTACK_BALANCE_VERSION, MIN_ATTACK_INTERVAL, DEFAULT_ATTACK_INTERVAL } from "../../shared/rules";
@@ -79,7 +80,7 @@ export function powerForProgress(progress: { maxHp: number; damage: number; atta
 
 export function effectivePowerStatsForProgress(ctx: any, progress: any) {
   return effectivePlayerPowerStats(
-    { ...withSoulStats(progress, soulStatsFor(ctx, progress.identity), soulAttackCapFor(ctx, progress.identity)), ...critPowerFields(ctx, progress.identity) },
+    { ...withSoulStats(progress, soulStatsFor(ctx, progress.identity), soulAttackCapFor(ctx, progress.identity)), ...critPowerFields(ctx, progress.identity, progress.critRating) },
     researchInPlay(ctx, progress.identity),
     (itemId) => itemLevelFor(ctx, progress.identity, itemId),
   );
@@ -87,7 +88,7 @@ export function effectivePowerStatsForProgress(ctx: any, progress: any) {
 
 export function effectivePowerForProgress(ctx: any, progress: any) {
   return effectivePlayerPower(
-    { ...withSoulStats(progress, soulStatsFor(ctx, progress.identity), soulAttackCapFor(ctx, progress.identity)), ...critPowerFields(ctx, progress.identity) },
+    { ...withSoulStats(progress, soulStatsFor(ctx, progress.identity), soulAttackCapFor(ctx, progress.identity)), ...critPowerFields(ctx, progress.identity, progress.critRating) },
     researchInPlay(ctx, progress.identity),
     (itemId) => itemLevelFor(ctx, progress.identity, itemId),
   );
@@ -149,6 +150,7 @@ export function writeProgressAndPresentation(ctx: any, progress: any) {
     updateSnapshotRow(ctx, "player", nextPlayer);
     syncPlayerMotionIdentity(ctx, playerWithMotion(ctx, nextPlayer));
   }
+  syncWornSkill(ctx, progress.identity, progress);
   // Ranking snapshots refresh in maintenance, never in the combat/reward path.
 }
 

@@ -1,21 +1,19 @@
 import { expect, it, vi } from "vitest";
 import { crystalFixture, server } from "../../tests/helpers/crystal-hollows-fixture";
-import { ensurePrestigeExpansion } from "./prestige-expansion";
 import { prestigePerkRanks, statRewardMultiplier, storedPrestigePerkRanks, writePrestigePerkRanks } from "./prestige";
 import { prestigeRangeBonus } from "./player-speed";
 import { BOSS_REWARD_CLAIM_BITS, DEFAULT_ATTACK_INTERVAL, MIN_ATTACK_INTERVAL } from "../../shared/rules";
 import { PRESTIGE_PERK_IDS } from "../../shared/prestige-perks";
+import { progressOf } from "../../tests/helpers/progress";
 vi.mock("spacetimedb/server", () => import("../../tests/helpers/spacetime-module"));
 
 function fixture() {
   const f = crystalFixture();
-  ensurePrestigeExpansion(f.ctx as any);
-  f.ctx.timestamp = f.db.prestigeExpansion.id.find(0).unlocksAt;
   f.seed("playerPrestige", { identity: f.ctx.sender, level: 1, perkPoints: 8, peakPower: 0, prestigedAt: f.ctx.timestamp });
   writePrestigePerkRanks(f.ctx, f.ctx.sender, { keenEdge: 2, doubleStrike: 1, splitShot: 0, riposte: 1, bossSlayer: 3, secondWind: 2, longShot: 4, fleetFoot: 3, quickDraw: 0 });
   f.patch("playerProgress", { bossRewardClaims: BOSS_REWARD_CLAIM_BITS.aegisPrime, damage: 12345, attackRate: MIN_ATTACK_INTERVAL });
   f.seed("proceduralProgress", { identity: f.ctx.sender, completed: 12 });
-  const saved = { ...f.db.playerProgress.identity.find(f.ctx.sender) };
+  const saved = { ...progressOf(f, f.ctx.sender) };
   const ranks = prestigePerkRanks(f.ctx, f.ctx.sender);
   // A first prestige's requirement, whatever the player's level: the campaign's last boss. No Endless stage.
   const reachNextPrestige = () => {
@@ -30,7 +28,7 @@ it("starts fresh with every prestige bonus off, and keeps the owned perks untouc
   const multiplier = statRewardMultiplier(f.ctx, f.ctx.sender);
   f.run(server.startAggroRun);
   expect(f.db.playerAggroChallenge.identity.find(f.ctx.sender)).toMatchObject({ active: true, completed: 0 });
-  expect(f.db.playerProgress.identity.find(f.ctx.sender)).toMatchObject({ bossRewardClaims: 0, attackRate: DEFAULT_ATTACK_INTERVAL });
+  expect(progressOf(f, f.ctx.sender)).toMatchObject({ bossRewardClaims: 0, attackRate: DEFAULT_ATTACK_INTERVAL });
   expect(f.db.player.identity.find(f.ctx.sender).mapId).toBe("tutorial_forest");
   expect(statRewardMultiplier(f.ctx, f.ctx.sender)).toBeLessThan(multiplier);
   expect(prestigePerkRanks(f.ctx, f.ctx.sender)).toEqual(zero);
@@ -47,13 +45,13 @@ it("restarts the run on a death past Tutorial Forest", () => {
   f.patch("playerProgress", { damage: 999, bossRewardClaims: BOSS_REWARD_CLAIM_BITS.dragon });
   f.patch("player", { mapId: "beginner_desert" });
   f.run(server.recordPlayerDeath);
-  expect(f.db.playerProgress.identity.find(f.ctx.sender)).toMatchObject({ bossRewardClaims: 0 });
-  expect(f.db.playerProgress.identity.find(f.ctx.sender).damage).toBeLessThan(999);
+  expect(progressOf(f, f.ctx.sender)).toMatchObject({ bossRewardClaims: 0 });
+  expect(progressOf(f, f.ctx.sender).damage).toBeLessThan(999);
   expect(f.db.playerAggroChallenge.identity.find(f.ctx.sender).active).toBe(true);
   // Outside a run a death changes nothing.
   const g = fixture();
   g.run(server.recordPlayerDeath);
-  expect(g.db.playerProgress.identity.find(g.ctx.sender).damage).toBe(12345);
+  expect(progressOf(g, g.ctx.sender).damage).toBe(12345);
 });
 
 it("keeps the run through a death in Tutorial Forest, the run's safe zone", () => {
@@ -62,7 +60,7 @@ it("keeps the run through a death in Tutorial Forest, the run's safe zone", () =
   f.patch("playerProgress", { damage: 999, bossRewardClaims: BOSS_REWARD_CLAIM_BITS.dragon });
   expect(f.db.player.identity.find(f.ctx.sender).mapId).toBe("tutorial_forest");
   f.run(server.recordPlayerDeath);
-  expect(f.db.playerProgress.identity.find(f.ctx.sender)).toMatchObject({ damage: 999, bossRewardClaims: BOSS_REWARD_CLAIM_BITS.dragon });
+  expect(progressOf(f, f.ctx.sender)).toMatchObject({ damage: 999, bossRewardClaims: BOSS_REWARD_CLAIM_BITS.dragon });
   expect(f.db.playerAggroChallenge.identity.find(f.ctx.sender).active).toBe(true);
 });
 
@@ -73,7 +71,7 @@ it("is won at a first prestige's requirement (the campaign's last boss), handing
   f.reachNextPrestige();
   f.run(server.prestigeAccount);
   expect(f.db.playerAggroChallenge.identity.find(f.ctx.sender)).toMatchObject({ active: false, completed: 1 });
-  expect(f.db.playerProgress.identity.find(f.ctx.sender)).toMatchObject({ damage: 12345, attackRate: MIN_ATTACK_INTERVAL });
+  expect(progressOf(f, f.ctx.sender)).toMatchObject({ damage: 12345, attackRate: MIN_ATTACK_INTERVAL });
   expect(f.db.player.identity.find(f.ctx.sender).mapId).toBe("crystal_hollows");
   expect(f.db.proceduralProgress.identity.find(f.ctx.sender).completed).toBe(12);
   expect(f.db.playerPrestige.identity.find(f.ctx.sender)).toMatchObject({ level: 1, perkPoints: 8 });
@@ -87,17 +85,17 @@ it("dropping out parks the run and hands back the main one; starting again drops
   f.patch("playerProgress", { damage: 4321, bossRewardClaims: BOSS_REWARD_CLAIM_BITS.dragon });
   f.seed("proceduralProgress", { identity: f.ctx.sender, completed: 0 });
   f.run(server.abandonAggroRun);
-  expect(f.db.playerProgress.identity.find(f.ctx.sender)).toEqual(f.saved);
+  expect(progressOf(f, f.ctx.sender)).toEqual(f.saved);
   expect(f.db.playerAggroChallenge.identity.find(f.ctx.sender)).toMatchObject({ active: false, completed: 0 });
   expect(f.db.playerAggroChallengeParked.identity.find(f.ctx.sender)).toBeTruthy();
   f.run(server.startAggroRun);
-  expect(f.db.playerProgress.identity.find(f.ctx.sender)).toMatchObject({ damage: 4321, bossRewardClaims: BOSS_REWARD_CLAIM_BITS.dragon });
+  expect(progressOf(f, f.ctx.sender)).toMatchObject({ damage: 4321, bossRewardClaims: BOSS_REWARD_CLAIM_BITS.dragon });
   expect(f.db.playerAggroChallengeParked.identity.find(f.ctx.sender)).toBeNull();
   expect(f.db.aggroChallengeRun.identity.find(f.ctx.sender)).toBeNull();
   // Only a death past the forest starts it over.
   f.patch("player", { mapId: "beginner_desert" });
   f.run(server.recordPlayerDeath);
-  expect(f.db.playerProgress.identity.find(f.ctx.sender).bossRewardClaims).toBe(0);
+  expect(progressOf(f, f.ctx.sender).bossRewardClaims).toBe(0);
   f.run(server.abandonAggroRun);
 });
 
@@ -112,7 +110,7 @@ it("four wins end the challenge, and a win leaves nothing parked", () => {
 
 it("switching between the challenges never loses the main run or the parked Reflect run", () => {
   const f = fixture();
-  const mainRun = () => expect(f.db.playerProgress.identity.find(f.ctx.sender)).toEqual(f.saved);
+  const mainRun = () => expect(progressOf(f, f.ctx.sender)).toEqual(f.saved);
   const clean = () => expect(f.db.prestigeChallengeBackup.identity.find(f.ctx.sender)).toBeNull();
   f.run(server.startAggroRun); f.run(server.abandonAggroRun); mainRun(); clean();
   f.run(server.startPrestigeChallenge);
@@ -126,10 +124,10 @@ it("switching between the challenges never loses the main run or the parked Refl
   f.run(server.abandonAggroRun); mainRun(); clean();
   // The parked Reflect run outlived the Aggro run in between.
   f.run(server.startPrestigeChallenge);
-  expect(f.db.playerProgress.identity.find(f.ctx.sender).damage).toBe(777);
+  expect(progressOf(f, f.ctx.sender).damage).toBe(777);
   f.run(server.abandonPrestigeChallenge); mainRun(); clean();
   f.run(server.startAggroRun); f.reachNextPrestige(); f.run(server.prestigeAccount);
-  expect(f.db.playerProgress.identity.find(f.ctx.sender).damage).toBe(12345);
+  expect(progressOf(f, f.ctx.sender).damage).toBe(12345);
   expect(f.db.playerAggroChallenge.identity.find(f.ctx.sender)).toMatchObject({ active: false, completed: 1 });
   expect(f.db.playerPrestigeChallenge.identity.find(f.ctx.sender)).toMatchObject({ active: false, completed: 0 });
   expect(prestigePerkRanks(f.ctx, f.ctx.sender)).toEqual(f.ranks);
@@ -148,22 +146,22 @@ it("refuses to drop out when the saved run can't be read, changing nothing", () 
   }
   f.db.prestigeChallengeBackup.identity.update(backup);
   f.run(server.abandonAggroRun);
-  expect(f.db.playerProgress.identity.find(f.ctx.sender)).toEqual(f.saved);
+  expect(progressOf(f, f.ctx.sender)).toEqual(f.saved);
 });
 
 it("an Aggro run parked beside a parked Reflect run keeps both", () => {
   const f = fixture();
   f.run(server.startPrestigeChallenge); f.patch("playerProgress", { damage: 111 }); f.run(server.abandonPrestigeChallenge);
   f.run(server.startAggroRun); f.patch("playerProgress", { damage: 222 }); f.run(server.abandonAggroRun);
-  expect(f.db.playerProgress.identity.find(f.ctx.sender)).toEqual(f.saved);
+  expect(progressOf(f, f.ctx.sender)).toEqual(f.saved);
   f.run(server.startPrestigeChallenge);
-  expect(f.db.playerProgress.identity.find(f.ctx.sender).damage).toBe(111);
+  expect(progressOf(f, f.ctx.sender).damage).toBe(111);
   f.run(server.abandonPrestigeChallenge);
   f.run(server.startAggroRun);
-  expect(f.db.playerProgress.identity.find(f.ctx.sender).damage).toBe(222);
+  expect(progressOf(f, f.ctx.sender).damage).toBe(222);
   f.reachNextPrestige(); f.run(server.prestigeAccount);
   expect(f.db.playerAggroChallengeParked.identity.find(f.ctx.sender)).toBeNull();
-  expect(f.db.playerProgress.identity.find(f.ctx.sender)).toMatchObject({ damage: 12345 });
+  expect(progressOf(f, f.ctx.sender)).toMatchObject({ damage: 12345 });
 });
 
 it("rebuilds a lost run as a parked one at the player's power, once, for exactly one player", async () => {
@@ -177,15 +175,15 @@ it("rebuilds a lost run as a parked one at the player's power, once, for exactly
   // A second rebuild replaces the parked run rather than adding one.
   expect(rebuildParkedAggroRun(f.ctx, "phoe", 317_000)).toMatch(/^parked on /);
   expect([...f.db.aggroChallengeRun.iter()]).toHaveLength(1);
-  expect(f.db.playerProgress.identity.find(f.ctx.sender)).toEqual(f.saved);
+  expect(progressOf(f, f.ctx.sender)).toEqual(f.saved);
   f.run(server.startAggroRun);
-  const run = f.db.playerProgress.identity.find(f.ctx.sender);
+  const run = progressOf(f, f.ctx.sender);
   const power = effectivePlayerPower(run, f.db.playerResearch.identity.find(f.ctx.sender));
   expect(power).toBeGreaterThan(317_000 * .98);
   expect(power).toBeLessThan(317_000 * 1.02);
   expect(f.db.player.identity.find(f.ctx.sender).mapId).not.toBe("crystal_hollows");
   f.run(server.abandonAggroRun);
-  expect(f.db.playerProgress.identity.find(f.ctx.sender)).toEqual(f.saved);
+  expect(progressOf(f, f.ctx.sender)).toEqual(f.saved);
   expect(rebuildParkedAggroRun(f.ctx, "nobody", 1)).toBe("no single match");
 });
 
@@ -198,10 +196,10 @@ it("rebuilding while a run is under way sets that run's stats in place", async (
   else f.seed("playerProfile", { identity: f.ctx.sender, displayName: "Phoe" });
   f.run(server.startAggroRun);
   expect(rebuildParkedAggroRun(f.ctx, "phoe", 317_000)).toBe("run under way rebuilt");
-  const power = effectivePlayerPower(f.db.playerProgress.identity.find(f.ctx.sender), f.db.playerResearch.identity.find(f.ctx.sender));
+  const power = effectivePlayerPower(progressOf(f, f.ctx.sender), f.db.playerResearch.identity.find(f.ctx.sender));
   expect(Math.abs(power / 317_000 - 1)).toBeLessThan(.02);
   f.run(server.abandonAggroRun);
-  expect(f.db.playerProgress.identity.find(f.ctx.sender)).toEqual(f.saved);
+  expect(progressOf(f, f.ctx.sender)).toEqual(f.saved);
 });
 
 it("wins on the spot when a boss clear meets the goal, as Reflect Only does", async () => {
@@ -237,4 +235,18 @@ it("never takes an Aggro run back to a map only the main run has open: Fight fro
   f.patch("player", { mapId: "town", x: 6120, y: 5110 });
   f.run(server.changeMap, { mapId: "town", x: 6120, y: 5110 });
   expect(f.db.player.identity.find(f.ctx.sender).mapId).toBe("tutorial_forest");
+});
+
+it("brings a guest's Aggro run to the account with its saved main run, Reflect Only never played", async () => {
+  const { mergeLinkedPrestige } = await import("./prestige-transfer");
+  const { Identity } = await import("../../tests/helpers/spacetime-memory-db");
+  const f = fixture();
+  f.run(server.startAggroRun);
+  expect(f.db.playerPrestigeChallenge.identity.find(f.ctx.sender)).toBeFalsy();
+  const guest = f.ctx.sender, account = new Identity("c2".padEnd(64, "7"));
+  mergeLinkedPrestige(f.ctx, guest, account);
+  expect(f.db.playerAggroChallenge.identity.find(account)).toMatchObject({ active: true });
+  // Its main run is there to drop out to.
+  expect(f.db.prestigeChallengeBackup.identity.find(account)).toBeTruthy();
+  expect(f.db.prestigeChallengeBackup.identity.find(guest)).toBeFalsy();
 });

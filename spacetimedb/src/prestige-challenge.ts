@@ -1,6 +1,5 @@
 import { table, t, SenderError } from "spacetimedb/server";
 import { CHALLENGE_ABSOLUTE_MIN_INTERVAL, PRESTIGE_CHALLENGE_LIMIT, challengeGoalMet } from "../../shared/prestige-challenge";
-import { prestigeExpanded } from "./prestige-expansion";
 import { bonusOffFor } from "./bonus-toggles";
 import { reflectRewardsOn } from "../../shared/bonus-toggles";
 import { updateSnapshotRow } from "./snapshot-row-writes";
@@ -32,7 +31,6 @@ export const challengeActive = (ctx: any, identity: any) => Boolean(ctx.db.playe
 export function setPrestigeChallenge(ctx: any, active: boolean, player: any) {
   const row = ctx.db.playerPrestigeChallenge.identity.find(ctx.sender);
   if (active) {
-    if (!prestigeExpanded(ctx)) throw new SenderError("Challenge mode unlocks when the countdown finishes.");
     if (!(ctx.db.playerPrestige.identity.find(ctx.sender)?.level > 0)) throw new SenderError("Prestige once before starting a challenge.");
     if (row?.active) throw new SenderError("A prestige challenge is already active.");
     if ((row?.completed ?? 0) >= PRESTIGE_CHALLENGE_LIMIT) throw new SenderError("All four prestige challenges are complete.");
@@ -166,13 +164,15 @@ export function resumeParkedChallenge(ctx: any): { progress: any; mapId: string;
 }
 
 export function mergePrestigeChallenges(ctx: any, guest: any, account: any) {
+  // The saved main run belongs to either challenge, so it moves even for a guest who never played Reflect Only:
+  // an Aggro run linked without it could never be dropped out of.
+  const backup = ctx.db.prestigeChallengeBackup.identity.find(guest);
+  if (backup && !ctx.db.prestigeChallengeBackup.identity.find(account)) ctx.db.prestigeChallengeBackup.insert({ ...backup, identity: account });
+  if (backup) ctx.db.prestigeChallengeBackup.identity.delete(guest);
   const source = ctx.db.playerPrestigeChallenge.identity.find(guest);
   if (!source) return;
   const target = ctx.db.playerPrestigeChallenge.identity.find(account);
   const next = { identity: account, active: Boolean(target?.active || source.active), completed: Math.max(target?.completed ?? 0, source.completed) };
-  const backup = ctx.db.prestigeChallengeBackup.identity.find(guest);
-  if (backup && !ctx.db.prestigeChallengeBackup.identity.find(account)) ctx.db.prestigeChallengeBackup.insert({ ...backup, identity: account });
-  if (backup) ctx.db.prestigeChallengeBackup.identity.delete(guest);
   const parked = ctx.db.prestigeChallengeRun.identity.find(guest);
   if (parked && !ctx.db.prestigeChallengeRun.identity.find(account)) {
     ctx.db.prestigeChallengeRun.insert({ ...parked, identity: account });

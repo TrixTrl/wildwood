@@ -512,10 +512,14 @@ export function createAutoFarmController(options: {
     if (selected) spent.set(selected, (spent.get(selected) ?? 0) + dt);
     planClock -= dt;
     const current = all.find(entry => entry.key === selected && (shares[entry.key] ?? 0) > 0);
-    const anyAlive = all.some(entry => entry.alive > 0 && (shares[entry.key] ?? 0) > 0);
+    const weights = farmWeights(all);
+    // Only a group the pick can go to counts as somewhere to go. An Aggro group is in the shares but never walked
+    // to, so with the farmed groups empty it read as "something alive": the pick re-ran every frame, swapping between
+    // the empty groups by time spent, and each swap went to the server.
+    const anyAlive = weights.some(entry => entry.alive > 0 && entry.weight > 0);
     if (current && (current.alive > 0 ? planClock > 0 : !anyAlive)) return;
     planClock = SHARE_REPLAN_SECONDS;
-    const key = shareFarmKey(farmWeights(all), group => spent.get(group) ?? 0);
+    const key = shareFarmKey(weights, group => spent.get(group) ?? 0);
     if (key) select(key);
   }
 
@@ -618,9 +622,13 @@ export function createAutoFarmController(options: {
   function travelStarted() {
     zeroWaiting = false;
     if (!active && !pendingResume) return;
-    if (!startedIdentity) { stop('Map changed · choose stats'); return; }
+    // After an update reload the farm waits as a restored intent, with no startedIdentity yet: travel carries that intent on.
+    const identity = startedIdentity ?? pendingResume?.identity;
+    if (!identity) { stop('Map changed · choose stats'); return; }
     // The player's sliders as last set, not this map's split of them: a stat this map lacks is farmed again where it is paid.
-    const intent = { identity: startedIdentity, map: travellingTo ?? '', choice: encodeFarmPlan(readSavedShares(startedMap, options.priorityStorage) ?? shares) };
+    const choice = startedIdentity ? encodeFarmPlan(readSavedShares(startedMap, options.priorityStorage) ?? shares) : pendingResume!.choice;
+    // A stored intent needs a map, or it is not read back after a reload; any map will do, restoring does not check it.
+    const intent = { identity, map: travellingTo ?? options.mapId(), choice };
     const label = travellingTo ? 'Moving to the next map' : 'Changing map';
     stop(label);
     pendingResume = intent;

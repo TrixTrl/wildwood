@@ -13,7 +13,6 @@ import { removePlayerJoinDate, syncPlayerJoinDate } from "./mailbox";
 import { movePausedResearch, removePausedResearch } from "./research-pause";
 import { removeStreamCursors } from "./regular-enemy-loot";
 import {
-  ATTACK_BALANCE_VERSION,
   DEFAULT_ATTACK_INTERVAL,
   SPACETIME_AUTH_CLIENT_ID,
   SPACETIME_AUTH_ISSUER,
@@ -51,7 +50,6 @@ import { mergeSocialAccount, removeSocialAccount } from "./social-service";
 import { readPlayerProgress, deleteReplayWide } from "./wide-stats";
 import { eraseIdentityRows } from "./account-erasure";
 import { carryNameColor } from "./profile-look";
-import { LEGACY_BOSS_KEYS } from "./boss-tables";
 
 export const ACCOUNT_LINK_LIFETIME_MICROS = 600_000_000n;
 
@@ -138,23 +136,22 @@ export type AccountLifecycleDeps = {
  */
 const PLAYER_STATE_TABLES: ReadonlySet<string> = new Set([
   // One row per player, cleared the same way by both removals.
-  "activeResearch", "balanceApologyNotice", "bossDefeatWindow", "bossMapDefeatWindow", "chatCooldown",
+  "activeResearch", "balanceApologyNotice", "chatCooldown",
   "chatReactionUnlock", "defeatSessionRestriction", "duelRequestCooldown", "leaderboardEntry", "playerAccessAudit",
   "playerBalanceVersion", "playerController", "playerCutsceneHistory", "playerGemWallet", "playerInventoryCapacity",
-  "playerLastLocation", "playerLegalConsent", "playerLifetime", "playerMapBalance", "playerMapMarker",
-  "playerMovementDemand", "playerMultiplayerPreference", "playerNameCooldown", "playerOnboarding",
+  "playerDefeatClock", "playerLastLocation", "playerLegalConsent", "playerLifetime", "playerMapBalance", "playerMapMarker",
+  "playerMultiplayerPreference", "playerNameCooldown", "playerOnboarding",
   "playerUpgradeBench", "playerUpgradeBenchThirdSlot",
-  ...LEGACY_BOSS_KEYS.flatMap(boss => [`${boss}Contribution`, `${boss}AttackWindow`]),
   // Added after the removal functions were first written.
   "accountDeletionRequest", "accountEmail", "aggroChallengeRun", "chatMessageReportRateLimit", "chatModerator",
   "connectionDiagnostic", "connectionDiagnosticRate", "dailyGemBonus", "developerPresencePreference",
-  "duelWireAccess", "endlessTravelAccess", "enemyDefeatReview",
-  "forestRewardPrototype", "gemKillProgress", "gemTransaction", "guildMemberQuestWeek", "guildRejoin",
-  "homeReturnLocation", "leaderboardEntryLegacy", "leaderboardPosition", "leaderboardPrestigePosition", "loginMove",
+  "endlessTravelAccess",
+  "gemKillDaily", "gemKillProgress", "gemTransaction", "guildMemberQuestWeek", "guildRejoin",
+  "homeReturnLocation", "leaderboardPosition", "leaderboardPrestigePosition", "loginMove",
   "offlineProgress", "patreonPreview", "playerAggroChallenge", "playerAggroChallengeParked", "playerBonusToggle", "playerNameColor",
-  "playerMining", "playerMinedNode",
-  "playerDailyQuest", "playerEndgameRebaseBackup", "playerEndlessRebaseBackup", "playerFreeRespec",
-  "playerOfflinePreference", "playerPowerRebaseBackup", "playerPrestige", "playerPrestigeChallenge",
+  "playerMining", "playerMinedNode", "playerMiningLevel",
+  "playerDailyQuest", "playerEndlessRebaseBackup", "playerFreeRespec",
+  "playerOfflinePreference", "playerPrestige", "playerPrestigeChallenge",
   "playerPrestigeChallengeParked", "playerPrestigeExpansionPerk", "playerPrestigePerk", "playerQuestWeekTotal",
   "presenceChatCooldown", "prestigeChallengeBackup", "prestigeChallengeRun",
   "proceduralContribution", "proceduralInstanceContribution", "proceduralProgress",
@@ -272,9 +269,8 @@ export function createAccountLifecycle(deps: AccountLifecycleDeps) {
     mergeEquipmentLocks(ctx, link.guest, ctx.sender);
     mergeIgnoredDrops(ctx, link.guest, ctx.sender);
     mergeOfflinePreference(ctx, link.guest, ctx.sender);
-    const guestBalance = ctx.db.playerBalanceVersion.identity.find(link.guest);
-    const guestBalanceVersion = guestBalance?.version ?? 0;
-    const guestAttackRate = guestBalanceVersion >= 1 ? guestProgress.attackRate : guestProgress.attackRate * 2;
+    // Every save is at the current balance version (player_balance_version, 2026-10-15), so the guest's is too.
+    const guestAttackRate = guestProgress.attackRate;
     const nextProgress = {
       ...guestProgress,
       identity: ctx.sender,
@@ -488,37 +484,6 @@ export function createAccountLifecycle(deps: AccountLifecycleDeps) {
     }
     if (guestLeaderboardEntry) ctx.db.leaderboardEntry.identity.delete(link.guest);
     moveLeaderboardPrestigePosition(ctx, link.guest, ctx.sender);
-    // Linking during any boss fight keeps the guest's contribution under the
-    // authenticated identity. Attack windows are cleared so the next volley is
-    // authorized against the new identity and cannot inherit stale hit counts.
-    // Leftover shared-boss rows: fold the guest's damage into the account's for
-    // the same encounter, and drop both attack windows.
-    for (const boss of LEGACY_BOSS_KEYS) {
-      const contributionTable = ctx.db[`${boss}Contribution`];
-      const attackWindowTable = ctx.db[`${boss}AttackWindow`];
-      const guestContribution = contributionTable.identity.find(link.guest);
-      const accountContribution = contributionTable.identity.find(ctx.sender);
-      if (guestContribution) {
-        const nextContribution = {
-          identity: ctx.sender,
-          encounter: guestContribution.encounter,
-          displayName: finalDisplayName,
-          damage: accountContribution?.encounter === guestContribution.encounter
-            ? accountContribution.damage + guestContribution.damage
-            : guestContribution.damage,
-        };
-        if (accountContribution) contributionTable.identity.update(nextContribution);
-        else contributionTable.insert(nextContribution);
-        contributionTable.identity.delete(link.guest);
-      }
-      if (attackWindowTable.identity.find(link.guest)) attackWindowTable.identity.delete(link.guest);
-      if (attackWindowTable.identity.find(ctx.sender)) attackWindowTable.identity.delete(ctx.sender);
-    }
-
-    const accountBalance = ctx.db.playerBalanceVersion.identity.find(ctx.sender);
-    const nextBalance = { identity: ctx.sender, version: ATTACK_BALANCE_VERSION };
-    if (accountBalance) ctx.db.playerBalanceVersion.identity.update(nextBalance);
-    else ctx.db.playerBalanceVersion.insert(nextBalance);
 
     // Migration transfers a guest save into the authenticated identity. Leave
     // no second durable save behind; otherwise an old guest token can later
@@ -529,7 +494,6 @@ export function createAccountLifecycle(deps: AccountLifecycleDeps) {
     }
     removePlayerRealtimeState(ctx, link.guest);
     if (ctx.db.playerMapMarker.identity.find(link.guest)) ctx.db.playerMapMarker.identity.delete(link.guest);
-    if (ctx.db.playerMovementDemand.identity.find(link.guest)) ctx.db.playerMovementDemand.identity.delete(link.guest);
     if (guestProgress) deleteSnapshotRow(ctx, "playerProgress", link.guest);
     if (ctx.db.playerLegalConsent.identity.find(link.guest)) ctx.db.playerLegalConsent.identity.delete(link.guest);
     if (guestLocation) ctx.db.playerLastLocation.identity.delete(link.guest);
@@ -567,7 +531,7 @@ export function createAccountLifecycle(deps: AccountLifecycleDeps) {
     }
     const guestDuelRequestCooldown = ctx.db.duelRequestCooldown.identity.find(link.guest);
     if (guestDuelRequestCooldown) ctx.db.duelRequestCooldown.identity.delete(link.guest);
-    if (guestBalance) ctx.db.playerBalanceVersion.identity.delete(link.guest);
+    if (ctx.db.playerBalanceVersion.identity.find(link.guest)) ctx.db.playerBalanceVersion.identity.delete(link.guest);
     const guestGemWallet = ctx.db.playerGemWallet.identity.find(link.guest);
     if (guestGemWallet) ctx.db.playerGemWallet.identity.delete(link.guest);
     if (ctx.db.playerUpgradeBench.identity.find(link.guest)) ctx.db.playerUpgradeBench.identity.delete(link.guest);
@@ -612,7 +576,6 @@ export function createAccountLifecycle(deps: AccountLifecycleDeps) {
         : activePlayer);
       deleteSnapshotRow(ctx, "player", identity);
       if (ctx.db.playerMapMarker.identity.find(identity)) ctx.db.playerMapMarker.identity.delete(identity);
-      if (ctx.db.playerMovementDemand.identity.find(identity)) ctx.db.playerMovementDemand.identity.delete(identity);
     }
     removePlayerRealtimeState(ctx, identity);
   }
@@ -645,6 +608,7 @@ export function createAccountLifecycle(deps: AccountLifecycleDeps) {
     removeMailboxReceipts(ctx, identity);
     unlinkPatreon(ctx, identity);
     for (const budget of ctx.db.enemyDefeatBudget.identity.filter(identity)) ctx.db.enemyDefeatBudget.key.delete(budget.key);
+    ctx.db.playerDefeatClock.identity.delete(identity);
     removeAudioSettings(ctx, identity);
     removeLootSettings(ctx, identity);
     removeProfileSnapshot(ctx, identity);
@@ -707,6 +671,7 @@ export function createAccountLifecycle(deps: AccountLifecycleDeps) {
     removeMailboxReceipts(ctx, identity);
     unlinkPatreon(ctx, identity);
     for (const budget of ctx.db.enemyDefeatBudget.identity.filter(identity)) ctx.db.enemyDefeatBudget.key.delete(budget.key);
+    ctx.db.playerDefeatClock.identity.delete(identity);
     removeAudioSettings(ctx, identity);
     removeLootSettings(ctx, identity);
     removeProfileSnapshot(ctx, identity);

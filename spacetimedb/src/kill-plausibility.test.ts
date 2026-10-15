@@ -1,16 +1,15 @@
-import { fillDefeatBudget, reportKills } from "../../tests/helpers/enemy-defeat";
+import { fillDefeatBudget, readDefeatClock, reportKills, seedDefeatClock } from "../../tests/helpers/enemy-defeat";
 import { expect, it, vi } from "vitest";
 import { crystalFixture } from "../../tests/helpers/crystal-hollows-fixture";
 import { STARTER_BOW } from "../../shared/items";
 import { DEFEAT_BUDGET_WINDOW_SECONDS, DEFEAT_MIN_RESPAWN_SECONDS, enemyDefeatDefinition, mapEnemyPopulation } from "../../shared/enemy-defeats";
 import { REGULAR_ENEMY_LOOT_DELAY_MS } from "../../shared/regular-map-loot";
-import { PLAUSIBLE_KILL_TOLERANCE, combatTimeKey, plausibleKillsPerSecond } from "./enemy-defeats";
+import { PLAUSIBLE_KILL_TOLERANCE, plausibleKillsPerSecond } from "./enemy-defeats";
 import { ENEMY_TYPES } from "../../shared/enemy-definitions";
 vi.mock("spacetimedb/server", () => import("../../tests/helpers/spacetime-module"));
 
 const ENEMY = "Shard Hopper";
 const claim = (count: number, sequence = 1n) => ({ streamId: "plausibility-stream-01", sequence, mapId: "crystal_hollows", enemies: [{ enemy: ENEMY, count }] });
-const flags = (f: ReturnType<typeof crystalFixture>) => [...f.db.enemyDefeatReview.iter()].map(row => row.kind);
 const restricted = (f: ReturnType<typeof crystalFixture>) => Boolean(f.db.defeatSessionRestriction.identity.find(f.ctx.sender));
 const kills = (f: ReturnType<typeof crystalFixture>) => f.db.playerLifetime.identity.find(f.ctx.sender)?.enemyKills ?? 0n;
 
@@ -36,17 +35,14 @@ it("pays a weak player only what they could have killed and does not restrict th
   f.patch("playerProgress", { equippedRightHand: STARTER_BOW, damage: 1 });
   reportKills(f, claim(50));
   expect(kills(f)).toBeLessThan(50n);
-  // Bounded, not reported: there is no queue for anyone to read.
-  expect(flags(f)).toEqual([]);
   expect(restricted(f)).toBe(false);
 });
 
-it("pays a strong player in full with nothing to review", () => {
+it("pays a strong player in full", () => {
   const f = crystalFixture();
   f.patch("playerProgress", { equippedRightHand: STARTER_BOW, damage: 1e15 });
   reportKills(f, claim(6));
   expect(kills(f)).toBe(6n);
-  expect(flags(f)).toEqual([]);
 });
 
 it("estimates with the stats the report itself grants, as the client had them by its last kill", () => {
@@ -67,7 +63,6 @@ it("estimates with the stats the report itself grants, as the client had them by
   fillDefeatBudget(f, "tutorial_forest", "Needle");
   reportKills(f, { streamId: "plausibility-stream-02", sequence: 1n, mapId: "tutorial_forest", enemies: [{ enemy: "Needle", count: CLAIM }] });
   expect(kills(f)).toBe(BigInt(CLAIM));
-  expect(flags(f)).toEqual([]);
 });
 
 it("charges every kill at least the map's respawn over its whole population, so hopping maps earns no more", () => {
@@ -79,10 +74,10 @@ it("charges every kill at least the map's respawn over its whole population, so 
   const f = crystalFixture();
   f.patch("playerProgress", { equippedRightHand: STARTER_BOW, inventoryJson: '["starter_bow"]', damage: 1e15, projectileCount: 3, attackRate: .4 });
   fillDefeatBudget(f, "crystal_hollows", ENEMY);
-  f.seed("enemyDefeatBudget", { key: combatTimeKey(f.ctx.sender), identity: f.ctx.sender, tokens: 10, updatedAtMicros: f.ctx.timestamp.microsSinceUnixEpoch });
+  seedDefeatClock(f, "combat", 10);
   reportKills(f, claim(50));
   expect(kills(f)).toBe(BigInt(10 * 48 / DEFEAT_MIN_RESPAWN_SECONDS));
-  expect(f.db.enemyDefeatBudget.key.find(combatTimeKey(f.ctx.sender)).tokens).toBeCloseTo(0, 6);
+  expect(readDefeatClock(f, "combat")!.tokens).toBeCloseTo(0, 6);
   expect(restricted(f)).toBe(false);
 });
 
@@ -95,7 +90,7 @@ it("shares one combat clock across species, so claiming several at once earns no
   const f = crystalFixture();
   f.patch("playerProgress", { equippedRightHand: STARTER_BOW, inventoryJson: '["starter_bow"]', damage: 1e15, attackRate: 1, projectileCount: 1 });
   for (const kind of species) fillDefeatBudget(f, "crystal_hollows", kind);
-  f.seed("enemyDefeatBudget", { key: combatTimeKey(f.ctx.sender), identity: f.ctx.sender, tokens: 10, updatedAtMicros: f.ctx.timestamp.microsSinceUnixEpoch });
+  seedDefeatClock(f, "combat", 10);
   reportKills(f, { streamId: "plausibility-stream-03", sequence: 1n, mapId: "crystal_hollows",
     enemies: species.map(enemy => ({ enemy, count: 10 })) });
   expect(kills(f)).toBe(BigInt(Math.floor(10 * PLAUSIBLE_KILL_TOLERANCE)));

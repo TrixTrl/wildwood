@@ -7,6 +7,7 @@ import { createGameBootstrap } from "./game-bootstrap";
 import { createGameSessionController } from "./game-session-controller";
 import { parseHTML } from "linkedom";
 import { CRYSTAL_HOLLOWS_MAP_ID, MOONFEN_MAP_ID, type MapId } from "../world";
+import { stepThrough } from "../../../shared/map-gateways";
 
 type MapControllerOptions = Parameters<typeof createMapController>[0];
 
@@ -159,7 +160,8 @@ describe("portal arrival activation", () => {
     // Moonfen's way on and Crystal Hollows' way back, in the middle of their maps.
     const useOf = (portal: { x: number; y: number; height: number } | null | undefined) => ({ x: portal!.x, y: portal!.y - portal!.height * .32 });
     const onward = useOf(bootstrap.mapConfig[MOONFEN_MAP_ID].secondaryPortal), back = useOf(bootstrap.mapConfig[CRYSTAL_HOLLOWS_MAP_ID].portal);
-    const arrival = bootstrap.mapConfig[CRYSTAL_HOLLOWS_MAP_ID].arrival;
+    // Out of Crystal Hollows' portal back to Moonfen, where they stood in Moonfen's, as the server lands them (map-travel.ts).
+    const arrival = stepThrough(bootstrap.mapConfig[CRYSTAL_HOLLOWS_MAP_ID].portal!, { x: 0, y: 0 });
     controller.loadMap(MOONFEN_MAP_ID, bootstrap.mapConfig[MOONFEN_MAP_ID].arrival.x, bootstrap.mapConfig[MOONFEN_MAP_ID].arrival.y);
     harness.setUnlocked(false);
     player.x = onward.x;
@@ -175,6 +177,9 @@ describe("portal arrival activation", () => {
     expect(player).toMatchObject(arrival);
 
     bootstrap.bossHazards.prismshell.push({ x: 100, y: 100, r: 86, timer: .5, maxTimer: 1 });
+    // Out of the portal it arrived in first.
+    player.y += 120;
+    controller.updatePortal(1 / 60);
     player.x = back.x;
     player.y = back.y;
     controller.updatePortal(1 / 60);
@@ -193,12 +198,16 @@ describe("portal arrival activation", () => {
     expect(harness.prepareMapAssets).toHaveBeenCalledWith(CRYSTAL_HOLLOWS_MAP_ID);
   });
 
-  it("is active immediately after arriving outside the destination trigger", async () => {
+  it("arrives inside the portal back, which takes the player home once they have stepped out of it", async () => {
     const { changeMap, controller, currentMapId, desertMapId, player } = portalArrivalHarness({ x: 300, y: 400 });
     controller.updatePortal(1 / 60);
     await vi.waitFor(() => expect(currentMapId()).toBe(desertMapId));
+    expect(player).toMatchObject({ x: 300, y: 268 });
+    controller.updatePortal(1 / 60);
+    expect(changeMap).toHaveBeenCalledTimes(1);
 
-    player.x = 300;
+    player.y = 400;
+    controller.updatePortal(1 / 60);
     player.y = 268;
     controller.updatePortal(1 / 60);
     await vi.waitFor(() => expect(changeMap).toHaveBeenCalledTimes(2));
@@ -216,6 +225,79 @@ describe("portal arrival activation", () => {
     player.y = 268;
     controller.updatePortal(1 / 60);
     await vi.waitFor(() => expect(changeMap).toHaveBeenCalledTimes(2));
+  });
+});
+
+describe("walking straight through a portal", () => {
+  function confirmable() {
+    let answer!: (changed: boolean) => void;
+    const changeMap = vi.fn(() => new Promise<boolean>((resolve) => { answer = resolve; }));
+    const syncStoppedPosition = vi.fn();
+    const harness = portalArrivalHarness({ x: 300, y: 400 }, { changeMap, syncStoppedPosition, instantTravelReady: () => true });
+    return { ...harness, changeMap, syncStoppedPosition, answer: (changed: boolean) => answer(changed) };
+  }
+
+  it("is on the next map the same frame and walks on at once, sending where it stands once the server agrees", async () => {
+    const f = confirmable();
+    f.controller.updatePortal(1 / 60);
+    expect(f.currentMapId()).toBe(f.desertMapId);
+    // Out of the desert's portal back to the forest, standing in it as they stood in the forest's (its middle).
+    expect(f.player).toMatchObject({ x: 300, y: 268 });
+    expect(f.changeMap).toHaveBeenCalledWith(f.desertMapId, 100, 68);
+    expect(f.prepareMapAssets).toHaveBeenCalledWith(f.desertMapId);
+    // Free to walk, but no other travel until the server answers.
+    expect(f.controller.isMapTransitioning()).toBe(false);
+    expect(f.controller.isArrivalPending()).toBe(true);
+    expect(f.syncStoppedPosition).not.toHaveBeenCalled();
+    f.player.y = 268;
+    f.controller.updatePortal(1 / 60);
+    expect(f.changeMap).toHaveBeenCalledOnce();
+    f.player.y = 360;
+    f.answer(true);
+    await vi.waitFor(() => expect(f.controller.isArrivalPending()).toBe(false));
+    expect(f.syncStoppedPosition).toHaveBeenCalledOnce();
+    expect(f.currentMapId()).toBe(f.desertMapId);
+    expect(f.player.y).toBe(360);
+  });
+
+  it("puts the player back in the portal they walked into when the server refuses", async () => {
+    const f = confirmable();
+    f.controller.updatePortal(1 / 60);
+    f.answer(false);
+    await vi.waitFor(() => expect(f.currentMapId()).toBe("tutorial_forest"));
+    expect(f.player).toMatchObject({ x: 100, y: 68 });
+    expect(f.controller.isMapTransitioning()).toBe(false);
+    expect(f.syncStoppedPosition).toHaveBeenCalledOnce();
+    // Standing in the portal after the refusal never sends the player straight back in.
+    f.controller.updatePortal(1 / 60);
+    expect(f.changeMap).toHaveBeenCalledOnce();
+  });
+
+  it("opens the Town picker's choice straight away, without the teleport's wait", async () => {
+    const f = confirmable();
+    f.setMap("town");
+    const travel = f.controller.travelFromHome(f.desertMapId);
+    expect(f.currentMapId()).toBe(f.desertMapId);
+    expect(f.changeMap).toHaveBeenCalledWith(f.desertMapId, 100, 68);
+    f.answer(true);
+    expect(await travel).toBe(true);
+    expect(f.controller.isMapTransitioning()).toBe(false);
+  });
+
+  it("takes a refused Town picker trip back to the Town, so the picker can say so", async () => {
+    const f = confirmable();
+    f.setMap("town");
+    const travel = f.controller.travelFromHome(f.desertMapId);
+    f.answer(false);
+    expect(await travel).toBe(false);
+    expect(f.currentMapId()).toBe("town");
+  });
+
+  it("waits for the server, as before, when the destination's art is still loading", async () => {
+    const f = portalArrivalHarness({ x: 300, y: 400 }, { instantTravelReady: () => false });
+    f.controller.updatePortal(1 / 60);
+    expect(f.currentMapId()).toBe("tutorial_forest");
+    await vi.waitFor(() => expect(f.currentMapId()).toBe(f.desertMapId));
   });
 });
 
@@ -617,7 +699,9 @@ describe("stuck at the portal", () => {
     expect(h.currentMapId()).toBe(h.desertMapId);
     expect(h.controller.isMapTransitioning()).toBe(false);
 
-    // On to the next portal while the first fade still waits for a frame to lift.
+    // Out of the portal it arrived in, and back in, while the first fade still waits for a frame to lift.
+    h.player.y = 400;
+    h.controller.updatePortal(1 / 60);
     h.player.x = 300;
     h.player.y = 268;
     h.controller.updatePortal(1 / 60);

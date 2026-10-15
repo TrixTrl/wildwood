@@ -1,4 +1,45 @@
 export const RELEASE_NOTES: Record<string, string[]> = {
+  "0.907.0": [
+    "Auto Farm keeps going when you pick a map after an update",
+    "Fights send less data, so the server keeps up more easily",
+  ],
+  "0.906.4": [
+    "The Ping readout no longer jumps after a reconnect or when you come back to the tab",
+  ],
+  "0.906.3": [
+    "Player profiles no longer flash \"Last seen\" for players who are online",
+  ],
+  "0.906.2": [
+    "Auto Farm in an Aggro run no longer flips between targets every frame",
+  ],
+  "0.906.1": [
+    "Profiles show Mining in Stats",
+    "Cards and skills moved from the profile into the item window, with a clearer look",
+  ],
+  "0.906.0": [
+    "Refining no longer drops a level when it fails",
+    "Refining now goes up to ★30",
+  ],
+  "0.905.1": [
+    "No pause after stepping through a portal: walk on straight away",
+    "Portals bring you out inside the matching portal, right where you went in",
+    "The Town's map picker brings you out of the map's portal instead of its spawn",
+  ],
+  "0.905.0": [
+    "Portals: walk straight through to the next map, no loading screen",
+    "You step out of the matching portal on the other side",
+    "You can see a glimpse of the next map through each portal",
+    "The Town's map picker takes you there instantly",
+    "Smoother menus when playing with a controller",
+    "Fixed Aggro runs that couldn't be dropped out of after signing in to save a guest",
+  ],
+  "0.904.2": [
+    "Reflect now fires on hits your shield fully absorbs",
+  ],
+  "0.904.1": [
+    "Player profiles show the cards and weapon skills in use",
+    "New players start in the Tutorial Forest",
+  ],
   "0.904.0": [
     "Builds: save your gear and cards in the Inventory, and swap between them in one tap",
     "Salvaging gear gives back an ore of its tier",
@@ -3352,6 +3393,16 @@ const RELEASE_DATES: Record<string, string> = {
 };
 
 export const RELEASE_DAYS: Record<string, string> = {
+  "0.907.0": "2026-10-15",
+  "0.906.4": "2026-10-15",
+  "0.906.3": "2026-10-15",
+  "0.906.2": "2026-10-15",
+  "0.906.1": "2026-10-15",
+  "0.906.0": "2026-10-15",
+  "0.905.1": "2026-10-15",
+  "0.905.0": "2026-10-14",
+  "0.904.2": "2026-10-14",
+  "0.904.1": "2026-10-14",
   "0.904.0": "2026-10-14",
   "0.903.8": "2026-10-14",
   "0.903.7": "2026-10-14",

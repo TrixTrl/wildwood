@@ -778,7 +778,7 @@ import {
     samuraiCutsceneSeenKey: SAMURAI_PORTAL_CUTSCENE_SEEN_KEY,
     getCurrentMapId: () => currentMapId,
     setCurrentMapId: setCurrentMap,
-    prepareMapAssets: (mapId) => prepareMapAssets(mapId),
+    prepareMapAssets: (mapId) => prepareMapAssets(mapId), instantTravelReady: (mapId) => !inTutorial() && assets.mapAssetsReady(mapId),
     player,
     camera,
     viewport: canvasRuntime.viewport,
@@ -791,7 +791,7 @@ import {
     localMapState: () => inTutorial() ? null : coop?.localState?.(),
     changeMap: async (mapId, x, y) => {
       const changed = await coop?.changeMap?.(mapId, x, y);
-      if (changed) { mapBalance.reset(); await mapBalance.ensure(mapId); }
+      if (changed) { mapBalance.reset(); void mapBalance.ensure(mapId).catch(() => {}); }
       return changed;
     },
     syncStoppedPosition: () => { if (!inTutorial()) coop?.correctMovementPosition?.(player.x, player.y, true); },
@@ -1087,7 +1087,7 @@ import {
   });
   const renderController = worldRenderRuntime.createFrameRenderer({
     bootsPickup,
-    remotePlayers: () => inTutorial() ? [] : [
+    remotePlayers: () => inTutorial() || coop?.localState?.()?.mapId !== currentMapId ? [] : [
       ...enemySimulation.renderRemotePlayers(coop?.remotePlayers?.() ?? [])
         .filter((other) => !coop?.remotePlayerDeath?.(other.id)),
       ...(coop?.remotePlayerCorpses?.() ?? []),
@@ -1166,11 +1166,9 @@ import {
 
   let offlineProgressSummary: ReturnType<typeof createOfflineProgressSummary> | undefined;
   let offlineProgressSetting: { refresh: () => void } | undefined;
-  const expansionNotice = createPrestigeExpansionRuntime({ coop, started: () => Boolean(session?.hasStarted()), mapName: () => MAP_CONFIG[currentMapId].name, mapLabel: gameElements.minimapMapNameEl });
-  const prestigeUnlock = createPrestigeUnlockRuntime({
-    coop, expanded: expansionNotice.unlocked, showMessage, runPrestige, playing: () => session?.hasStarted() && !inTutorial(),
-    blocked: () => session.isPaused(), pause: () => { }
-  });
+  const expansionNotice = createPrestigeExpansionRuntime({ coop, mapName: () => MAP_CONFIG[currentMapId].name, mapLabel: gameElements.minimapMapNameEl });
+  const prestigeUnlock = createPrestigeUnlockRuntime({ coop, expanded: expansionNotice.unlocked, showMessage, runPrestige, playing: () => session?.hasStarted() && !inTutorial(),
+    blocked: () => session.isPaused(), pause: () => {} });
   const duplicateLogin = createDuplicateLoginRuntime({ coop, started: () => session?.hasStarted(), pause: (paused: boolean) => setGameplayPause("duplicate-login", paused) });
   function updateHud(force = false) {
     runtimeHud.updateHud(force);
@@ -1684,7 +1682,7 @@ import {
     setName: async name => coop?.setDisplayName?.(name),
     hasChosenName: () => coop?.hasChosenDisplayName?.() ?? false,
     waitForNameSave: async () => { try { await pendingProfileNameSave; } catch {} },
-    closeWindows: () => { profileWindow.close(); itemInspectionController.close(); }, playWelcome: () => mapMusic.playVoiceLine("assets/wildstat/audio/tutorial-welcome.mp3"),
+    closeWindows: () => { profileWindow.close(); itemInspectionController.close(); },
     cancel: () => { canvasRuntime.resize(); profileWindow.close(); setCurrentMap(TUTORIAL_FOREST_MAP_ID); session.stop(); session.setHasStarted(false); loadProgress(); finishStartup(); },
   }); installTutorialReplay({ doc: document, showMessage, blocked: () => tutorialReplayBlocked({ running: session.isRunning(), inTutorial: Boolean(onboarding?.isActive()), dueling: isDueling(), challenge: Boolean(coop?.aggroChallenge?.()?.active || coop?.prestigeChallenge?.()?.active) }), begin: () => { autoFarm.stop(); playerInput.clear(); onboarding?.start(() => { canvasRuntime.resize(); setCurrentMap(TUTORIAL_FOREST_MAP_ID); loadProgress(); startGame(false, true); }, true); } });
 

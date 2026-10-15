@@ -87,7 +87,7 @@ export const QUICK_DRAW_CAP_PER_RANK = .2;
 export const QUICK_DRAW_MAX_CAP_RAISE = 1;
 export const MIN_ATTACK_INTERVAL = 1 / MAX_BASE_ATTACKS_PER_SECOND;
 export const BOSS_RESPAWN_SECONDS = 45;
-// Scalable combat stats are f64 (player_wide_stats past f32's range, 0.855),
+// Scalable combat stats are f64 (player_progress's wide columns past f32's range),
 // so the ceiling sits far below f64's 1.8e308 with room for research and power
 // multipliers. Columns still stored as f32 clamp at F32_STAT_LIMIT
 // (shared/wide-stats.ts). Movement and attack speed keep their own caps.
@@ -184,7 +184,7 @@ export function numberedMapName(mapId: string, name: string) {
   return index < 0 ? name : `${name.replace(/ - \d+$/, "")} - ${index + 1}`;
 }
 
-export const PROTOCOL_VERSION = 115;
+export const PROTOCOL_VERSION = 116;
 // Add a previous version only after reviewing wire/schema and security compatibility.
 // Flat equipment changes combat DPS and boss-claim validation. Percentage-based
 // clients must update together with the servers, even though the wire is unchanged.

@@ -81,6 +81,32 @@ export function campaignLanding(mapId: string) {
   return mapId === TUTORIAL_FOREST_MAP_ID ? { ...PLAYER_SPAWN } : CAMPAIGN_GATEWAYS[mapId] && { ...CAMPAIGN_GATEWAYS[mapId].arrival };
 }
 
+/** How far from a portal's middle a traveller comes out of it: inside its trigger (48), so they walk out of it. */
+export const STEP_THROUGH_REACH = 44;
+/** How far to the side of the middle: clear of the arch's pillars. */
+export const STEP_THROUGH_SIDEWAYS = 22;
+
+/**
+ * The portal a traveller from `from` comes out of: the one leading back there. From the Town, a campaign map's
+ * way back (its first portal; Tutorial Forest has none, and keeps its landing). Null when there is none.
+ */
+export function exitPortalFor<P extends { destination: string }>(mapId: string, portals: readonly P[], from: string, fromTown: boolean): P | null {
+  return portals.find(portal => portal.destination === from)
+    ?? (fromTown && CAMPAIGN_GATEWAYS[mapId] && mapId !== TUTORIAL_FOREST_MAP_ID ? portals[0] ?? null : null);
+}
+
+/**
+ * Where a traveller comes out of `exit`: as far from its middle as they stood from the middle of the portal they
+ * walked into (`offset`), so the arch stays where it was on screen and only the world around it changes.
+ */
+export function stepThrough(exit: { x: number; y: number; height: number }, offset: { x: number; y: number }) {
+  let dx = Math.max(-STEP_THROUGH_SIDEWAYS, Math.min(STEP_THROUGH_SIDEWAYS, Number.isFinite(offset.x) ? offset.x : 0));
+  let dy = Number.isFinite(offset.y) ? offset.y : 0;
+  const length = Math.hypot(dx, dy);
+  if (length > STEP_THROUGH_REACH) { dx *= STEP_THROUGH_REACH / length; dy *= STEP_THROUGH_REACH / length; }
+  return { x: exit.x + dx, y: exit.y - exit.height * .32 + dy };
+}
+
 /** The last campaign map's portal into Endless (`destination`, its first map): where a next portal would stand. */
 export function endlessEntryPortal(destination: string): MapGatewayPortal {
   return middleGateways(gatewayPoint(LAST_CAMPAIGN_MAP.id), CAMPAIGN_MAPS[CAMPAIGN_MAPS.length - 2].id, destination).portals[1];

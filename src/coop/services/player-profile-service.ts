@@ -130,6 +130,25 @@ export function createPlayerProfileService(dependencies: PlayerProfileServiceDep
           : [...(db?.playerGearSlots?.iter() ?? [])].filter(row => row.identity.toHexString() === identity);
         return Object.fromEntries(rows.map(row => [row.itemId, gearSlotsOf(row)]));
       })(),
+      wornSkill: (() => {
+        const db = dependencies.connection()?.db;
+        // Your own weapon reads its roll from my_bow_skills / my_sword_skills; another player's from player_worn_skill.
+        if (identity === dependencies.localIdentity()) {
+          const weapon = progress.equippedRightHand || progress.equippedLeftHand || "";
+          const own = [...(db?.myBowSkills?.iter() ?? []), ...(db?.mySwordSkills?.iter() ?? [])].find(row => row.itemId === weapon) as Record<string, any> | undefined;
+          return own ? { itemId: weapon, roll: { arrowStorm: own.arrowStorm ?? 0, ricochet: own.ricochet ?? 0, piercingShot: own.piercingShot ?? 0,
+            whirlwind: own.whirlwind ?? 0, deflect: own.deflect ?? 0, shockwave: own.shockwave ?? 0 } } : null;
+        }
+        const row = [...(db?.playerWornSkill?.iter() ?? [])].find(row => row.identity.toHexString() === identity);
+        return row ? { itemId: row.itemId, roll: { arrowStorm: row.arrowStorm, ricochet: row.ricochet, piercingShot: row.piercingShot,
+          whirlwind: row.whirlwind, deflect: row.deflect, shockwave: row.shockwave } } : null;
+      })(),
+      mining: (() => {
+        const db = dependencies.connection()?.db;
+        const row = identity === dependencies.localIdentity() ? [...(db?.myMining?.iter() ?? [])][0]
+          : [...(db?.playerMiningLevel?.iter() ?? [])].find(row => row.identity.toHexString() === identity);
+        return row ? row.mining : null;
+      })(),
       lifetime: { ...lifetime },
       mapId: activePlayerMap(identity) ?? undefined,
     };
@@ -178,8 +197,20 @@ export function createPlayerProfileService(dependencies: PlayerProfileServiceDep
       );
     };
     const update: Parameters<typeof connection.db.player.onUpdate>[0] = (ctx, _old, row) => observe(ctx, row);
+    /**
+     * An eye-off player's row is withheld from other clients (0.877), and is shown while they idle or autofarm,
+     * so it comes and goes as they play: asked the server instead, which knows whether they are on. Until it
+     * answers the profile keeps what it showed, rather than flashing "Last seen" at every switch.
+     */
+    const askPresence = () => {
+      void Promise.resolve().then(() => connection.procedures.getPlayerPresence({ identity: dbIdentity })).then(json => {
+        const presence = JSON.parse(json) as { online?: boolean; mapId?: string };
+        if (connection.db.player.identity?.find(dbIdentity)) return;
+        rememberMap(presence.online && presence.mapId ? presence.mapId : "");
+      }).catch(() => rememberMap(""));
+    };
     const remove: Parameters<typeof connection.db.player.onDelete>[0] = (_ctx, row) => {
-      if (row.identity.toHexString() === identity) rememberMap("");
+      if (row.identity.toHexString() === identity) askPresence();
     };
     connection.db.player.onInsert(observe);
     connection.db.player.onUpdate(update);
@@ -242,13 +273,7 @@ export function createPlayerProfileService(dependencies: PlayerProfileServiceDep
           }
           // An eye-off player's row is withheld from other clients (0.877), so
           // ask the server whether they are on; an older server without it leaves them offline.
-          if (!rowVisible) void Promise.resolve().then(() => connection.procedures.getPlayerPresence({ identity: dbIdentity })).then(json => {
-            const presence = JSON.parse(json) as { online?: boolean; mapId?: string };
-            if (presence.online && presence.mapId && generation === profileGeneration && activeIdentity === identity) {
-              profilePlayerMaps.set(identity, presence.mapId);
-              dependencies.notify();
-            }
-          }).catch(() => {});
+          if (!rowVisible) askPresence();
           finish(cachedPlayerProfile(identity));
         })
         .onError(() => {
@@ -259,8 +284,7 @@ export function createPlayerProfileService(dependencies: PlayerProfileServiceDep
           tables.playerProfile.where((profile) => profile.identity.eq(dbIdentity)),
           tables.playerAccountStatus.where((status) => status.identity.eq(dbIdentity)),
           tables.playerProgress.where((progress) => progress.identity.eq(dbIdentity)),
-          tables.playerWideStats.where((wide) => wide.identity.eq(dbIdentity)),
-          tables.playerCombatRating.where((rating) => rating.identity.eq(dbIdentity)),
+          tables.playerInventory.where((bag) => bag.identity.eq(dbIdentity)),
           tables.playerChatHearts.where(row => row.identity.eq(dbIdentity)),
           tables.playerLifetime.where((lifetime) => lifetime.identity.eq(dbIdentity)),
           tables.playerResearch.where((research) => research.identity.eq(dbIdentity)),
@@ -273,6 +297,8 @@ export function createPlayerProfileService(dependencies: PlayerProfileServiceDep
           tables.playerItemUpgrade.where((upgrade) => upgrade.identity.eq(dbIdentity)),
           tables.playerItemRefine.where(row => row.identity.eq(dbIdentity)),
           tables.playerGearSlots.where(row => row.identity.eq(dbIdentity)),
+          tables.playerWornSkill.where(row => row.identity.eq(dbIdentity)),
+          tables.playerMiningLevel.where(row => row.identity.eq(dbIdentity)),
           tables.player.where((player) => player.identity.eq(dbIdentity)),
         ]);
       if (generation === profileGeneration) activeSubscription = handle;

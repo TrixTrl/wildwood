@@ -3215,6 +3215,8 @@
   .profile-tabs { display: flex; gap: 7px; margin: 8px 0 6px; border-bottom: 2px solid rgba(255,255,255,.13); }
   .profile-tab { display: grid; place-items: center; height: 44px; min-height: 44px; margin: 0 0 -2px; padding: 8px 12px; border: 0; border-bottom: 3px solid transparent; border-radius: 5px 5px 0 0; background: transparent; color: var(--muted); font-size: 10px; }
   .profile-tab.is-active { border-bottom-color: var(--green); color: #fff; }
+  /* The Bonuses tab is your own profile's: hidden on anyone else's, which display: grid above would undo. */
+  .profile-tab[hidden] { display: none; }
   .profile-loading { grid-area: 1 / 1; align-self: center; justify-self: center; padding: 8px; color: var(--muted); font-size: 11px; text-align: center; z-index: 1; }
   .profile-panel[hidden], .profile-loading[hidden] { display: none; }
   .player-profile-modal .profile-panel { min-height: 0; }
@@ -3304,6 +3306,7 @@
   .profile-stat-range dt { color: #74d8ff; }
   .profile-stat-speed dt { color: #bf9cff; }
   .profile-stat-stat-gain dt, .profile-stat-critical dt { color: #f3d36b; }
+  .profile-stat-mining dt { color: #e3a46b; }
   .profile-stat-double-strike dt, .profile-stat-split-shot dt, .profile-stat-riposte dt { color: #f0c674; }
   /* Edit Profile (profile-editor.ts): over the profile window, under the picture picker it opens. */
   #profileNameEditor { position: fixed; inset: 0; z-index: 12; display: grid; place-items: center; padding: max(5px, env(safe-area-inset-top)) max(5px, env(safe-area-inset-right)) max(5px, env(safe-area-inset-bottom)) max(5px, env(safe-area-inset-left)); background: rgba(0,0,0,.45); }
@@ -4892,20 +4895,6 @@
   overflow-wrap: anywhere;
   text-shadow: 1px 2px 0 #000;
 }
-.prestige-expansion-notice {
-  position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + clamp(64px, 12vh, 112px));
-  left: 50%; transform: translateX(-50%);
-  /* Over the game, under every window (they start at 13). */
-  z-index: 12; pointer-events: none;
-  max-width: calc(100% - 24px);
-  color: #72ef58;
-  font: 900 var(--font-readable-min)/1.3 var(--font-rounded);
-  text-align: center; text-shadow: 1px 2px 0 #000;
-  font-variant-numeric: tabular-nums;
-}
-.prestige-expansion-notice[hidden] { display: none; }
-
 /* Firefox draws -webkit-text-stroke on the CPU, redrawing every outlined label
    and the icons beside it whenever something near them changes. There
    (src/ui/text-outline-mode.ts) the outline is a ring of text shadows at half

@@ -123,6 +123,7 @@ export function createProfileWindowController(elements: {
       upgradeLevel: slotUpgradeLevelFor(profileData.itemUpgradeLevels, presentation.inspectionItemId),
       refine: profileEquipmentRefine(presentation, profileData.itemRefines),
       cardSlots: profileEquipmentCardSlots(presentation, profileData.itemCardSlots),
+      skills: profileData.wornSkill?.itemId === presentation.inspectionItemId ? profileData.wornSkill.roll : undefined,
       context: presentation.context,
       ownItem: identity === api.localIdentity(),
       actions: identity === api.localIdentity() ? api.destructionActions?.(presentation.inspectionItemId) : undefined,

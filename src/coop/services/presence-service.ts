@@ -301,7 +301,8 @@ export function createPresenceService(dependencies: PresenceServiceDependencies)
   let puppetSiteList: readonly PuppetSite[] = [];
   let puppetTableConnection: unknown = null;
   let farmIntent: { group: string; camp: string } | null = null;
-  let campChange: { camp: string; at: number } | null = null;
+  /** A new plan (group or camp) waiting to settle before the puppet takes it. */
+  let planChange: { group: string; camp: string; at: number } | null = null;
   let sentFarmIntentKey = "";
   let lastPuppetSentAt = Number.NEGATIVE_INFINITY;
   let puppetRetryAt = Number.NEGATIVE_INFINITY;
@@ -1119,6 +1120,12 @@ export function createPresenceService(dependencies: PresenceServiceDependencies)
     return true;
   }
 
+  /**
+   * While a map change is on its way to the server, movement is not sent: a step taken on the new map would reach
+   * the server before the move and read as a jump on the old one. The player walks on locally; the map controller
+   * sends where they stand once the server agrees.
+   */
+  let movementHeldForMapChange = false;
   function syncMovementState(
     x: number,
     y: number,
@@ -1131,17 +1138,20 @@ export function createPresenceService(dependencies: PresenceServiceDependencies)
   ) {
     const connection = dependencies.reducers.connection();
     if (dependencies.reducers.protocolBlocked() || !connection || !Number.isFinite(x) || !Number.isFinite(y)) return;
+    if (movementHeldForMapChange) return;
     if (farm) {
       puppetSiteList = farm.sites;
       // Eye on or off: an eye-off farmer is still seen, as a puppet, by players with it on.
       // A moment off the farm (a boss fight, a tap, a respawn) keeps the puppet; only a pause this long ends it.
       if (farm.group) {
         const camp = farm.hold ? PUPPET_HOLD_CAMP : farm.camp ?? "", at = monotonicNowMs();
-        if (farmIntent?.group !== farm.group) { farmIntent = { group: farm.group, camp }; campChange = null; }
-        else if (farmIntent.camp === camp) campChange = null;
+        // The first plan is sent at once; a change, of group or camp, only once it has held. Autofarm in an
+        // Aggro run could swap groups every frame, and each swap was a write to everyone on the map.
+        if (!farmIntent) { farmIntent = { group: farm.group, camp }; planChange = null; }
+        else if (farmIntent.group === farm.group && farmIntent.camp === camp) planChange = null;
         else {
-          if (campChange?.camp !== camp) campChange = { camp, at };
-          if (at - campChange.at >= PUPPET_HOLD_SETTLE_MS) { farmIntent = { group: farm.group, camp }; campChange = null; }
+          if (planChange?.group !== farm.group || planChange.camp !== camp) planChange = { group: farm.group, camp, at };
+          if (at - planChange.at >= PUPPET_HOLD_SETTLE_MS) { farmIntent = { group: farm.group, camp }; planChange = null; }
         }
         farmIntentLostAt = null;
       }
@@ -1258,6 +1268,7 @@ export function createPresenceService(dependencies: PresenceServiceDependencies)
           !Number.isFinite(y) ||
           !isProceduralMap(mapId) && !isSoulMap(mapId) && !isGuildHallMap(mapId) && !["home_exterior", "town", TUTORIAL_FOREST_MAP_ID, BEGINNER_DESERT_MAP_ID, INTERMEDIATE_SNOWLANDS_MAP_ID, ADVANCED_LAVA_WASTES_MAP_ID, INFERNAL_DEPTHS_MAP_ID, WATER_REACH_MAP_ID, SAMURAI_GARDEN_MAP_ID, CLOUDSPIRE_MAP_ID, MOONFEN_MAP_ID, CRYSTAL_HOLLOWS_MAP_ID, CLOCKWORK_RUINS_MAP_ID, DUSKFALL_ORCHARD_MAP_ID, NEON_BASTION_MAP_ID, VERDANT_CATACOMBS_MAP_ID, ION_CITADEL_MAP_ID].includes(mapId)
         ) return false;
+        movementHeldForMapChange = true;
         try {
           if (dependencies.drainEnemyLoot && !await dependencies.drainEnemyLoot()) throw new Error("Enemy rewards are still syncing. Try the portal again.");
           await dependencies.reducers.runWorldReducer(() => connection.reducers.changeMap({ mapId, x, y }));
@@ -1267,6 +1278,8 @@ export function createPresenceService(dependencies: PresenceServiceDependencies)
           recordConnectionDiagnostic("portal-failed", { detail: `destination:${mapId}; ${error instanceof Error ? error.message : "map-change-failed"}` });
           dependencies.reducers.handleFailure("map change", error);
           return false;
+        } finally {
+          movementHeldForMapChange = false;
         }
       },
       remotePlayers() {

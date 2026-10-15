@@ -1,6 +1,5 @@
 import { expect, it, vi } from "vitest";
 import { crystalFixture, server } from "../../tests/helpers/crystal-hollows-fixture";
-import { ensurePrestigeExpansion } from "./prestige-expansion";
 import { prestigePerkRanks, statRewardMultiplier, storedPrestigePerkRanks, writePrestigePerkRanks } from "./prestige";
 import { prestigeRangeBonus, savedAttackRange } from "./player-speed";
 import { researchInPlay } from "./bonus-toggles";
@@ -9,6 +8,7 @@ import { reflectRewardsInPlay } from "./prestige-challenge";
 import { PRESTIGE_PERK_IDS, playerAttackCap } from "../../shared/prestige-perks";
 import { attackSpeedRatingForInterval, attackIntervalForRating } from "../../shared/stat-rating";
 import { BONUS_ITEM_IDS } from "../../shared/bonus-toggles";
+import { progressOf } from "../../tests/helpers/progress";
 vi.mock("spacetimedb/server", () => import("../../tests/helpers/spacetime-module"));
 
 const ALL_ON = { off: "" };
@@ -16,8 +16,6 @@ const EVERYTHING_OFF = { off: BONUS_ITEM_IDS.join(",") };
 
 function fixture() {
   const f = crystalFixture();
-  ensurePrestigeExpansion(f.ctx as any);
-  f.ctx.timestamp = f.db.prestigeExpansion.id.find(0).unlocksAt;
   f.seed("playerPrestige", { identity: f.ctx.sender, level: 3, perkPoints: 0, peakPower: 0, prestigedAt: f.ctx.timestamp });
   writePrestigePerkRanks(f.ctx, f.ctx.sender, { keenEdge: 2, doubleStrike: 1, splitShot: 0, riposte: 1, bossSlayer: 0, secondWind: 0, longShot: 4, fleetFoot: 3, quickDraw: 5 });
   f.seed("playerPrestigeChallenge", { identity: f.ctx.sender, active: false, completed: 2 });
@@ -47,13 +45,13 @@ it("plays without everything switched off, and brings it all back when switched 
   expect(reflectRewardsInPlay(f.ctx, f.ctx.sender)).toBeNull();
   expect(soulAttackCapFor(f.ctx, f.ctx.sender)).toEqual(playerAttackCap(null, zero));
   // The saved range leaves out range research and Long Shot.
-  expect(f.db.playerProgress.identity.find(f.ctx.sender).attackRange).toBeLessThan(range);
+  expect(progressOf(f, f.ctx.sender).attackRange).toBeLessThan(range);
 
   f.run(server.setBonusToggleState, ALL_ON);
   expect(f.db.playerBonusToggle.identity.find(f.ctx.sender)).toBeFalsy();
   expect(prestigePerkRanks(f.ctx, f.ctx.sender)).toEqual(ranks);
   expect(statRewardMultiplier(f.ctx, f.ctx.sender)).toBeCloseTo(multiplier);
-  expect(f.db.playerProgress.identity.find(f.ctx.sender).attackRange).toBe(range);
+  expect(progressOf(f, f.ctx.sender).attackRange).toBe(range);
   expect(soulStatsFor(f.ctx, f.ctx.sender)).toMatchObject({ damage: 50 });
 });
 
@@ -64,10 +62,10 @@ it("keeps the run's attack speed rating when the cap moves under it, and gives t
   f.patch("playerProgress", { attackRate: interval });
   f.run(server.setBonusToggleState, { off: "prestige.quickDraw,challenge.reflect" });
   const capOff = playerAttackCap(null, { ...prestigePerkRanks(f.ctx, f.ctx.sender), quickDraw: 0 });
-  const off = f.db.playerProgress.identity.find(f.ctx.sender).attackRate;
+  const off = progressOf(f, f.ctx.sender).attackRate;
   expect(attackSpeedRatingForInterval(off, capOff)).toBeCloseTo(attackSpeedRatingForInterval(interval, capOn), 3);
   f.run(server.setBonusToggleState, ALL_ON);
-  expect(f.db.playerProgress.identity.find(f.ctx.sender).attackRate).toBeCloseTo(interval, 9);
+  expect(progressOf(f, f.ctx.sender).attackRate).toBeCloseTo(interval, 9);
 });
 
 it("can't switch during a challenge", () => {

@@ -4,6 +4,10 @@ import { snapCameraToPlayer, type Camera } from "./render/camera";
 import type { EnemyState, PlayerState } from "./types";
 import { BOSS_KINDS, clearBossAttack, type BossHazards, type BossStates } from "./boss/boss-registry";
 import type { MapId, SpawnSite } from "../world";
+import { portalTravelScene } from "./render/portal-glimpse";
+import { exitPortalFor, stepThrough } from "../../../shared/map-gateways";
+import { MAP_IDS } from "../../../shared/rules";
+import { isProceduralMap } from "../../../shared/procedural-maps";
 
 export type MapPortal = { x: number; y: number; width: number; height: number; depth: number; destination: MapId; label?: string };
 
@@ -68,6 +72,8 @@ export type MapController = {
   updatePortalCutscene: (dt: number) => boolean;
   isCutsceneActive: () => boolean;
   isMapTransitioning: () => boolean;
+  /** Through a portal and walking, while the server has yet to confirm the move: no other travel meanwhile. */
+  isArrivalPending: () => boolean;
   cutscenePortal: () => MapPortal;
   portalRevealIntensity: () => number;
   portalBlackoutOpacity: () => number;
@@ -109,6 +115,8 @@ export function createMapController(options: {
   localMapState: () => { mapId: string; x: number; y: number; facing: number } | null | undefined;
   changeMap: (mapId: MapId, x: number, y: number) => Promise<boolean | undefined> | boolean | undefined;
   prepareMapAssets: (mapId: MapId) => Promise<void>;
+  /** Whether a destination's art is in hand, so a portal can swap maps on the spot while the server confirms. */
+  instantTravelReady?: (mapId: MapId) => boolean;
   syncStoppedPosition: () => void;
   resetPresentationState: () => void;
   fadeToWorld: (action: () => void) => void;
@@ -132,6 +140,7 @@ export function createMapController(options: {
   } = options;
   const portalCutscene = createPortalCutscene();
   let mapTransitioning = false;
+  let arrivalPending = false;
   let mapLoadGeneration = 0;
   let portalCooldown = 0;
   let portalExitGuard: MapPortal | null = null;
@@ -144,6 +153,23 @@ export function createMapController(options: {
   const initialPortal = mapConfig[tutorialMapId].portal;
   if (!initialPortal) throw new Error("Tutorial map requires an introductory portal.");
   let portalCutscenePortal: MapPortal = initialPortal;
+  // A glimpse is painted before anyone walks in: centred where a player coming up from below steps out.
+  portalTravelScene.arrival = (mapId, from) => mapId in mapConfig ? arrivalFrom(mapId as MapId, from as MapId, { x: 0, y: 40 }) : null;
+
+  /**
+   * Where the server lands a traveller from `from` (map-travel.ts): a campaign or Endless map brings them out of
+   * its portal back, `offset` from its middle as they stood in the one they walked into; anywhere else, its arrival.
+   */
+  function arrivalFrom(destination: MapId, from: MapId, offset: { x: number; y: number }) {
+    const entry = mapConfig[destination];
+    const travelled = (MAP_IDS as readonly string[]).includes(destination) || isProceduralMap(destination);
+    const portals = travelled ? [entry.portal, entry.secondaryPortal].filter((portal): portal is MapPortal => Boolean(portal)) : [];
+    const exit = exitPortalFor(destination, portals, from, from === "town");
+    return exit ? stepThrough(exit, offset) : entry.arrival;
+  }
+
+  /** Where the player stands relative to a portal's middle (its use point, as the server measures it). */
+  const offsetIn = (portal: MapPortal) => ({ x: player.x - portal.x, y: player.y - (portal.y - portal.height * .32) });
 
   /**
    * The map loads on the fade's dark, and loading is what ends the travel lock.
@@ -158,7 +184,7 @@ export function createMapController(options: {
   }
 
   async function teleport(destination?: MapId, request?: () => Promise<boolean | TeleportArrival>) {
-    if (!running() || player.hp <= 0 || isDueling() || mapTransitioning || portalCutscene.active) return false;
+    if (!running() || player.hp <= 0 || isDueling() || mapTransitioning || arrivalPending || portalCutscene.active) return false;
     if (destination === getCurrentMapId() && !request) return true;
     options.onTravelStarted?.();
     mapTransitioning = true;
@@ -254,6 +280,8 @@ export function createMapController(options: {
     mapLoadGeneration++;
     endHomeTeleport();
     mapTransitioning = false;
+    // Any other map load supersedes a portal arrival still awaiting the server.
+    arrivalPending = false;
     void options.prepareMapAssets(mapId);
     setCurrentMapId(mapId);
     syncMapMusic();
@@ -283,7 +311,7 @@ export function createMapController(options: {
       startMapPortalCutscene(reveal.mapId, reveal.portal, "");
     }
     portalCooldown = Math.max(0, portalCooldown - dt);
-    if (mapTransitioning || portalCutscene.active || portalCooldown > 0 || isDueling()) return;
+    if (mapTransitioning || arrivalPending || portalCutscene.active || portalCooldown > 0 || isDueling()) return;
     if (portalExitGuard) {
       if (playerIsInsidePortal(portalExitGuard)) return;
       portalExitGuard = null;
@@ -308,6 +336,9 @@ export function createMapController(options: {
     stopTouchMove();
     player.moving = false;
     const destination = portal.destination;
+    const departure = getCurrentMapId();
+    const offset = offsetIn(portal);
+    if (options.instantTravelReady?.(destination)) { void travelThroughPortal(portal, destination); return; }
     const attempt = mapLoadGeneration;
     void prepareMapTransition(
       () => changeMap(destination, player.x, player.y),
@@ -320,10 +351,10 @@ export function createMapController(options: {
         portalCooldown = 1;
         return;
       }
-      const arrival = mapConfig[destination].arrival;
+      const arrival = arrivalFrom(destination, departure, offset);
       fadeToMap(() => {
         if (attempt !== mapLoadGeneration) return;
-        loadMap(destination, arrival.x, arrival.y, Math.PI / 2);
+        loadMap(destination, arrival.x, arrival.y, player.facing);
         snapCameraToPlayer(camera, player, viewport());
         resetPresentationState();
         syncStoppedPosition();
@@ -337,8 +368,43 @@ export function createMapController(options: {
     });
   }
 
+  /**
+   * Walks straight through: the destination is on screen the same frame and the player walks on at once, out of
+   * the portal back. Their movement is held from the server until it confirms the move (presence-service), then
+   * where they stand is sent. A refusal puts the player back in the portal they walked into.
+   */
+  function travelThroughPortal(portal: MapPortal | null, destination: MapId): Promise<boolean> {
+    const departure = { mapId: getCurrentMapId(), x: player.x, y: player.y, facing: player.facing };
+    const arrival = arrivalFrom(destination, departure.mapId, portal ? offsetIn(portal) : { x: 0, y: 0 });
+    const move = Promise.resolve(changeMap(destination, departure.x, departure.y));
+    loadMap(destination, arrival.x, arrival.y, departure.facing);
+    snapCameraToPlayer(camera, player, viewport());
+    resetPresentationState();
+    portalTravelScene.arrivedAt = performance.now();
+    arrivalPending = true;
+    const attempt = mapLoadGeneration;
+    const goBack = () => {
+      if (attempt !== mapLoadGeneration) return false;
+      arrivalPending = false;
+      loadMap(departure.mapId, departure.x, departure.y, departure.facing);
+      snapCameraToPlayer(camera, player, viewport());
+      resetPresentationState();
+      syncStoppedPosition();
+      if (portal) portalExitGuard = portal;
+      portalCooldown = 1;
+      return false;
+    };
+    return withMapDeadline(move).then((changed) => {
+      if (attempt !== mapLoadGeneration) return false;
+      if (!changed) return goBack();
+      arrivalPending = false;
+      syncStoppedPosition();
+      return true;
+    }, goBack);
+  }
+
   function reconcileMapFromServer() {
-    if (!running() || mapTransitioning || isDueling()) return;
+    if (!running() || mapTransitioning || arrivalPending || isDueling()) return;
     const state = localMapState();
     if (!state || state.mapId === getCurrentMapId()) return;
     if (!(state.mapId in mapConfig)) return;
@@ -422,8 +488,18 @@ export function createMapController(options: {
   return {
     teleportHome: () => teleport(),
     teleportToMap: (destination, request) => teleport(destination, request),
-    travelFromHome: async (destination) => getCurrentMapId() === "town" && destination !== "town" && destination !== "home_exterior"
-      && teleport(destination, async () => Boolean(await changeMap(destination, player.x, player.y))),
+    travelFromHome: async (destination) => {
+      if (getCurrentMapId() !== "town" || destination === "town" || destination === "home_exterior") return false;
+      // A campaign or Endless map whose art is in hand opens straight away, as a walk-in portal does.
+      const plain = (MAP_IDS as readonly string[]).includes(destination) || isProceduralMap(destination);
+      if (plain && options.instantTravelReady?.(destination) && running() && player.hp > 0 && !isDueling() && !mapTransitioning && !arrivalPending && !portalCutscene.active) {
+        options.onTravelStarted?.();
+        keys.clear(); stopTouchMove(); player.moving = false;
+        // Out of the picker's pad, as from a walk-in portal: the server measures from the same pad.
+        return travelThroughPortal(mapConfig.town.portal, destination);
+      }
+      return teleport(destination, async () => Boolean(await changeMap(destination, player.x, player.y)));
+    },
     homeDeparture: () => homeDeparture,
     activePortal,
     secondaryPortal,
@@ -454,6 +530,7 @@ export function createMapController(options: {
     updatePortalCutscene,
     isCutsceneActive: () => portalCutscene.active,
     isMapTransitioning: () => mapTransitioning,
+    isArrivalPending: () => arrivalPending,
     cutscenePortal: () => portalCutscenePortal,
     portalRevealIntensity: () => portalCutsceneIntensity,
     portalBlackoutOpacity: () => portalCutsceneBlackoutOpacity,

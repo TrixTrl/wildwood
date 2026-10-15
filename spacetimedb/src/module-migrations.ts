@@ -1,8 +1,7 @@
 import { BOSS_DAMAGE_REBALANCE, ENDLESS_EASE, activateCampaignPacing, activateCampaignProgression, applyCampaignRebalance, activateCampaignRewardFloor } from './campaign-pacing-migration';
 // One-time data migrations: the version-gated steps runPendingModuleMigrations
-// walks once per module version, the legacy balance rebases they call and the
-// per-connection migratePlayerBalance catch-up for saves that predate the
-// current balance version. The moduleMigrationState table, the schema
+// walks once per module version and the legacy balance rebases they call.
+// The moduleMigrationState table, the schema
 // registration and the connect/runMaintenance reducers that invoke these stay
 // in index.ts; this module only owns the bodies. Helpers that still live in
 // index.ts arrive through createModuleMigrations' deps so the moved code reads
@@ -15,7 +14,6 @@ import { RESEARCH_DEFINITIONS, createEmptyResearchRanks, shouldBackfillLegacyReg
 import { STARTER_BOW, STARTER_STONE, WOODEN_ARMOR } from "../../shared/items";
 import { normalizeSlotTier, upgradeSlotForItem } from "../../shared/slot-upgrades";
 import {
-  ATTACK_BALANCE_VERSION,
   BOSS_REWARD_CLAIM_BITS,
   MAP_IDS,
   MAX_MOVEMENT_SPEED_OVERRIDE,
@@ -43,13 +41,14 @@ import { grantGemHeartUnlock } from "./chat-reactions";
 import { GEM_KILL_CREDIT_PER_GEM } from "../../shared/gem-drops";
 import { syncPlayerJoinDate } from "./mailbox";
 import { enrollInPrestigeChallenge } from "./prestige-challenge";
-import { readPlayerProgress, iterPlayerProgress } from "./wide-stats";
+import { readPlayerProgress, iterPlayerProgress, moveCombatColumnsOntoProgress } from "./wide-stats";
 import { moveSoloQuestsToGuild } from "./daily-quests";
 import { rebuildParkedAggroRun } from "./aggro-challenge";
+import { backfillMiningLevels } from "./mining";
 import { convertToStatRatings, trimStoredSoulCritDamage } from "./stat-rating-migration";
 import { repinMapBalances } from "./map-balance";
 
-export const MODULE_MIGRATION_VERSION = 55;
+export const MODULE_MIGRATION_VERSION = 57;
 
 /**
  * Migration 50 (0.856): the ranking snapshot moves to leaderboard_entry_v2,
@@ -58,11 +57,11 @@ export const MODULE_MIGRATION_VERSION = 55;
  * cleared (duel-wire-access.ts). Both old tables are left empty.
  */
 export function moveToWideTables(ctx: any) {
-  for (const row of [...ctx.db.leaderboardEntryLegacy.iter()] as any[]) {
+  for (const row of [...ctx.db.leaderboardEntryLegacy?.iter() ?? []] as any[]) {
     if (!ctx.db.leaderboardEntry.identity.find(row.identity)) ctx.db.leaderboardEntry.insert({ ...row });
     ctx.db.leaderboardEntryLegacy.identity.delete(row.identity);
   }
-  for (const row of [...ctx.db.duelWireAccess.iter()] as any[]) ctx.db.duelWireAccess.key.delete(row.key);
+  for (const row of [...ctx.db.duelWireAccess?.iter() ?? []] as any[]) ctx.db.duelWireAccess.key.delete(row.key);
 }
 
 /** Migration 47's one player, matched on the whole display name, ignoring case. */
@@ -132,7 +131,7 @@ export function createModuleMigrations(deps: ModuleMigrationDeps) {
       }
     }
     if (currentVersion < 2) {
-      for (const demand of [...ctx.db.playerMovementDemand.iter()] as any[]) {
+      for (const demand of [...ctx.db.playerMovementDemand?.iter() ?? []] as any[]) {
         ctx.db.playerMovementDemand.identity.delete(demand.identity);
       }
     }
@@ -272,7 +271,7 @@ export function createModuleMigrations(deps: ModuleMigrationDeps) {
     if (currentVersion < 13) {
       // Preserve the unlock for players who contributed to the latest completed
       // Magmalisk encounter before Infernal Depths existed.
-      const result = ctx.db.magmaliskResult.id.find(MAGMALISK_ID);
+      const result = ctx.db.magmaliskResult?.id.find(MAGMALISK_ID);
       if (result) {
         try {
           const contributors = JSON.parse(result.contributorsJson);
@@ -389,7 +388,7 @@ export function createModuleMigrations(deps: ModuleMigrationDeps) {
     if (currentVersion < 20) {
       // Players who cleared Tempest Kirin before Moonfen shipped keep the unlock
       // they already earned when the new destination becomes available.
-      const result = ctx.db.tempestKirinResult.id.find(TEMPEST_KIRIN_ID);
+      const result = ctx.db.tempestKirinResult?.id.find(TEMPEST_KIRIN_ID);
       if (result) {
         try {
           const contributors = JSON.parse(result.contributorsJson);
@@ -409,7 +408,7 @@ export function createModuleMigrations(deps: ModuleMigrationDeps) {
     if (currentVersion < 21) {
       // Preserve the latest recorded Miremaw clear, without inferring a victory
       // from stats or merely being present in Moonfen.
-      const result = ctx.db.miremawResult.id.find(MIREMAW_ID);
+      const result = ctx.db.miremawResult?.id.find(MIREMAW_ID);
       if (result) {
         for (const progress of iterPlayerProgress(ctx) as Iterable<any>) {
           if (!progress.crystalHollowsUnlocked && resultIncludesContributor(result, progress.identity)) {
@@ -565,6 +564,10 @@ export function createModuleMigrations(deps: ModuleMigrationDeps) {
     if (currentVersion < 54) convertToStatRatings(ctx);
     // 55 (0.902): every map's sword joined its loot; a visit pinned before then kept loot without it until travel.
     if (currentVersion < 55) repinMapBalances(ctx);
+    // 56 (0.906.1): profiles show Mining; player_mining_level copies it from the pickaxes already out.
+    if (currentVersion < 56) backfillMiningLevels(ctx);
+    // 57 (0.907): the crit rating and stats past f32 move onto player_progress (shared/progress-row.ts).
+    if (currentVersion < 57) moveCombatColumnsOntoProgress(ctx);
     const next = { id: 0, version: MODULE_MIGRATION_VERSION };
     if (state) ctx.db.moduleMigrationState.id.update(next);
     else ctx.db.moduleMigrationState.insert(next);
@@ -709,13 +712,13 @@ export function createModuleMigrations(deps: ModuleMigrationDeps) {
   }
 
   function contributedToLatestDreadreaper(ctx: any, identity: any) {
-    return resultIncludesContributor(ctx.db.dreadreaperResult.id.find(DREADREAPER_ID), identity);
+    return resultIncludesContributor(ctx.db.dreadreaperResult?.id.find(DREADREAPER_ID), identity);
   }
   function contributedToLatestVoltwarden(ctx: any, identity: any) {
-    return resultIncludesContributor(ctx.db.voltwardenResult.id.find(VOLTWARDEN_ID), identity);
+    return resultIncludesContributor(ctx.db.voltwardenResult?.id.find(VOLTWARDEN_ID), identity);
   }
   function contributedToLatestGravebloom(ctx: any, identity: any) {
-    return resultIncludesContributor(ctx.db.gravebloomResult.id.find(GRAVEBLOOM_ID), identity);
+    return resultIncludesContributor(ctx.db.gravebloomResult?.id.find(GRAVEBLOOM_ID), identity);
   }
 
   function grantBalanceApologyGifts(ctx: any) {
@@ -750,7 +753,7 @@ export function createModuleMigrations(deps: ModuleMigrationDeps) {
 
   function rebaseLegacyPlayersToMaps(ctx: any) {
     const plans = [...iterPlayerProgress(ctx) as Iterable<any>].map((progress) => {
-      const archived = ctx.db.playerPowerRebaseBackup.identity.find(progress.identity);
+      const archived = ctx.db.playerPowerRebaseBackup?.identity.find(progress.identity);
       const next = archived ? progress : compressLegacyMapPower(progress);
       return { progress, next, archived, before: effectivePowerForProgress(ctx, progress), after: effectivePowerForProgress(ctx, next) };
     });
@@ -764,7 +767,7 @@ export function createModuleMigrations(deps: ModuleMigrationDeps) {
       }
     }
     for (const { progress, next, archived, before, after } of plans) {
-      if (!archived) ctx.db.playerPowerRebaseBackup.insert({
+      if (!archived) ctx.db.playerPowerRebaseBackup?.insert({
         identity: progress.identity, version: 7, maxHp: progress.maxHp, damage: progress.damage,
         armor: progress.armor, regen: progress.regen, attackRate: progress.attackRate,
         beforePower: before, afterPower: after, recordedAt: ctx.timestamp,
@@ -787,7 +790,7 @@ export function createModuleMigrations(deps: ModuleMigrationDeps) {
       return rescaleRankingStats(effective);
     };
     const plans = [...iterPlayerProgress(ctx) as Iterable<any>].map((progress) => {
-      const archived = ctx.db.playerEndgameRebaseBackup.identity.find(progress.identity);
+      const archived = ctx.db.playerEndgameRebaseBackup?.identity.find(progress.identity);
       const next = archived ? progress : rescaleEndgameProgress(progress);
       return { progress, next, archived, before: stats(progress), after: stats(next) };
     });
@@ -798,7 +801,7 @@ export function createModuleMigrations(deps: ModuleMigrationDeps) {
     const conflict = rescaleRankingConflict(plans) ?? rescaleRankingConflict(displayedPlans);
     if (conflict) throw new SenderError(`Endgame rescale needs a fresh ${conflict} ranking audit; no stats changed.`);
     for (const { progress, next, archived, before, after } of plans) {
-      if (!archived) ctx.db.playerEndgameRebaseBackup.insert({
+      if (!archived) ctx.db.playerEndgameRebaseBackup?.insert({
         identity: progress.identity, maxHp: progress.maxHp, damage: progress.damage,
         armor: progress.armor, regen: progress.regen, attackRate: progress.attackRate,
         beforePower: before.power, afterPower: after.power, recordedAt: ctx.timestamp,
@@ -853,20 +856,10 @@ export function createModuleMigrations(deps: ModuleMigrationDeps) {
     }
     // Old DPS/time credit must never validate kills after a stat reduction.
     for (const row of ctx.db.enemyDefeatBudget.identity.filter(progress.identity)) ctx.db.enemyDefeatBudget.key.delete(row.key);
-    if (ctx.db.bossDefeatWindow.identity.find(progress.identity)) ctx.db.bossDefeatWindow.identity.delete(progress.identity);
-    if (ctx.db.bossMapDefeatWindow.identity.find(progress.identity)) ctx.db.bossMapDefeatWindow.identity.delete(progress.identity);
+    ctx.db.playerDefeatClock?.identity.delete(progress.identity);
     // Keep accepted-loot sequence cursors: deleting them would permit double rewards.
     return next;
   }
 
-  function migratePlayerBalance(ctx: any, progress: any) {
-    const current = ctx.db.playerBalanceVersion.identity.find(ctx.sender);
-    if ((current?.version ?? 0) >= ATTACK_BALANCE_VERSION) return progress;
-    const migrated = rebaseEndlessPlayer(ctx, playerBalanceProgress(progress, current?.version ?? 0));
-    updateSnapshotRow(ctx, "playerProgress", migrated);
-    markPlayerBalanceCurrent(ctx);
-    return migrated;
-  }
-
-  return { runPendingModuleMigrations, migratePlayerBalance };
+  return { runPendingModuleMigrations };
 }
