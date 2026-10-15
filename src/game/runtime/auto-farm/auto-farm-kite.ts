@@ -1,17 +1,16 @@
 import { ENEMY_BASE_VALUES } from '../../../../shared/enemy-base-values';
 import { armorDamageReduction } from '../../combat';
 import { RewardType } from '../../enemies';
-import { bossStateForMap } from '../boss/boss-registry';
 import type { PlayerState, EnemyState, Position } from '../types';
 
-const INFLUENCE_CONSTANT = 10000;
+const INFLUENCE_CONSTANT = 300000;
 
 const mapSize = 5000;
-const CENTER_PULL_STRENGTH = 100;
-const CENTER_PULL_RADIUS = 700;
+const CENTER_PULL_STRENGTH = 10;
+const CENTER_PULL_RADIUS = 2000;
 const CENTER_PUSH_RADIUS = 500;
 
-const BOSS_CORNER_SIZE = 500;
+const BOSS_CORNER_SIZE = 800;
 const BOSS_CORNER_BUFFER = 200;
 
 const CLOSE_DPS_DISTANCE = 500;
@@ -75,7 +74,7 @@ export function smartMove(player: PlayerState, enemies: EnemyState[], mapId: str
             position.y += vector.y * CENTER_PULL_STRENGTH * centreDist;
         }
         for (const enemy of usableEnemies) {
-            const influence = calculateInfluence(player, enemy) / (enemy.engaged ? 2 : 1);
+            const influence = calculateInfluence(player, enemy) ** (enemy.engaged ? 1 : 4);
             const vector = norm({ x: player.x - enemy.x, y: player.y - enemy.y });
             position.x += vector.x * influence;
             position.y += vector.y * influence;
@@ -85,7 +84,7 @@ export function smartMove(player: PlayerState, enemies: EnemyState[], mapId: str
         return position;
     } else if (totalTimeTillDeath < 0 || totalTimeTillDeath > 10) {
         console.log(`Pulling`);
-        let closestEnemy;
+        /*let closestEnemy;
         let closestDistance = Infinity;
         for (const enemy of usableEnemies) {
             if (enemy.engaged) continue;
@@ -94,7 +93,8 @@ export function smartMove(player: PlayerState, enemies: EnemyState[], mapId: str
                 closestDistance = dist;
                 closestEnemy = enemy;
             }
-        }
+        }*/
+        const closestEnemy = usableEnemies.filter(e => !e.engaged).map(e => { return { data: e, distance: Math.hypot(player.x - e.x, player.y - e.y) * (distanceBoost(e) + 1) }; }).sort((a, b) => a.distance - b.distance)[0].data;
         if (closestEnemy) {
             return { x: closestEnemy.x, y: closestEnemy.y };
         }
@@ -141,4 +141,9 @@ function norm(v: Position): Position {
 function moreUsefull(enemy0: EnemyState, enemy1: EnemyState): boolean {
     const priorities: Array<RewardType> = ["regen", "damage", "health", "armor", "speed", "crit"];
     return priorities.indexOf(enemy0.reward.type) <= priorities.indexOf(enemy1.reward.type);
+}
+
+function distanceBoost(enemy: EnemyState): number {
+    const priorities: Array<RewardType> = ["regen", "health", "armor", "damage", "speed", "crit"];
+    return priorities.indexOf(enemy.reward.type);
 }
