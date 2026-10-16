@@ -13,9 +13,9 @@ const CENTER_PUSH_RADIUS = 500;
 const BOSS_CORNER_SIZE = 800;
 const BOSS_CORNER_BUFFER = 200;
 
-const CLOSE_DPS_DISTANCE = 500;
+const CLOSE_DPS_DISTANCE = 300;
 
-const CLOSE_ENEMY_RANGE = 100;
+const CLOSE_ENEMY_RANGE = 50;
 
 let runningFromBoss = false;
 
@@ -64,7 +64,7 @@ export function smartMove(player: PlayerState, enemies: EnemyState[], mapId: str
         return { x: mapSize / 2 + (player.x - mapSize / 2) * 5, y: mapSize / 2 + (player.y - mapSize / 2) * 5 };
     }
 
-    if (timeTillDeath > 0 && timeTillDeath < 5) {
+    if (timeTillDeath > 0 && timeTillDeath < 3) {
         console.log(`Running`);
         const position = { x: player.x, y: player.y };
         //console.log(position);
@@ -81,7 +81,7 @@ export function smartMove(player: PlayerState, enemies: EnemyState[], mapId: str
         }
         //console.log(position);
         //console.log(position);
-        return position;
+        return moveAroundCentre(position, player);
     } else if (totalTimeTillDeath < 0 || totalTimeTillDeath > 10) {
         console.log(`Pulling`);
         /*let closestEnemy;
@@ -96,7 +96,7 @@ export function smartMove(player: PlayerState, enemies: EnemyState[], mapId: str
         }*/
         const closestEnemy = usableEnemies.filter(e => !e.engaged).map(e => { return { data: e, distance: Math.hypot(player.x - e.x, player.y - e.y) * (distanceBoost(e) + 1) }; }).sort((a, b) => a.distance - b.distance)[0].data;
         if (closestEnemy) {
-            return { x: closestEnemy.x, y: closestEnemy.y };
+            return moveAroundCentre({ x: closestEnemy.x, y: closestEnemy.y }, player);
         }
     } else {
         console.log(`Moving towards closest hunting target`);
@@ -110,7 +110,7 @@ export function smartMove(player: PlayerState, enemies: EnemyState[], mapId: str
             }
         }
         if (closestEnemy && closestDistance > CLOSE_ENEMY_RANGE) {
-            return { x: closestEnemy.x, y: closestEnemy.y };
+            return moveAroundCentre({ x: closestEnemy.x, y: closestEnemy.y }, player);
         }
     }
     return { x: player.x, y: player.y };
@@ -147,3 +147,34 @@ function distanceBoost(enemy: EnemyState): number {
     const priorities: Array<RewardType> = ["regen", "health", "armor", "damage", "speed", "crit"];
     return priorities.indexOf(enemy.reward.type);
 }
+
+function pushOutOfCentre(position: Position): Position {
+    const vector = { x: position.x - mapSize / 2, y: position.y - mapSize / 2 };
+    if (Math.hypot(vector.x, vector.y) > CENTER_PUSH_RADIUS) {
+        return position;
+    }
+    const normalizedVector = norm(vector);
+    return { x: mapSize / 2 + normalizedVector.x * CENTER_PUSH_RADIUS, y: mapSize / 2 + normalizedVector.y * CENTER_PUSH_RADIUS };
+}
+
+function setMag(vector: Position, length: number): Position {
+    const mag = Math.hypot(vector.x, vector.y);
+    if (mag == 0) return vector;
+    return { x: vector.x / mag * length, y: vector.y / mag * length };
+}
+
+function moveAroundCentre(position: Position, player: PlayerState): Position {
+    const movementVector = sub(position, player);
+    const pushedPos = pushOutOfCentre(add(player, setMag(movementVector, player.speed)));
+    const delta = setMag({ x: pushedPos.x - player.x, y: pushedPos.y - player.y }, player.speed);
+    return { x: player.x + delta.x, y: player.y + delta.y };
+}
+
+function add(pos0: Position | PlayerState | EnemyState, pos1: Position | PlayerState | EnemyState): Position {
+    return { x: pos0.x + pos1.x, y: pos0.y + pos1.y };
+}
+
+function sub(pos0: Position | PlayerState | EnemyState, pos1: Position | PlayerState | EnemyState): Position {
+    return { x: pos0.x - pos1.x, y: pos0.y - pos1.y };
+}
+

@@ -514,7 +514,7 @@ import {
   });
   // Dragon credit unlocks autofarm, as does any prestige (which resets that credit but proves the Dragon fell),
   // so autofarm never depends on the current boss's health or respawn state.
-  const farmUnlocked = () => true || leaderboardEligible(coop?.savedProgress?.()?.desertUnlocked, coop?.prestige?.()?.level);
+  const farmUnlocked = () => leaderboardEligible(coop?.savedProgress?.()?.desertUnlocked, coop?.prestige?.()?.level);
   const fullscreenMovement = createFullscreenMovementGate(visible => coop?.setRemotePlayersVisible(visible));
   const playerVisibility = createPlayerVisibilityToggle({
     button: gameElements.playerVisibilityToggle,
@@ -554,6 +554,7 @@ import {
       if (mapBoss && !mapBoss.dead) obstacles.push({ x: mapBoss.x, y: mapBoss.y, r: mapBoss.r + player.r + 40 });
       return obstacles;
     },
+    bossDefinition: () => proceduralBoss.boss() ?? bossStateForMap(bosses, currentMapId),
     ...farmProgress,
   });
   let playerCombat: PlayerCombatController;
@@ -791,7 +792,7 @@ import {
     localMapState: () => inTutorial() ? null : coop?.localState?.(),
     changeMap: async (mapId, x, y) => {
       const changed = await coop?.changeMap?.(mapId, x, y);
-      if (changed) { mapBalance.reset(); void mapBalance.ensure(mapId).catch(() => {}); }
+      if (changed) { mapBalance.reset(); void mapBalance.ensure(mapId).catch(() => { }); }
       return changed;
     },
     syncStoppedPosition: () => { if (!inTutorial()) coop?.correctMovementPosition?.(player.x, player.y, true); },
@@ -1167,8 +1168,10 @@ import {
   let offlineProgressSummary: ReturnType<typeof createOfflineProgressSummary> | undefined;
   let offlineProgressSetting: { refresh: () => void } | undefined;
   const expansionNotice = createPrestigeExpansionRuntime({ coop, mapName: () => MAP_CONFIG[currentMapId].name, mapLabel: gameElements.minimapMapNameEl });
-  const prestigeUnlock = createPrestigeUnlockRuntime({ coop, expanded: expansionNotice.unlocked, showMessage, runPrestige, playing: () => session?.hasStarted() && !inTutorial(),
-    blocked: () => session.isPaused(), pause: () => {} });
+  const prestigeUnlock = createPrestigeUnlockRuntime({
+    coop, expanded: expansionNotice.unlocked, showMessage, runPrestige, playing: () => session?.hasStarted() && !inTutorial(),
+    blocked: () => session.isPaused(), pause: () => { }
+  });
   const duplicateLogin = createDuplicateLoginRuntime({ coop, started: () => session?.hasStarted(), pause: (paused: boolean) => setGameplayPause("duplicate-login", paused) });
   function updateHud(force = false) {
     runtimeHud.updateHud(force);
@@ -1681,7 +1684,7 @@ import {
     profileOpen: () => !playerProfileEl.hidden,
     setName: async name => coop?.setDisplayName?.(name),
     hasChosenName: () => coop?.hasChosenDisplayName?.() ?? false,
-    waitForNameSave: async () => { try { await pendingProfileNameSave; } catch {} },
+    waitForNameSave: async () => { try { await pendingProfileNameSave; } catch { } },
     closeWindows: () => { profileWindow.close(); itemInspectionController.close(); },
     cancel: () => { canvasRuntime.resize(); profileWindow.close(); setCurrentMap(TUTORIAL_FOREST_MAP_ID); session.stop(); session.setHasStarted(false); loadProgress(); finishStartup(); },
   }); installTutorialReplay({ doc: document, showMessage, blocked: () => tutorialReplayBlocked({ running: session.isRunning(), inTutorial: Boolean(onboarding?.isActive()), dueling: isDueling(), challenge: Boolean(coop?.aggroChallenge?.()?.active || coop?.prestigeChallenge?.()?.active) }), begin: () => { autoFarm.stop(); playerInput.clear(); onboarding?.start(() => { canvasRuntime.resize(); setCurrentMap(TUTORIAL_FOREST_MAP_ID); loadProgress(); startGame(false, true); }, true); } });

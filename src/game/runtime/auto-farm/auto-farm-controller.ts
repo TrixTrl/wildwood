@@ -4,7 +4,7 @@ import { isMeleeWeapon, weaponAttackRange } from "../../weapon-combat";
 import { WORLD } from '../../constants';
 import { monotonicNowMs } from '../../../app/trusted-clock';
 import { ENEMY_TYPES, rewardStatLabel, type EnemyDefinition, type EnemyKind } from '../../enemies';
-import type { SpawnSite } from '../../world';
+import { createSpawnSites, type SpawnSite } from '../../world';
 import type { Circle, EnemyState, PlayerState, Position } from '../types';
 import type { Movement } from '../player-input-controller';
 import { isEnemyAttackingPlayer } from '../enemies/enemy-threat';
@@ -20,6 +20,8 @@ import { formatCompactNumber } from '../../../../shared/compact-number';
 import { isSoulMap, SOUL_STAT_DETAILS, type SoulStatId } from '../../../../shared/soul-dimension';
 import { soulStatOfCampName } from '../../soul-world';
 import { smartMove } from './auto-farm-kite';
+import { BossKind, BossStates } from '../boss/boss-registry';
+import { BOSS_DAMAGE_PROFILES } from '../../boss-damage';
 
 /** An attacker of another kind is fought off on the way only if it dies within this many seconds. */
 const QUICK_DEFENCE_SECONDS = 3;
@@ -141,6 +143,7 @@ export function createAutoFarmController(options: {
   reportDeath?: (detail: string) => void;
   /** Whether a kill of this reward gives nothing now, the stat at its cap: the "Capped" its label shows (reward-labels.ts). */
   rewardCapped?: (reward: FarmReward, soul: SoulStatId | null) => boolean;
+  bossDefinition?: () => EnemyState | BossStates[BossKind] | null;
 }) {
   const { player, enemies, spawnSites } = options;
   const now = options.now ?? monotonicNowMs;
@@ -405,11 +408,32 @@ export function createAutoFarmController(options: {
   const bossRetryPower = new Map<string, number>();
   /** Whether this map's boss is ready to fight with Fight At's margin, and the status line when it is not. */
   function readyForBoss(): { ready: boolean; line: string } {
+    const boss = options.bossDefinition?.();
+    if (!boss) return { ready: false, line: `Boss definition missing` };
+    if (!boss?.bossKind) return { ready: false, line: `Hit unimplemented things` };
+    let bossDamage = 0;
+    let highestAttack = 0;
+    let attacks = 0;
+    for (const attack in BOSS_DAMAGE_PROFILES[boss.bossKind as BossKind]) {
+      bossDamage += BOSS_DAMAGE_PROFILES[boss.bossKind as BossKind][attack];
+      highestAttack = Math.max(highestAttack, BOSS_DAMAGE_PROFILES[boss.bossKind as BossKind][attack]);
+      attacks++;
+    }
+    const hpThreshold = bossDamage;
+    const regenThreshold = bossDamage / (attacks - 1) / 6;
+    const enoughHealth = player.maxHp > hpThreshold;
+    const enoughRegen = player.regen > regenThreshold;
+    if (enoughHealth && enoughRegen) return { ready: true, line: `Ready to fight boss` };
+    if (enoughHealth) return { ready: false, line: `Not enough regen (${formatCompactNumber(player.regen)}/${formatCompactNumber(regenThreshold)})` };
+    if (enoughRegen) return { ready: false, line: `Not enough health (${formatCompactNumber(player.maxHp)}/${formatCompactNumber(hpThreshold)})` };
+    return { ready: false, line: `Not enough health (${formatCompactNumber(player.maxHp)}/${formatCompactNumber(hpThreshold)}) or regen (${formatCompactNumber(player.regen)}/${formatCompactNumber(regenThreshold)})` };
+    /*
     const readiness = options.bossReady ? cachedReady(`boss:${options.mapId()}:${bossPower}`, () => options.bossReady!(bossPower)) : null;
     if (readiness === undefined) return { ready: false, line: 'Reading Boss' };
     if (readiness) return { ready: readiness.ready, line: readiness.ready ? '' : `Boss: ${needsLine(readiness)}` };
     const needs = bossNeeds();
     return { ready: currentPower() >= needs, line: `Boss At ${atPower(needs)}` };
+    */
   }
 
   /**
