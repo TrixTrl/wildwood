@@ -725,6 +725,11 @@ export type LatestChatMessages = __Infer<typeof LatestChatMessages>;
 export const LatestChatMessagesWithReactions = __t.object("LatestChatMessagesWithReactions", {});
 export type LatestChatMessagesWithReactions = __Infer<typeof LatestChatMessagesWithReactions>;
 
+export const LeaderboardDirty = __t.object("LeaderboardDirty", {
+  identity: __t.identity(),
+});
+export type LeaderboardDirty = __Infer<typeof LeaderboardDirty>;
+
 export const LeaderboardEntryV2 = __t.object("LeaderboardEntryV2", {
   identity: __t.identity(),
   displayName: __t.string(),
@@ -783,11 +788,32 @@ export const LeaderboardPrestigeSize = __t.object("LeaderboardPrestigeSize", {
 });
 export type LeaderboardPrestigeSize = __Infer<typeof LeaderboardPrestigeSize>;
 
+export const LeaderboardRank = __t.object("LeaderboardRank", {
+  rank: __t.u32(),
+  get entry() {
+    return LeaderboardEntryV2;
+  },
+  joinedAtMicros: __t.u64(),
+});
+export type LeaderboardRank = __Infer<typeof LeaderboardRank>;
+
 export const LeaderboardRankPage = __t.object("LeaderboardRankPage", {
   key: __t.string(),
   identities: __t.array(__t.identity()),
 });
 export type LeaderboardRankPage = __Infer<typeof LeaderboardRankPage>;
+
+export const LeaderboardRanks = __t.object("LeaderboardRanks", {
+  get entries() {
+    return __t.array(LeaderboardRank);
+  },
+  startRank: __t.u32(),
+  endRank: __t.u32(),
+  localRank: __t.u32(),
+  total: __t.u32(),
+  prestige: __t.u32(),
+});
+export type LeaderboardRanks = __Infer<typeof LeaderboardRanks>;
 
 export const LeaderboardRefreshState = __t.object("LeaderboardRefreshState", {
   id: __t.u32(),
@@ -1594,6 +1620,16 @@ export const PlayerLastLocation = __t.object("PlayerLastLocation", {
   facing: __t.f64(),
 });
 export type PlayerLastLocation = __Infer<typeof PlayerLastLocation>;
+
+export const PlayerLeaderboardStanding = __t.object("PlayerLeaderboardStanding", {
+  identity: __t.identity(),
+  prestige: __t.u32(),
+  power: __t.f64(),
+  playedMicros: __t.u64(),
+  joinedAtMicros: __t.u64(),
+  pages: __t.array(__t.u32()),
+});
+export type PlayerLeaderboardStanding = __Infer<typeof PlayerLeaderboardStanding>;
 
 export const PlayerLegalConsent = __t.object("PlayerLegalConsent", {
   identity: __t.identity(),

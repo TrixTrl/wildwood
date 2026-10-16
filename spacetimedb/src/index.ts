@@ -13,7 +13,7 @@ import { mailboxEquipment, deliverEquipmentMail, claimEquipmentMail } from "./ma
 import { nameChangeStatus } from "../../shared/name-change";
 import { validPatreonRedirect } from "./patreon-url";
 import { isValidProfileIcon } from "../../shared/profile-icons";
-import { releaseNotice, releaseAcknowledgement, writeReleaseWindow, acknowledgeReleaseWindow } from "./release-control";
+import { releaseNotice, releaseAcknowledgement, writeReleaseWindow, acknowledgeReleaseWindow, announceClientUpdate as announceClientUpdateWindow } from "./release-control";
 import { recordBossGateClear } from "./boss-gates";
 import { playerMultiplayerPreference, writeMultiplayerPreference } from "./multiplayer-preference";
 import { enemyDefeatBudget, playerDefeatClock, acceptEnemyDefeats, permittedDefeatMaps, pruneIdleDefeatBudgets, throttleKillReports, type DefeatClocks, type EnemyDefeatBatch } from "./enemy-defeats";
@@ -26,7 +26,7 @@ import { playerLootSetting, writeLootSettings } from "./loot-settings";
 import { playerProfileSnapshot, requireSnapshotForIcon, takeProfileSnapshot } from "./profile-snapshot";
 import { claimAdGemReward, playerAdReward } from "./ad-gem-reward";
 import { playerChatMute, setChatMute } from "./chat-mute";
-import { linkedIdentities, requireErasureConfirmation } from "./account-erasure";
+import { requireErasureConfirmation } from "./account-erasure";
 import { chatHeartAllowance, chatReactionCooldown, chatReactionSummary, chatReactionUnlock, playerChatHearts, reactionCountsFor, chatReaction, readChatReactions, setChatReaction, grantGemHeartUnlock, isChatModerator, chatModerator, moderatorHeartFor, setChatModerator, removeAccountReactions } from "./chat-reactions";
 import { pruneIdleStreams, regularEnemyLootCursor, regularEnemyStream } from "./regular-enemy-loot";
 import { playerOnboarding, advanceOnboarding, needsOnboarding } from "./onboarding";
@@ -48,7 +48,7 @@ import { awardCardDrops, playerBossCardRoll, playerCardMeter } from "./card-drop
 import { awardRegularEnemyLoot } from "./enemy-loot-award";
 import { moderateReportedMessage } from "./chat-report-moderation";
 import { PLAYER_SKIN_TONES } from "../../shared/player-skin-tones";
-import { leaderboardPageTables, readLeaderboardWindow, readLeaderboardPage, readPrestigeLeaderboardPage, findLeaderboardSpot } from "./leaderboard-pages";
+import { leaderboardPageTables, readLeaderboardWindow, readLeaderboardPage, readLeaderboardRanks, readPrestigeLeaderboardPage, findLeaderboardSpot } from "./leaderboard-pages";
 import { effectiveMovementSpeedForProgress, refreshPrestigeMovement, attackIntervalForProgress, savedAttackRange } from "./player-speed";
 import { playerBonusToggle } from "./bonus-toggles";
 import { registerBonusToggleReducers } from "./bonus-toggles-reducer";
@@ -2267,6 +2267,10 @@ export const setReleaseWindow = spacetimedb.reducer(
     writeReleaseWindow(ctx, args);
   },
 );
+export const announceClientUpdate = spacetimedb.reducer({ version: t.string(), step: t.string() }, (ctx, { version, step }) => {
+  if (!isDatabaseOwnerIdentity(ctx.sender)) denyPrivilegedAccess(ctx, "announce_client_update", "Database owner required.");
+  announceClientUpdateWindow(ctx, version, step);
+});
 export const acknowledgeRelease = spacetimedb.reducer({ id: t.string() }, (ctx, { id }) => {
   requireControllingPlayer(ctx);
   acknowledgeReleaseWindow(ctx, id);
@@ -3428,8 +3432,9 @@ export const setAudioSettings = spacetimedb.reducer({ musicVolume: t.f32(), sfxV
  * left. Run it until `complete` is true and the row count reaches zero. It is
  * the same work each time, so a repeat is harmless.
  *
- * A guest half of the account goes with it — analytics_conversion says which
- * identities are the same person, and leaving one behind is not erasure.
+ * Only the account asked for goes. A guest that became a registered account
+ * (analytics_conversion) is a second account: erasing one leaves the other,
+ * and only the record linking them goes with it.
  *
  * What this cannot do: remove the SpacetimeAuth account itself, or anything
  * held by a provider. Those are separate administrative steps, and a request
@@ -3448,7 +3453,7 @@ export const devEraseAccount = spacetimedb.reducer(
     catch { throw new SenderError("That is not an identity."); }
     if (isDeveloperIdentity(target)) throw new SenderError("Refusing to erase a developer identity.");
 
-    const identities = linkedIdentities(ctx, target);
+    const identities = [target];
     const displayName = ctx.db.playerProfile.identity.find(target)?.displayName ?? "";
     const result = eraseKeepingRequest(ctx, identities);
 
@@ -3462,6 +3467,36 @@ export const devEraseAccount = spacetimedb.reducer(
       after: JSON.stringify({ deleted: result.deleted, complete: result.complete, remaining: result.remaining }),
     });
     console.warn("Account erasure", JSON.stringify({ identityHex, ...result }));
+  },
+);
+
+/**
+ * Corrects when an account began: the profile's Joined and the leaderboard's Account Created (from its next
+ * snapshot). `date` is YYYY-MM-DD and is stored at noon UTC, so it reads as that day in nearly every time zone.
+ */
+export const devSetJoinDate = spacetimedb.reducer(
+  { identityHex: t.string(), date: t.string(), reason: t.string() },
+  (ctx, { identityHex, date, reason }) => {
+    if (!isDatabaseOwnerIdentity(ctx.sender)) requireDeveloper(ctx, "dev_set_join_date");
+    const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+    const ms = parts ? Date.UTC(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]), 12) : NaN;
+    if (!Number.isFinite(ms) || new Date(ms).toISOString().slice(0, 10) !== date) throw new SenderError("Use a date like 2026-08-06.");
+    if (BigInt(ms) * 1000n > ctx.timestamp.microsSinceUnixEpoch) throw new SenderError("That date is in the future.");
+    let target: any;
+    try { target = Identity.fromString(identityHex); }
+    catch { throw new SenderError("That is not an identity."); }
+    const lifetime = ctx.db.playerLifetime.identity.find(target);
+    if (!lifetime) throw new SenderError("No account with that identity.");
+    const joinedAt = new Timestamp(BigInt(ms) * 1000n);
+    ctx.db.playerLifetime.identity.update({ ...lifetime, joinedAt });
+    syncPlayerJoinDate(ctx, target, joinedAt);
+    const standing = ctx.db.leaderboardStanding.identity.find(target);
+    if (standing) ctx.db.leaderboardStanding.identity.update({ ...standing, joinedAtMicros: joinedAt.microsSinceUnixEpoch });
+    recordModerationAction(ctx, {
+      targetIdentity: identityHex, targetName: ctx.db.playerProfile.identity.find(target)?.displayName ?? "",
+      channel: "account", action: "Join date set", reason: reason.trim() || "Corrected by the developer", actorType: "owner", rule: "account-correction",
+      before: lifetime.joinedAt.toDate().toISOString(), after: joinedAt.toDate().toISOString(),
+    });
   },
 );
 
@@ -4126,6 +4161,13 @@ export const getLeaderboardPage = spacetimedb.procedure(
   { stat: t.string(), startRank: t.u32(), count: t.u32() },
   t.object("LeaderboardPage", { entries: t.array(rankedLeaderboardPlayer), startRank: t.u32(), endRank: t.u32(), localRank: t.u32(), total: t.u32() }),
   (ctx, { stat, startRank, count }) => ctx.withTx(tx => readLeaderboardPage(tx, stat, startRank, count)),
+);
+// The board's ranks with each account's start, and which prestige level Rivals is (0.908.2).
+export const getLeaderboardRanks = spacetimedb.procedure(
+  { board: t.string(), startRank: t.u32(), count: t.u32() },
+  t.object("LeaderboardRanks", { entries: t.array(t.object("LeaderboardRank", { rank: t.u32(), entry: leaderboardEntry.rowType, joinedAtMicros: t.u64() })),
+    startRank: t.u32(), endRank: t.u32(), localRank: t.u32(), total: t.u32(), prestige: t.u32() }),
+  (ctx, { board, startRank, count }) => ctx.withTx(tx => readLeaderboardRanks(tx, board, startRank, count)),
 );
 // One prestige level's board; the page shape above plus the level and the list
 // of levels anyone is on. The body lives in leaderboard-pages.ts.

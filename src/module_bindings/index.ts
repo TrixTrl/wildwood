@@ -41,6 +41,7 @@ import AcceptTermsReducer from "./accept_terms_reducer";
 import AcknowledgeBalanceApologyGiftReducer from "./acknowledge_balance_apology_gift_reducer";
 import AcknowledgeOfflineSummaryReducer from "./acknowledge_offline_summary_reducer";
 import AcknowledgeReleaseReducer from "./acknowledge_release_reducer";
+import AnnounceClientUpdateReducer from "./announce_client_update_reducer";
 import ApplyBuildCardsReducer from "./apply_build_cards_reducer";
 import BeginAccountLinkReducer from "./begin_account_link_reducer";
 import BeginAdventureReducer from "./begin_adventure_reducer";
@@ -96,6 +97,7 @@ import DevSetAccessAuditLabelReducer from "./dev_set_access_audit_label_reducer"
 import DevSetChatModeratorReducer from "./dev_set_chat_moderator_reducer";
 import DevSetChatMuteReducer from "./dev_set_chat_mute_reducer";
 import DevSetEndlessTravelAccessReducer from "./dev_set_endless_travel_access_reducer";
+import DevSetJoinDateReducer from "./dev_set_join_date_reducer";
 import DevSuspendPlayerAccountReducer from "./dev_suspend_player_account_reducer";
 import DevSwapCharactersReducer from "./dev_swap_characters_reducer";
 import DevTeleportEndlessReducer from "./dev_teleport_endless_reducer";
@@ -235,6 +237,7 @@ import * as GetGuildHubProcedure from "./get_guild_hub_procedure";
 import * as GetGuildPreviewProcedure from "./get_guild_preview_procedure";
 import * as GetGuildReplayProcedure from "./get_guild_replay_procedure";
 import * as GetLeaderboardPageProcedure from "./get_leaderboard_page_procedure";
+import * as GetLeaderboardRanksProcedure from "./get_leaderboard_ranks_procedure";
 import * as GetLeaderboardWindowProcedure from "./get_leaderboard_window_procedure";
 import * as GetMapBalanceProcedure from "./get_map_balance_procedure";
 import * as GetMapConfigurationProcedure from "./get_map_configuration_procedure";
@@ -1418,6 +1421,7 @@ const reducersSchema = __reducers(
   __reducerSchema("acknowledge_balance_apology_gift", AcknowledgeBalanceApologyGiftReducer),
   __reducerSchema("acknowledge_offline_summary", AcknowledgeOfflineSummaryReducer),
   __reducerSchema("acknowledge_release", AcknowledgeReleaseReducer),
+  __reducerSchema("announce_client_update", AnnounceClientUpdateReducer),
   __reducerSchema("apply_build_cards", ApplyBuildCardsReducer),
   __reducerSchema("begin_account_link", BeginAccountLinkReducer),
   __reducerSchema("begin_adventure", BeginAdventureReducer),
@@ -1473,6 +1477,7 @@ const reducersSchema = __reducers(
   __reducerSchema("dev_set_chat_moderator", DevSetChatModeratorReducer),
   __reducerSchema("dev_set_chat_mute", DevSetChatMuteReducer),
   __reducerSchema("dev_set_endless_travel_access", DevSetEndlessTravelAccessReducer),
+  __reducerSchema("dev_set_join_date", DevSetJoinDateReducer),
   __reducerSchema("dev_suspend_player_account", DevSuspendPlayerAccountReducer),
   __reducerSchema("dev_swap_characters", DevSwapCharactersReducer),
   __reducerSchema("dev_teleport_endless", DevTeleportEndlessReducer),
@@ -1614,6 +1619,7 @@ const proceduresSchema = __procedures(
   __procedureSchema("get_guild_preview", GetGuildPreviewProcedure.params, GetGuildPreviewProcedure.returnType),
   __procedureSchema("get_guild_replay", GetGuildReplayProcedure.params, GetGuildReplayProcedure.returnType),
   __procedureSchema("get_leaderboard_page", GetLeaderboardPageProcedure.params, GetLeaderboardPageProcedure.returnType),
+  __procedureSchema("get_leaderboard_ranks", GetLeaderboardRanksProcedure.params, GetLeaderboardRanksProcedure.returnType),
   __procedureSchema("get_leaderboard_window", GetLeaderboardWindowProcedure.params, GetLeaderboardWindowProcedure.returnType),
   __procedureSchema("get_map_balance", GetMapBalanceProcedure.params, GetMapBalanceProcedure.returnType),
   __procedureSchema("get_map_configuration", GetMapConfigurationProcedure.params, GetMapConfigurationProcedure.returnType),

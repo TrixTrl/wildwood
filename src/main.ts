@@ -522,8 +522,8 @@ import {
   });
   const farmUnavailable = () => {
     if (!farmUnlocked()) return "Defeat the Dragon to unlock autofarm";
-    if (!session?.isRunning() || player.hp <= 0) return "Start your adventure to farm";
-    if (isDueling()) return "Autofarm stopped for duel";
+    // A duel pauses the farm (below); its health, 0 for the loser until the result closes, is the duel's.
+    if (!session?.isRunning() || player.hp <= 0 && !isArenaScene()) return "Start your adventure to farm";
     if (mapController.isMapTransitioning() || mapController.isCutsceneActive()) return "Autofarm stopped for travel";
     if (!coop?.isConnected?.()) return "Connect to the server to farm";
     return null;
@@ -544,7 +544,7 @@ import {
     connection: () => farmConnection === 'ready' && (!coop?.isConnected?.() || !session?.isRunning()
       || mapController.isMapTransitioning() || mapController.isCutsceneActive()) ? 'recovering' : farmConnection,
     unavailable: farmUnavailable,
-    paused: () => Boolean(session?.isPaused()),
+    paused: () => Boolean(session?.isPaused()) || isArenaScene(),
     speed: () => player.speed * movementMultiplier(),
     obstacles: () => {
       const config = MAP_CONFIG[currentMapId];
@@ -1303,23 +1303,20 @@ import {
     onClose: () => { playerInput.clear(); },
   });
 
-  const leaderboard = createLeaderboardPanel({
-    e: gameElements, options: {
-      loadPage: async (stat: import("./ui/leaderboard").LeaderboardStat, prestige: number, startRank = 0, count = 100) => {
-        if (!coop) throw new Error("Not connected. Try again.");
-        return coop.loadLeaderboardPage(stat, prestige, startRank, count);
-      },
-      localPrestige: () => coop?.prestige?.()?.level ?? 0,
-      localIdentity: () => coop?.localIdentity?.() || "",
-      isDeveloper: isDeveloperIdentity,
-      paintProfileIcon: (canvas: HTMLCanvasElement, identity: string) => paintProfileIconCanvas(canvas, coop?.profileIcon?.(identity) ?? 0, identity),
-      podiumAssetsReady: () => playerSpriteReady,
-      drawPodiumCharacter: (canvas: HTMLCanvasElement, entry: LeaderboardEntry, rank: 1 | 2 | 3) => leaderboardPodiumPreview.draw(canvas, entry, rank),
-      openProfile: (identity: string, name: string) => { void profileWindow.open(identity, name); },
-      loadPlayers: () => coop?.social?.loadPlayerDirectory(), findPlayer: (stat: import("./ui/leaderboard").LeaderboardStat, prestige: number, identity: string) => coop ? coop.findLeaderboardSpot(stat, prestige, identity) : Promise.reject(new Error("Not connected. Try again.")),
-      beforeOpen: () => panels.closeAllExcept("leaderboard"),
-    }
-  });
+  const leaderboard = createLeaderboardPanel({ e: gameElements, options: {
+    loadPage: async (board: import("../shared/leaderboard-window").LeaderboardBoard, startRank = 0, count = 100) => {
+      if (!coop) throw new Error("Not connected. Try again.");
+      return coop.loadLeaderboardPage(board, startRank, count);
+    },
+    localIdentity: () => coop?.localIdentity?.() || "",
+    isDeveloper: isDeveloperIdentity,
+    paintProfileIcon: (canvas: HTMLCanvasElement, identity: string) => paintProfileIconCanvas(canvas, coop?.profileIcon?.(identity) ?? 0, identity),
+    podiumAssetsReady: () => playerSpriteReady,
+    drawPodiumCharacter: (canvas: HTMLCanvasElement, entry: LeaderboardEntry, rank: 1 | 2 | 3) => leaderboardPodiumPreview.draw(canvas, entry, rank),
+    openProfile: (identity: string, name: string) => { void profileWindow.open(identity, name); },
+    loadPlayers: () => coop?.social?.loadPlayerDirectory(), findPlayer: (board: import("../shared/leaderboard-window").LeaderboardBoard, identity: string) => coop ? coop.findLeaderboardSpot(board, identity) : Promise.reject(new Error("Not connected. Try again.")),
+    beforeOpen: () => panels.closeAllExcept("leaderboard"),
+  } });
 
   function closeLeaderboard() {
     leaderboard.close();
@@ -1558,7 +1555,7 @@ import {
     updateEnemies: (dt) => { personalBosses.update(dt); proceduralBoss.update(dt); enemySimulation.update(dt); },
     updateBoss: (dt) => bossController.forMap(currentMapId)?.update(dt),
     updateProjectiles: playerCombat.updateProjectiles, updateRespawns: time => { if (!inTutorial()) updateRespawns(time); },
-    clearDuelCombat: () => { autoFarm.stop("Autofarm stopped for duel"); projectileStore.clear(); },
+    clearDuelCombat: () => { projectileStore.clear(); },
     updateEffects: effects.update, updateHud: () => updateHud(),
     updateVisuals: (dt) => {
       onboarding?.update(dt);
@@ -1690,7 +1687,7 @@ import {
   }); installTutorialReplay({ doc: document, showMessage, blocked: () => tutorialReplayBlocked({ running: session.isRunning(), inTutorial: Boolean(onboarding?.isActive()), dueling: isDueling(), challenge: Boolean(coop?.aggroChallenge?.()?.active || coop?.prestigeChallenge?.()?.active) }), begin: () => { autoFarm.stop(); playerInput.clear(); onboarding?.start(() => { canvasRuntime.resize(); setCurrentMap(TUTORIAL_FOREST_MAP_ID); loadProgress(); startGame(false, true); }, true); } });
 
   const scheduledUpdate = createScheduledUpdateController({
-    now: () => Date.now(), release: () => coop?.releaseWindow?.() ?? null,
+    now: () => Date.now(), release: () => coop?.releaseWindow?.() ?? null, version: GAME_VERSION,
     forcedUpdateRequired: () => coop?.accountState?.().updating === true,
     playing: () => session.hasStarted(), pause: paused => setGameplayPause("scheduled-update", paused),
     save: () => { saveProgress(true); coop?.syncMovementState?.(player.x, player.y, 0, 0, "keyboard", true); }, drain: async () => await coop?.drainForUpdate?.() ?? true,
