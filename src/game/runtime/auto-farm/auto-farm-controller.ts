@@ -370,6 +370,8 @@ export function createAutoFarmController(options: {
     : readiness.needs === 'damage' ? 'Need More Damage' : 'Need More Health';
   /** Whether the next map is ready, and the status line when it is not (no fixed table, worked out on the client). */
   function readyForMap(destination: string): { ready: boolean; line: string } {
+    return { ready: true, line: `Always moving on` };
+    /*
     if (!options.mapReady) {
       const needs = mapNeeds(destination);
       return { ready: currentPower() >= needs, line: `Next Map At ${atPower(needs)}` };
@@ -378,6 +380,7 @@ export function createAutoFarmController(options: {
     if (readiness === undefined) return { ready: false, line: 'Reading Next Map' };
     if (readiness === null || readiness.ready) return { ready: true, line: '' };
     return { ready: false, line: `Next Map: ${needsLine(readiness)}` };
+    */
   }
   /** The next map's portal, once the build is ready for it with Move At's margin. */
   function exitPortal() {
