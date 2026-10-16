@@ -22,6 +22,7 @@ import { soulStatOfCampName } from '../../soul-world';
 import { smartMove } from './auto-farm-kite';
 import { BossKind, BossStates } from '../boss/boss-registry';
 import { BOSS_DAMAGE_PROFILES } from '../../boss-damage';
+import { armorDamageReduction } from '../../combat';
 
 /** An attacker of another kind is fought off on the way only if it dies within this many seconds. */
 const QUICK_DEFENCE_SECONDS = 3;
@@ -410,13 +411,23 @@ export function createAutoFarmController(options: {
   function readyForBoss(): { ready: boolean; line: string } {
     const boss = options.bossDefinition?.();
     if (!boss) return { ready: false, line: `Boss definition missing` };
-    if (!boss?.bossKind) return { ready: false, line: `Hit unimplemented things` };
+    if (!boss?.bossKind) {
+      const bossDamage = boss.damage * (1 - armorDamageReduction(player.armor));
+      const hpThreshold = bossDamage * 2;
+      const regenThreshold = bossDamage / 3;
+      const enoughHealth = player.maxHp > hpThreshold;
+      const enoughRegen = player.regen > regenThreshold;
+      if (enoughHealth && enoughRegen) return { ready: true, line: `Ready to fight boss` };
+      if (enoughHealth) return { ready: false, line: `Not enough regen (${formatCompactNumber(player.regen)}/${formatCompactNumber(regenThreshold)})` };
+      if (enoughRegen) return { ready: false, line: `Not enough health (${formatCompactNumber(player.maxHp)}/${formatCompactNumber(hpThreshold)})` };
+      return { ready: false, line: `Not enough health (${formatCompactNumber(player.maxHp)}/${formatCompactNumber(hpThreshold)}) or regen (${formatCompactNumber(player.regen)}/${formatCompactNumber(regenThreshold)})` };
+    }
     let bossDamage = 0;
     let highestAttack = 0;
     let attacks = 0;
     for (const attack in BOSS_DAMAGE_PROFILES[boss.bossKind as BossKind]) {
-      bossDamage += BOSS_DAMAGE_PROFILES[boss.bossKind as BossKind][attack];
-      highestAttack = Math.max(highestAttack, BOSS_DAMAGE_PROFILES[boss.bossKind as BossKind][attack]);
+      bossDamage += BOSS_DAMAGE_PROFILES[boss.bossKind as BossKind][attack] * (1 - armorDamageReduction(player.armor));
+      highestAttack = Math.max(highestAttack, BOSS_DAMAGE_PROFILES[boss.bossKind as BossKind][attack] * (1 - armorDamageReduction(player.armor)));
       attacks++;
     }
     const hpThreshold = bossDamage;

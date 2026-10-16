@@ -41,7 +41,7 @@ export function smartMove(player: PlayerState, enemies: EnemyState[], mapId: str
     let dpsFollowing = 0;
 
     for (const enemy of followingEnemies) {
-        dpsFollowing += enemyDps(enemy) * armorDamageReduction(player.armor);
+        dpsFollowing += enemyDps(enemy) * (1 - armorDamageReduction(player.armor));
     }
 
     const closeEnemies = followingEnemies.filter(e => Math.hypot(player.x - e.x, player.y - e.y) < CLOSE_DPS_DISTANCE);
@@ -49,7 +49,7 @@ export function smartMove(player: PlayerState, enemies: EnemyState[], mapId: str
     let dpsClose = 0;
 
     for (const enemy of closeEnemies) {
-        dpsClose += enemyDps(enemy) * armorDamageReduction(player.armor);
+        dpsClose += enemyDps(enemy) * (1 - armorDamageReduction(player.armor));
     }
 
     const timeTillDeath = player.hp / (dpsClose - player.regen);
