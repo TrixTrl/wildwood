@@ -401,8 +401,31 @@
   .settings-panel[hidden] { display: none; }
 
   .settings-panel > * { flex: 0 0 auto; width: min(520px, 100%); }
-  .settings-panel .setting-row { min-height: 44px; padding: 4px 0; }
-  .settings-panel .setting-toggle { min-height: 44px; }
+  .settings-panel .setting-row { min-height: 40px; padding: 1px 0; }
+  .settings-panel .setting-row + .setting-row { margin-top: 2px; }
+  .settings-panel .setting-toggle { min-height: 36px; }
+  /* Game's sections: a quiet heading over a hairline, none above the first. */
+  .settings-section-title { margin: 12px 0 2px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.12); color: #9a9a9a; font: 900 13px/1 var(--font-rounded); letter-spacing: .04em; }
+  .settings-section-title:first-child { margin-top: 0; padding-top: 2px; border-top: 0; }
+  /* On/off settings are switches: grey off, the chat send button's green on. */
+  .settings-panel .setting-toggle[aria-pressed] {
+    position: relative; flex: 0 0 auto; width: 56px; min-width: 56px; height: 36px; margin: 0; padding: 0;
+    border: 0; background: none; box-shadow: none; color: transparent; font-size: 0; text-shadow: none; filter: none; transform: none;
+  }
+  .settings-panel .setting-toggle[aria-pressed]::before {
+    content: ""; position: absolute; top: 50%; left: 4px; right: 4px; height: 26px; margin-top: -13px; border-radius: 13px;
+    background: #3a3a3a; box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); transition: background-color .15s;
+  }
+  .settings-panel .setting-toggle[aria-pressed="true"]::before { background: linear-gradient(#63ad5c, #347536); box-shadow: inset 0 0 0 1px #18371b; }
+  .settings-panel .setting-toggle[aria-pressed]::after {
+    content: ""; position: absolute; top: 50%; left: 8px; width: 18px; height: 18px; margin-top: -9px; border-radius: 50%;
+    background: #bdbdbd; box-shadow: 0 1px 2px rgba(0,0,0,.5); transition: transform .15s, background-color .15s;
+  }
+  .settings-panel .setting-toggle[aria-pressed="true"]::after { background: #fff; transform: translateX(22px); }
+  .settings-panel .setting-toggle[aria-pressed]:hover, .settings-panel .setting-toggle[aria-pressed]:active { background: none; filter: none; transform: none; }
+  .settings-panel .setting-toggle[aria-pressed]:focus-visible { outline: 2px solid rgba(255,255,255,.7); outline-offset: 0; border-radius: 18px; }
+  /* Buttons that act (Enter, Sign In, Replay): the chat send green, not the bright one. */
+  .settings-panel .setting-toggle:not([aria-pressed]):not(.danger) { border-color: #18371b; background: linear-gradient(#63ad5c, #347536); box-shadow: 0 3px 0 #18371b; }
   .settings-tabs { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; padding-bottom: 8px; }
   .settings-tabs [hidden] { display: none; }
   .map-guide-collected-count { margin-left: 8px; font-size: 13px; font-weight: 700; color: rgba(255,255,255,.7); }
@@ -420,8 +443,8 @@
   .controls-settings .controls-reset { align-self: flex-start; min-height: 44px; margin-top: 8px; font-size: 13px; }
   /* A controller moves focus without a keyboard, so its highlight is drawn whenever one is in use. */
   html[data-input="gamepad"] .pad-focus { outline: 3px solid var(--gold) !important; outline-offset: 2px; }
-  .settings-panel .settings-connection { min-height: 28px; margin: 0 0 8px; font-size: 11px; opacity: .8; }
-  .settings-panel > .settings-content { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; padding: 2px 3px 12px; }
+  .settings-panel .settings-connection { min-height: 28px; margin: 0 0 8px; padding-inline: 12px; font-size: 11px; opacity: .8; }
+  .settings-panel > .settings-content { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; padding: 2px 12px 12px; }
   .settings-panel > .settings-content::-webkit-scrollbar { display: none; }
   .settings-tab-panel[hidden] { display: none; }
   .settings-tab-panel .setting-reset { margin-top: 28px; }
@@ -756,7 +779,7 @@
 
   .item-inspection-panel { position: fixed; inset: 0 0 var(--window-bottom-inset); z-index: 15; display: grid; place-items: center; padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 16px max(16px, env(safe-area-inset-left)); overflow: hidden; background: rgba(0,0,0,.4); color: #f4f3e8; pointer-events: auto; }
   .item-inspection-panel[hidden] { display: none; }
-  .item-inspection-window { position: relative; display: grid; grid-template-rows: minmax(0, 1fr) auto; width: min(320px, 100%); max-height: 100%; min-height: 0; overflow: hidden; border: 2px solid rgba(255,255,255,.25); border-radius: 12px; background: var(--window-surface-brown); box-shadow: 0 16px 48px rgba(0,0,0,.55); }
+  .item-inspection-window { position: relative; display: grid; grid-template-rows: minmax(0, 1fr) auto auto; width: min(320px, 100%); max-height: 100%; min-height: 0; overflow: hidden; border: 2px solid rgba(255,255,255,.25); border-radius: 12px; background: var(--window-surface-brown); box-shadow: 0 16px 48px rgba(0,0,0,.55); }
   .item-inspection-summary { display: grid; justify-items: center; gap: 8px; width: 100%; min-width: 0; }
   .item-inspection-preview { display: grid; justify-items: center; align-content: center; gap: 6px; min-width: 0; width: 100%; }
   .item-inspection-tools { position: absolute; top: 8px; left: 8px; z-index: 1; display: flex; align-items: center; }
@@ -780,6 +803,9 @@
   .item-inspection-window > .window-back-footer { padding: 2px 16px 14px; min-height: 60px; }
   .item-inspection-window .item-inspection-back { width: 100%; }
   .item-inspection-actions:empty { display: none; }
+  .item-inspection-actions-host { padding: 8px 16px 0; }
+  .item-inspection-actions-host:empty { display: none; }
+  .item-inspection-actions-host > .item-inspection-actions { margin-top: 0; }
   .item-inspection-actions button { min-width: 0; min-height: 44px; margin: 0; padding: 8px; border: 2px solid #312a22; border-radius: 8px; box-shadow: 0 3px 0 rgba(59,46,31,.36); color: #fff; font-size: var(--font-readable-min); line-height: 1.15; }
   .item-inspection-actions button:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(59,46,31,.36); }
   .item-inspection-action-primary { background: linear-gradient(#507c51, #315c38); }
@@ -877,7 +903,7 @@
     border: 0;
     border-radius: 0;
     background: transparent;
-    accent-color: var(--green);
+    accent-color: #4f9a4a;
     appearance: none;
     -webkit-appearance: none;
     cursor: pointer;
@@ -886,7 +912,7 @@
   .volume-control input[type="range"]::-webkit-slider-runnable-track {
     height: 8px;
     border-radius: 999px;
-    background: linear-gradient(to right, var(--green) 0, var(--green) var(--volume-percent), #39463d var(--volume-percent), #39463d 100%);
+    background: linear-gradient(to right, #4f9a4a 0, #4f9a4a var(--volume-percent), #3a3a3a var(--volume-percent), #3a3a3a 100%);
     box-shadow: 0 0 0 2px #050805, inset 0 1px 2px rgba(0,0,0,.55);
   }
 
@@ -897,7 +923,7 @@
     margin-top: -18px;
     border: 3px solid #050805;
     border-radius: 50%;
-    background: linear-gradient(#efffe9, #69e56f);
+    background: linear-gradient(#a6dd9e, #4f9a4a);
     box-shadow: 0 3px 0 rgba(0,0,0,.42), 0 0 0 2px rgba(255,255,255,.18);
     appearance: none;
     -webkit-appearance: none;
@@ -907,14 +933,14 @@
     height: 8px;
     border: 0;
     border-radius: 999px;
-    background: #39463d;
+    background: #3a3a3a;
     box-shadow: 0 0 0 2px #050805, inset 0 1px 2px rgba(0,0,0,.55);
   }
 
   .volume-control input[type="range"]::-moz-range-progress {
     height: 8px;
     border-radius: 999px;
-    background: var(--green);
+    background: #4f9a4a;
   }
 
   .volume-control input[type="range"]::-moz-range-thumb {
@@ -923,7 +949,7 @@
     height: 44px;
     border: 3px solid #050805;
     border-radius: 50%;
-    background: linear-gradient(#efffe9, #69e56f);
+    background: linear-gradient(#a6dd9e, #4f9a4a);
     box-shadow: 0 3px 0 rgba(0,0,0,.42), 0 0 0 2px rgba(255,255,255,.18);
   }
 
@@ -3518,7 +3544,7 @@
    * Prestige switcher, under the list: one button naming the board on screen
    * with the viewer's rank beside it. It opens a list of every level upward,
    * over the rankings, that scrolls inside itself however many levels there
-   * are; the selected level takes the game's green.
+   * are. Black and grey throughout; the open control and its pick turn white.
    */
   .leaderboard-prestige { position: relative; margin-top: 7px; margin-bottom: 2px; }
   .leaderboard-prestige .leaderboard-prestige-heading {
@@ -3527,30 +3553,30 @@
     border: 2px solid rgba(255,255,255,.18); border-radius: 12px;
     background: #0008; box-shadow: none;
     color: #fff; font: 900 var(--font-readable-min) var(--font-rounded); letter-spacing: .04em; line-height: 1.2;
-    text-align: left; text-shadow: 0 1px 1px #14150e; cursor: pointer;
+    text-align: left; text-shadow: 0 1px 1px #000; cursor: pointer;
   }
   .leaderboard-prestige .leaderboard-prestige-heading:hover { border-color: rgba(255,255,255,.34); transform: none; }
   .leaderboard-prestige .leaderboard-prestige-heading:active { transform: none; }
-  .leaderboard-prestige .leaderboard-prestige-heading[aria-expanded="true"] { border-color: var(--green); }
+  .leaderboard-prestige .leaderboard-prestige-heading[aria-expanded="true"] { border-color: rgba(255,255,255,.6); }
   .leaderboard-prestige .leaderboard-prestige-heading:focus-visible { outline: 1px solid rgba(255,255,255,.7); outline-offset: 1px; }
   .leaderboard-prestige-title { display: inline-flex; align-items: center; gap: 7px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* A caret that points up while the list is open above it. */
   .leaderboard-prestige-title::after {
     content: ""; flex: 0 0 auto; width: 0; height: 0;
-    border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid var(--green);
+    border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #c3cbcf;
   }
-  .leaderboard-prestige-heading[aria-expanded="true"] .leaderboard-prestige-title::after { border-top: 0; border-bottom: 6px solid var(--green); }
+  .leaderboard-prestige-heading[aria-expanded="true"] .leaderboard-prestige-title::after { border-top: 0; border-bottom: 6px solid #c3cbcf; }
   /* Only Time Played offers account ages; on the other boards the control just says where the viewer stands. */
   .leaderboard-prestige-heading[data-filter="off"] { cursor: default; }
   .leaderboard-prestige-heading[data-filter="off"] .leaderboard-prestige-title::after { display: none; }
-  .leaderboard-prestige-rank { flex: 0 0 auto; color: var(--green); white-space: nowrap; }
+  .leaderboard-prestige-rank { flex: 0 0 auto; color: #c3cbcf; white-space: nowrap; }
   .leaderboard-prestige-rank[hidden] { display: none; }
   .leaderboard-prestige-chips {
     position: absolute; z-index: 5; left: 0; right: 0; bottom: calc(100% + 6px);
     display: flex; flex-direction: column; gap: 4px; max-height: min(52vh, 320px); padding: 6px;
     overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y;
     border: 2px solid rgba(255,255,255,.18); border-radius: 12px;
-    background: #15170f; box-shadow: 0 8px 24px #000a;
+    background: #161616; box-shadow: 0 8px 24px #000a;
     scrollbar-width: thin;
   }
   .leaderboard-prestige-chips[hidden] { display: none; }
@@ -3560,17 +3586,17 @@
     border: 2px solid transparent; border-radius: 9px;
     background: #ffffff0a; box-shadow: none;
     color: var(--muted); font: 900 var(--font-readable-min) var(--font-rounded); line-height: 1;
-    text-align: left; white-space: nowrap; text-shadow: 0 1px 1px #14150e; cursor: pointer;
+    text-align: left; white-space: nowrap; text-shadow: 0 1px 1px #000; cursor: pointer;
   }
   .leaderboard-prestige .leaderboard-prestige-chip:hover { color: #fff; background: #ffffff14; transform: none; }
   .leaderboard-prestige .leaderboard-prestige-chip:active { transform: none; }
   .leaderboard-prestige .leaderboard-prestige-chip.is-active {
-    border-color: var(--green); background: rgba(105,229,111,.14); color: #fff;
+    border-color: rgba(255,255,255,.6); background: rgba(255,255,255,.12); color: #fff;
   }
   .leaderboard-prestige .leaderboard-prestige-chip:focus-visible { outline: 1px solid rgba(255,255,255,.7); outline-offset: 1px; }
   /* The viewer's own level: a gold dot and the word, gold like first place. */
   .leaderboard-prestige-you { display: inline-flex; align-items: center; gap: 3px; color: #ffe05d; font-size: 9px; letter-spacing: .06em; text-transform: uppercase; }
-  .leaderboard-prestige-you::before { content: ""; flex: 0 0 6px; width: 6px; height: 6px; border-radius: 50%; background: #ffe05d; box-shadow: 0 0 0 1px #2b2b21; }
+  .leaderboard-prestige-you::before { content: ""; flex: 0 0 6px; width: 6px; height: 6px; border-radius: 50%; background: #ffe05d; box-shadow: 0 0 0 1px #222; }
   /*
    * Landscape phones: stacked, the podium alone is taller than what is left
    * under the banner, and the list got no height at all. The podium, with the
@@ -3609,7 +3635,7 @@
     width: 100%; height: 36px; aspect-ratio: auto; min-width: 0; min-height: 0; margin: 0; padding: 0 6px;
     border: 0; border-radius: 8px;
     background: transparent; box-shadow: none; white-space: nowrap;
-    color: #a5a599; opacity: 1; font-size: 13px; text-shadow: 0 1px 1px #14150e;
+    color: #a5a599; opacity: 1; font-size: 13px; text-shadow: 0 1px 1px #000;
     transition: background-color .15s, color .15s;
   }
   .leaderboard-tabs .profile-tab::before { content: ""; flex: 0 0 16px; width: 16px; height: 16px; background: var(--leaderboard-tab-color); opacity: .75; mask: var(--leaderboard-stat-icon) center / contain no-repeat; }
@@ -3659,11 +3685,11 @@
   .leaderboard-podium-name .player-gender-icon { flex: 0 0 auto; width: 2.5cqw; height: 3cqw; }
   canvas.leaderboard-podium-canvas { position: relative; z-index: 1; top: 2px; right: auto; bottom: auto; left: auto; display: block; width: 100%; height: 21cqw; padding: 0; background: transparent; image-rendering: pixelated; pointer-events: none; }
   .leaderboard-podium-step {
-    position: relative; display: grid; place-items: center; width: 100%; border: 2px solid #11130b;
+    position: relative; display: grid; place-items: center; width: 100%; border: 2px solid #111;
     border-radius: 6px 6px 2px 2px; box-shadow: inset 0 3px 0 rgba(255,255,255,.32), inset 0 -4px 0 rgba(0,0,0,.16);
   }
   .leaderboard-podium-step::before { content: ""; position: absolute; inset: 0; background: var(--podium-laurel-color); mask: url("ui/leaderboard/laurels.svg") center 75% / 74% 140% no-repeat; pointer-events: none; }
-  .leaderboard-podium-rank-label { position: relative; color: #fff; font-size: 5cqw; font-weight: 900; line-height: 1; -webkit-text-stroke: 2.5px #2b2b21; paint-order: stroke fill; text-shadow: 0 2px 0 #2b2b21; }
+  .leaderboard-podium-rank-label { position: relative; color: #fff; font-size: 5cqw; font-weight: 900; line-height: 1; -webkit-text-stroke: 2.5px #222; paint-order: stroke fill; text-shadow: 0 2px 0 #222; }
   .leaderboard-podium-rank-1 { grid-template-rows: 3.5cqw 4.5cqw 23cqw auto; }
   .leaderboard-podium-rank-1::before { content: ""; position: absolute; bottom: 12.5cqw; left: 0; width: 100%; aspect-ratio: 2; background: url("ui/leaderboard/champion-laurels.svg") center / contain no-repeat; pointer-events: none; }
   .leaderboard-podium-rank-1::after { content: ""; position: absolute; top: 13.5cqw; left: 5%; width: 90%; height: 6cqw; background: url("ui/leaderboard/champion-rays.svg") center / 100% 100% no-repeat; pointer-events: none; }
@@ -4389,9 +4415,9 @@
   .window-banner--long > span { font-size: 5.5cqw; }
 
 /* Native Android only: a dismissible prompt, safely above the bottom toolbar. */
-#androidUpdateBanner { position: fixed; z-index: 30; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 108px); transform: translateX(-50%); display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; width: max-content; max-width: calc(100vw - 32px); box-sizing: border-box; padding: 12px 14px; border: 2px solid #090e13; border-radius: 12px; background: #121b24; box-shadow: 0 4px 16px #0008; color: #fff; font-size: 15px; font-weight: 900; }
-#androidUpdateBanner[hidden] { display: none; }
-#androidUpdateBanner button { min-width: 66px; min-height: 44px; padding: 8px 12px; border: 1px solid #416980; border-radius: 8px; background: #264e68; color: #fff; font: inherit; }
+#androidUpdateBanner, #appUpdateReadyBanner { position: fixed; z-index: 30; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 108px); transform: translateX(-50%); display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; width: max-content; max-width: calc(100vw - 32px); box-sizing: border-box; padding: 12px 14px; border: 2px solid #090e13; border-radius: 12px; background: #121b24; box-shadow: 0 4px 16px #0008; color: #fff; font-size: 15px; font-weight: 900; }
+#androidUpdateBanner[hidden], #appUpdateReadyBanner[hidden] { display: none; }
+#androidUpdateBanner button, #appUpdateReadyBanner button { min-width: 66px; min-height: 44px; padding: 8px 12px; border: 1px solid #416980; border-radius: 8px; background: #264e68; color: #fff; font: inherit; }
 #androidUpdateBanner .android-update-later { border-color: transparent; background: transparent; }
 #androidUpdateBanner button:disabled { opacity: .6; }
 
@@ -4922,7 +4948,7 @@ html.text-outline-shadow :is(.item-drop-name, .item-drop-stats) { text-shadow: .
 html.text-outline-shadow .death-screen h1 { text-shadow: .045em 0 0 #000, -.045em 0 0 #000, 0 .045em 0 #000, 0 -.045em 0 #000, .032em .032em 0 #000, -.032em .032em 0 #000, .032em -.032em 0 #000, -.032em -.032em 0 #000; }
 html.text-outline-shadow :is(.map-guide-zone-label, .map-guide-boss-label) { text-shadow: .05em 0 0 #000, -.05em 0 0 #000, 0 .05em 0 #000, 0 -.05em 0 #000, .035em .035em 0 #000, -.035em .035em 0 #000, .035em -.035em 0 #000, -.035em -.035em 0 #000, 1px 1px 0 #000; }
 html.text-outline-shadow :is(.leaderboard-podium-value, .leaderboard-podium-name, .leaderboard-podium-name *, .leaderboard-name, .leaderboard-name *, .window-banner.window-banner, .window-banner > span) { text-shadow: 2px 0 0 #000, -2px 0 0 #000, 0 2px 0 #000, 0 -2px 0 #000, 1.4px 1.4px 0 #000, -1.4px 1.4px 0 #000, 1.4px -1.4px 0 #000, -1.4px -1.4px 0 #000; }
-html.text-outline-shadow .leaderboard-podium-rank-label { text-shadow: 1.25px 0 0 #2b2b21, -1.25px 0 0 #2b2b21, 0 1.25px 0 #2b2b21, 0 -1.25px 0 #2b2b21, .9px .9px 0 #2b2b21, -.9px .9px 0 #2b2b21, .9px -.9px 0 #2b2b21, -.9px -.9px 0 #2b2b21, 0 2px 0 #2b2b21; }
+html.text-outline-shadow .leaderboard-podium-rank-label { text-shadow: 1.25px 0 0 #222, -1.25px 0 0 #222, 0 1.25px 0 #222, 0 -1.25px 0 #222, .9px .9px 0 #222, -.9px .9px 0 #222, .9px -.9px 0 #222, -.9px -.9px 0 #222, 0 2px 0 #222; }
 html.text-outline-shadow .player-prestige-badge { --badge-ring: calc(var(--prestige-badge-size, 16px) * .096); --badge-diag: calc(var(--prestige-badge-size, 16px) * .068);
   text-shadow: var(--badge-ring) 0 0 #000, calc(-1 * var(--badge-ring)) 0 0 #000, 0 var(--badge-ring) 0 #000, 0 calc(-1 * var(--badge-ring)) 0 #000,
     var(--badge-diag) var(--badge-diag) 0 #000, calc(-1 * var(--badge-diag)) var(--badge-diag) 0 #000, var(--badge-diag) calc(-1 * var(--badge-diag)) 0 #000, calc(-1 * var(--badge-diag)) calc(-1 * var(--badge-diag)) 0 #000; }

@@ -299,6 +299,12 @@
       "sequence:u64",
       "droppedAt:timestamp"
     ],
+    "my_card_shop_purchases": [
+      "key:string",
+      "identity:identity",
+      "rotation:u64",
+      "cardIds:array(string)"
+    ],
     "my_cards": [
       "key:string",
       "identity:identity",
@@ -721,6 +727,14 @@
       "sessionStartedAt:timestamp",
       "enemyKills:u64",
       "deathCount:u64"
+    ],
+    "player_luck_research": [
+      "identity:identity",
+      "cardLuck:u32",
+      "gearLuck:u32",
+      "miningLuck:u32",
+      "skillLuck:u32",
+      "refineLuck:u32"
     ],
     "player_map_frame": [
       "mapId:string",

@@ -126,14 +126,14 @@ import { hasApprovedGameSession } from "./coop/startup-state-machine";
 import { createHudTimerColumn } from "./ui/hud-timer-column";
 import { createGameElements } from "./ui/game-elements";
 import { bindGameInteractionListeners } from "./ui/game-interaction-bindings";
-import { createSmithRuntime, watchCardDrops, createDevPanel, createDuplicateLoginRuntime, createGameActionsRuntime, createGameOverlays, createGameRuntimeHud, createHomeStationTouchHandler, createLeaderboardPanel, createPrestigeUnlockRuntime, createTechTreePanel } from "./ui/game-ui-runtime";
+import { createSmithRuntime, createCardSellerRuntime, watchCardDrops, createDevPanel, createDuplicateLoginRuntime, createGameActionsRuntime, createGameOverlays, createGameRuntimeHud, createHomeStationTouchHandler, createLeaderboardPanel, createPrestigeUnlockRuntime, createTechTreePanel } from "./ui/game-ui-runtime";
 import { formatCompactNumber, formatGemAmount } from "./ui/number-format";
 import { playerGenderIconPath } from "./ui/player-gender";
 import type { LeaderboardEntry } from "./wildstat-coop";
 import type { ResearchId } from "../shared/research";
 import { PLAYER_GENDER_FEMALE, PLAYER_GENDER_MALE } from "../shared/player-gender";
 import { regularEnemySimulationTick } from "../shared/regular-enemy-simulation";
-import { equipComparisonPower } from "../shared/equip-best";
+import { equipComparisonPower, gearOnlyLevel } from "../shared/equip-best";
 import { equipmentMaxHealthMultiplierBonus, isWeaponItem, itemDisplayName } from "../shared/items";
 import { createRewardDisplay, playerRegenerationPerSecond } from "./game/runtime/reward-display";
 import { createInventoryCommerceActions } from "./game/runtime/inventory-commerce";
@@ -540,7 +540,7 @@ import {
     player, enemies, spawnSites,
     mapId: () => currentMapId, pullCamps: () => coop?.aggroChallenge?.()?.active ? 0 : aggroPullCamps(coop?.bonusOff?.().includes("challenge.aggro") ? null : coop?.aggroChallenge?.()), forcedGroups: () => forcedAggroGroups(coop?.aggroChallenge?.(), coop?.localIdentity?.()),
     equippedWeapon: () => inventory.equippedRightHand || inventory.equippedLeftHand, rewardCapped: (reward, soul) => soul ? soulRewardCapped(soul, rewardLabelContext()) : liveRewardText(reward, rewardLabelContext()) === "Capped",
-    localIdentity: () => coop?.localIdentity?.(),
+    localIdentity: () => coop?.localIdentity?.(), mining: () => coop,
     connection: () => farmConnection === 'ready' && (!coop?.isConnected?.() || !session?.isRunning()
       || mapController.isMapTransitioning() || mapController.isCutsceneActive()) ? 'recovering' : farmConnection,
     unavailable: farmUnavailable,
@@ -753,7 +753,7 @@ import {
         equippedLeftHand: equipment.equippedLeftHand,
       }),
       researchRanks(),
-      (itemId) => coop?.itemLevel?.(itemId) ?? 0,
+      compare ? gearOnlyLevel((itemId) => coop?.itemLevel?.(itemId) ?? 0) : (itemId) => coop?.itemLevel?.(itemId) ?? 0,
       compare ? (itemId) => coop?.weaponSkills?.(itemId) : undefined,
     );
     return compare ? power : Math.round(power);
@@ -1371,15 +1371,15 @@ import {
   });
 
   bindHomeTeleportButton(gameElements.techTreeBtn, {
-    beforeTeleport: () => { techTree.close(); upgradeBenchController.close(); quests.board.close(); oxShop.close(); smith.close(); },
+    beforeTeleport: () => { techTree.close(); upgradeBenchController.close(); quests.board.close(); oxShop.close(); smith.close(); cardSeller.close(); },
     teleport: () => inTutorial() ? Promise.resolve(false) : mapController.teleportHome(),
     showFailure: failed => showMessage(failed ? "TELEPORT FAILED · TRY AGAIN" : "TELEPORT UNAVAILABLE", "#ffbc91"), showBlocked: text => showMessage(text, "#ffbc91"),
   });
-  const oxShop = createOxShopRuntime({ coop: () => coop, inventory, renderInventory, showMessage, clearInput: playerInput.clear, inTown: () => currentMapId === "town" }), smith = createSmithRuntime({ coop: () => coop, inventory, showMessage, clearInput: playerInput.clear, inTown: () => currentMapId === "town" });
+  const oxShop = createOxShopRuntime({ coop: () => coop, inventory, renderInventory, showMessage, clearInput: playerInput.clear, inTown: () => currentMapId === "town" }), smith = createSmithRuntime({ coop: () => coop, inventory, showMessage, clearInput: playerInput.clear, inTown: () => currentMapId === "town" }), cardSeller = createCardSellerRuntime({ coop: () => coop, showMessage, clearInput: playerInput.clear, inTown: () => currentMapId === "town" });
   const updateHomeStations = createHomeStationTouchHandler(
     () => currentMapId === "town" && !mapController.isMapTransitioning(), player,
     () => { playerInput.clear(); techTree.open(); }, () => { upgradeBenchController.updateTouch(); quests.refreshAtHome(); },
-    () => { playerInput.clear(); quests.board.open(); }, () => { playerInput.clear(); oxShop.open(); }, () => { playerInput.clear(); smith.open(); },
+    () => { playerInput.clear(); quests.board.open(); }, () => { playerInput.clear(); oxShop.open(); }, () => { playerInput.clear(); smith.open(); }, () => { playerInput.clear(); cardSeller.open(); },
   );
   upgradeBenchController = createUpgradeBenchController({
     panel: gameElements.upgradeBenchPanel,
@@ -1833,7 +1833,7 @@ import {
     rewardMultiplier: researchRewardMultiplier,
     showBaseStatRewards: appShell.showBaseStatRewards,
     rewardAmount: rewardDisplay.displayedAmount,
-    visible: () => (farmUnlocked() || Boolean(coop?.aggroChallenge?.()?.active)) && currentMapId !== "home_exterior" && currentMapId !== "town" && !guildHall.guildId() && Boolean(session?.isRunning()) && player.hp > 0 && !isDueling() && !mapController.isMapTransitioning() && !mapController.isCutsceneActive(),
+    visible: () => (farmUnlocked() || Boolean(coop?.aggroChallenge?.()?.active)) && currentMapId !== "home_exterior" && !guildHall.guildId() && Boolean(session?.isRunning()) && player.hp > 0 && !isDueling() && !mapController.isMapTransitioning() && !mapController.isCutsceneActive(),
     unavailable: farmUnavailable,
     setPaused: () => { },
     clearInput: () => { playerInput.clear(); player.moving = false; coop?.correctMovementPosition?.(player.x, player.y, true); },
@@ -1874,7 +1874,7 @@ import {
     refreshGemCounter,
     refreshBalanceApologyGift: mailbox.refresh,
     refreshDailyGemBonus,
-    refreshWindows: createSessionWindowRefresh({ coop, playerSafety, profileWindow, inventory: inventoryController, smith }),
+    refreshWindows: createSessionWindowRefresh({ coop, playerSafety, profileWindow, inventory: inventoryController, smith, cardSeller }),
     refreshLeaderboard: () => leaderboard.setUnlocked(leaderboardEligible(
       coop?.savedProgress?.()?.desertUnlocked,
       coop?.prestige?.()?.level,

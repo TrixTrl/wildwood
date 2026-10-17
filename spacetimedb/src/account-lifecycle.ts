@@ -30,6 +30,7 @@ import { mergeSwordSkills, removeSwordSkills } from "./sword-skills";
 import { mergeEquipmentCopies, mergeItemCollection } from "./equipment-copies";
 import { mergeRefineData } from "./item-refine";
 import { mergeCardData } from "./gear-cards";
+import { mergeCardShopPurchases } from "./card-shop";
 import { mergeMiningData } from "./mining";
 import { mergeMailboxReceipts, removeMailboxReceipts } from "./mailbox";
 import { mergeOnboarding } from "./onboarding";
@@ -49,6 +50,7 @@ import { deleteSnapshotRow, insertSnapshotRow, updateSnapshotRow } from "./snaps
 import { mergeSocialAccount, removeSocialAccount } from "./social-service";
 import { readPlayerProgress, deleteReplayWide } from "./wide-stats";
 import { eraseIdentityRows } from "./account-erasure";
+import { deleteLuckResearch, luckRanksFor, writeLuckRanks } from "./luck-research";
 import { carryNameColor } from "./profile-look";
 
 export const ACCOUNT_LINK_LIFETIME_MICROS = 600_000_000n;
@@ -149,7 +151,7 @@ const PLAYER_STATE_TABLES: ReadonlySet<string> = new Set([
   "gemKillDaily", "gemKillProgress", "gemTransaction", "guildMemberQuestWeek", "guildRejoin",
   "homeReturnLocation", "leaderboardDirty", "leaderboardPosition", "leaderboardPrestigePosition", "leaderboardStanding", "loginMove",
   "offlineProgress", "patreonPreview", "playerAggroChallenge", "playerAggroChallengeParked", "playerBonusToggle", "playerNameColor",
-  "playerMining", "playerMinedNode", "playerMiningLevel",
+  "playerMining", "playerMinedNode", "playerMiningLevel", "playerLuckResearch", "playerCardShopPurchase",
   "playerDailyQuest", "playerEndlessRebaseBackup", "playerFreeRespec",
   "playerOfflinePreference", "playerPrestige", "playerPrestigeChallenge",
   "playerPrestigeChallengeParked", "playerPrestigeExpansionPerk", "playerPrestigePerk", "playerQuestWeekTotal",
@@ -259,6 +261,7 @@ export function createAccountLifecycle(deps: AccountLifecycleDeps) {
     mergeItemCollection(ctx, link.guest, ctx.sender);
     mergeRefineData(ctx, link.guest, ctx.sender);
     mergeCardData(ctx, link.guest, ctx.sender);
+    mergeCardShopPurchases(ctx, link.guest, ctx.sender);
     mergeMiningData(ctx, link.guest, ctx.sender);
     mergeMailboxReceipts(ctx, link.guest, ctx.sender);
     mergeOnboarding(ctx, link.guest, ctx.sender);
@@ -310,6 +313,8 @@ export function createAccountLifecycle(deps: AccountLifecycleDeps) {
       const nextResearch = { ...guestResearch, identity: ctx.sender, frontierMastery: 0 };
       if (accountResearch) updateSnapshotRow(ctx, "playerResearch", nextResearch);
       else insertSnapshotRow(ctx, "playerResearch", nextResearch);
+      // The guest's luck ranks come with the rest of its research.
+      writeLuckRanks(ctx, ctx.sender, luckRanksFor(ctx, link.guest));
     }
     const guestReactionUnlock = ctx.db.chatReactionUnlock.identity.find(link.guest);
     if (guestReactionUnlock) {
@@ -498,6 +503,7 @@ export function createAccountLifecycle(deps: AccountLifecycleDeps) {
     if (ctx.db.playerLegalConsent.identity.find(link.guest)) ctx.db.playerLegalConsent.identity.delete(link.guest);
     if (guestLocation) ctx.db.playerLastLocation.identity.delete(link.guest);
     if (guestResearch) deleteSnapshotRow(ctx, "playerResearch", link.guest);
+    deleteLuckResearch(ctx, link.guest);
     if (guestReactionUnlock) ctx.db.chatReactionUnlock.identity.delete(link.guest);
     if (guestActiveResearch) ctx.db.activeResearch.identity.delete(link.guest);
     removePausedResearch(ctx, link.guest);

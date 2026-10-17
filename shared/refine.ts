@@ -1,6 +1,7 @@
 import { canonicalItemId, isUpgradeableItem, itemDefinition } from "./items";
 import { itemTier } from "./item-tier";
 import { REFINE_MAX, normalizeRefineLevel } from "./refine-multiplier";
+import { chanceWithLuck } from "./luck-research";
 export { REFINE_MAX, REFINE_STEP_PAST_TEN, REFINE_STEP_TO_TEN, normalizeRefineLevel, refineMultiplier } from "./refine-multiplier";
 
 /**
@@ -66,7 +67,11 @@ export function isRefinableItem(itemId: unknown) {
 export function refineGrade(itemId: unknown): RefineGrade | null {
   const id = canonicalItemId(itemId);
   if (!id || !isRefinableItem(id)) return null;
-  const tier = itemTier(id) ?? itemDefinition(id)?.weapon?.tier ?? 1;
+  return tierGrade(itemTier(id) ?? itemDefinition(id)?.weapon?.tier ?? 1);
+}
+
+/** A map tier's grade: four tiers to a grade, the last one three. */
+export function tierGrade(tier: number): RefineGrade {
   return tier <= 4 ? 1 : tier <= 8 ? 2 : tier <= 12 ? 3 : 4;
 }
 
@@ -76,14 +81,17 @@ export function refineSafeLimit(itemId: unknown) {
   return itemDefinition(itemId)?.slot === "HAND" ? WEAPON_SAFE_LIMITS[grade] : ARMOR_SAFE_LIMIT;
 }
 
-/** The chance a try for `toLevel` works: certain up to the safe limit, then the tables above. Zero when it can't be tried. */
-export function refineSuccessChance(itemId: unknown, toLevel: number) {
+/**
+ * The chance a try for `toLevel` works: certain up to the safe limit, then the tables above, raised by
+ * Refine Luck up to certainty. Zero when it can't be tried.
+ */
+export function refineSuccessChance(itemId: unknown, toLevel: number, refineLuckRank = 0) {
   const grade = refineGrade(itemId);
   if (!grade || !Number.isInteger(toLevel) || toLevel < 1 || toLevel > REFINE_MAX) return 0;
   if (toLevel <= refineSafeLimit(itemId)) return 1;
-  if (toLevel > 10) return HIGH_ODDS[toLevel] ?? 0;
   const table = itemDefinition(itemId)?.slot === "HAND" ? WEAPON_ODDS[grade] : ARMOR_ODDS;
-  return table[toLevel] ?? 0;
+  const chance = toLevel > 10 ? HIGH_ODDS[toLevel] ?? 0 : table[toLevel] ?? 0;
+  return chanceWithLuck(chance, "refineLuck", refineLuckRank);
 }
 
 /** What a try for `toLevel` costs, or null when the item can't be refined to it. */
@@ -121,8 +129,8 @@ export function expectedRefineTries(itemId: unknown): number[] {
  * Rolls one try. `roll` is a number in [0, 1) from the server's random source; a try works when it lands
  * under the chance. Returns the level the item ends on.
  */
-export function rollRefine(itemId: unknown, currentLevel: number, roll: number) {
+export function rollRefine(itemId: unknown, currentLevel: number, roll: number, refineLuckRank = 0) {
   const current = normalizeRefineLevel(currentLevel);
-  const succeeded = roll < refineSuccessChance(itemId, current + 1);
+  const succeeded = roll < refineSuccessChance(itemId, current + 1, refineLuckRank);
   return { succeeded, level: refineResultLevel(current, succeeded) };
 }

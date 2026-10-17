@@ -161,12 +161,16 @@ export function createMapController(options: {
    * its portal back, `offset` from its middle as they stood in the one they walked into; anywhere else, its arrival.
    */
   function arrivalFrom(destination: MapId, from: MapId, offset: { x: number; y: number }) {
+    const exit = exitFor(destination, from);
+    return exit ? stepThrough(exit, offset) : mapConfig[destination].arrival;
+  }
+  function exitFor(destination: MapId, from: MapId) {
     const entry = mapConfig[destination];
     const travelled = (MAP_IDS as readonly string[]).includes(destination) || isProceduralMap(destination);
     const portals = travelled ? [entry.portal, entry.secondaryPortal].filter((portal): portal is MapPortal => Boolean(portal)) : [];
-    const exit = exitPortalFor(destination, portals, from, from === "town");
-    return exit ? stepThrough(exit, offset) : entry.arrival;
+    return exitPortalFor(destination, portals, from, from === "town");
   }
+
 
   /** Where the player stands relative to a portal's middle (its use point, as the server measures it). */
   const offsetIn = (portal: MapPortal) => ({ x: player.x - portal.x, y: player.y - (portal.y - portal.height * .32) });
@@ -332,13 +336,14 @@ export function createMapController(options: {
     }
     options.onTravelStarted?.();
     mapTransitioning = true;
+    const destination = portal.destination;
+    const departure = getCurrentMapId();
+    // Walking straight through leaves the player's input alone: they walk on as long as they hold it, no longer.
+    if (options.instantTravelReady?.(destination)) { void travelThroughPortal(portal, destination); return; }
     keys.clear();
     stopTouchMove();
     player.moving = false;
-    const destination = portal.destination;
-    const departure = getCurrentMapId();
     const offset = offsetIn(portal);
-    if (options.instantTravelReady?.(destination)) { void travelThroughPortal(portal, destination); return; }
     const attempt = mapLoadGeneration;
     void prepareMapTransition(
       () => changeMap(destination, player.x, player.y),
@@ -378,7 +383,9 @@ export function createMapController(options: {
     const arrival = arrivalFrom(destination, departure.mapId, portal ? offsetIn(portal) : { x: 0, y: 0 });
     const move = Promise.resolve(changeMap(destination, departure.x, departure.y));
     loadMap(destination, arrival.x, arrival.y, departure.facing);
-    snapCameraToPlayer(camera, player, viewport());
+    // The camera moves as far as the player did, so the arch holds its place on screen and the follow keeps its ease.
+    camera.x += player.x - departure.x;
+    camera.y += player.y - departure.y;
     resetPresentationState();
     portalTravelScene.arrivedAt = performance.now();
     arrivalPending = true;

@@ -973,6 +973,9 @@ export type MyBuilds = __Infer<typeof MyBuilds>;
 export const MyCardDrop = __t.object("MyCardDrop", {});
 export type MyCardDrop = __Infer<typeof MyCardDrop>;
 
+export const MyCardShopPurchases = __t.object("MyCardShopPurchases", {});
+export type MyCardShopPurchases = __Infer<typeof MyCardShopPurchases>;
+
 export const MyCards = __t.object("MyCards", {});
 export type MyCards = __Infer<typeof MyCards>;
 
@@ -1387,6 +1390,14 @@ export const PlayerCardMeter = __t.object("PlayerCardMeter", {
 });
 export type PlayerCardMeter = __Infer<typeof PlayerCardMeter>;
 
+export const PlayerCardShopPurchase = __t.object("PlayerCardShopPurchase", {
+  key: __t.string(),
+  identity: __t.identity(),
+  rotation: __t.u64(),
+  cardIds: __t.array(__t.string()),
+});
+export type PlayerCardShopPurchase = __Infer<typeof PlayerCardShopPurchase>;
+
 export const PlayerChatHearts = __t.object("PlayerChatHearts", {
   identity: __t.identity(),
   chatHeartsReceived: __t.u64(),
@@ -1656,6 +1667,16 @@ export const PlayerLootSetting = __t.object("PlayerLootSetting", {
   updatedAt: __t.timestamp(),
 });
 export type PlayerLootSetting = __Infer<typeof PlayerLootSetting>;
+
+export const PlayerLuckResearch = __t.object("PlayerLuckResearch", {
+  identity: __t.identity(),
+  cardLuck: __t.u32(),
+  gearLuck: __t.u32(),
+  miningLuck: __t.u32(),
+  skillLuck: __t.u32(),
+  refineLuck: __t.u32(),
+});
+export type PlayerLuckResearch = __Infer<typeof PlayerLuckResearch>;
 
 export const PlayerMail = __t.object("PlayerMail", {
   key: __t.string(),

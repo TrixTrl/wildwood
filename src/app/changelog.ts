@@ -1,4 +1,91 @@
 export const RELEASE_NOTES: Record<string, string[]> = {
+  "0.910.8": [
+    "Auto Equip and Equip Best rank gear by the gear itself, not its cards, so higher-tier gear goes on with your cards in it",
+  ],
+  "0.910.7": [
+    "Duplicate weapons raise each skill on its own: a better skill on a drop is always kept",
+    "Auto Farm moves on right after beating a boss instead of finishing the fight first",
+  ],
+  "0.910.6": [
+    "Gear Luck and Treasure cards raise every equipment drop by their full amount",
+    "The Smith shows refine odds with decimals, so Refine Luck's raise is visible",
+  ],
+  "0.910.5": [
+    "Old chat messages no longer stay in memory during long sessions",
+  ],
+  "0.910.4": [
+    "Kills are sent to the server once a minute, so drops can take up to a minute to appear",
+  ],
+  "0.910.3": [
+    "Profile Stat Gain includes card bonuses like Gravebloom's",
+  ],
+  "0.910.2": [
+    "Auto Mine stays on when the game updates",
+  ],
+  "0.910.1": [
+    "Endless bosses hurt on touch, so Reflect answers touching them",
+    "Endless bosses are drawn to fit their size",
+    "Auto Farm no longer walks you out of the portal you arrive in",
+  ],
+  "0.910.0": [
+    "Auto Mine: pick ores in the Town and it walks to the Copper Hills and mines them",
+  ],
+  "0.909.4": [
+    "Smoother play around players wearing Galaxy gear: its shimmer costs far less to draw",
+  ],
+  "0.909.3": [
+    "Fixed the game freezing for a long time after changing maps when the server was slow to answer",
+  ],
+  "0.909.2": [
+    "Fixed being pushed off the Town's travel portal while Auto Farm waited to resume",
+    "Smoother card found animation",
+    "New Card Found Popups setting to turn the card animation off",
+  ],
+  "0.909.1": [
+    "Android app: a notice when an update is ready, applied by closing and reopening WildStat",
+  ],
+  "0.909.0": [
+    "Cards drop 10× more often during the alpha",
+    "New Card Seller in Town: three cards for ore, new ones every 3 hours",
+  ],
+  "0.908.11": [
+    "Auto Farm walks out of the portal it arrives in instead of standing in it",
+    "Lighter combat: no sparks on hits (deaths keep theirs), and enemies no longer fade when hit",
+    "Touching a boss anywhere now counts for its touch damage, so Reflect works all around it",
+  ],
+  "0.908.10": [
+    "Profiles show the cards, refine and skills of gear worn under a cosmetic look",
+  ],
+  "0.908.9": [
+    "Portals keep your controls: walk on while you hold, stop when you let go",
+    "No more being walked out of a portal on your own",
+  ],
+  "0.908.8": [
+    "Utility tree: new Card, Gear, Mining, Skill and Refine Luck research",
+    "Utility tree branches evenly: one node, then two",
+  ],
+  "0.908.7": [
+    "Portals are solid again, not see-through",
+    "Walking through a portal keeps your direction, diagonals included",
+    "No more popping in front of or behind a portal while walking through it",
+  ],
+  "0.908.6": [
+    "Android beta signup explains what to do when the old internal-test link is unavailable",
+  ],
+  "0.908.5": [
+    "Walking through a portal carries you out the other side, the way you were going",
+    "No more standing behind a portal's swirl after arriving",
+    "Auto Farm no longer stands inside the portal after moving maps",
+    "Smoother camera through portals",
+    "Settings: on/off switches, Game settings in sections, Title Case labels, tighter rows",
+    "New Damage Numbers setting to hide damage popups",
+    "Enemy HP numbers are on by default",
+    "Smithy: filter gear by type and sort by tier",
+    "Item window keeps Equip and its other buttons in view",
+  ],
+  "0.908.4": [
+    "Leaderboard's Time Played menu in black and grey instead of green",
+  ],
   "0.908.3": [
     "Smoother full-screen chat scrolling",
     "Older chat messages load before you reach the top",
@@ -3413,6 +3500,28 @@ const RELEASE_DATES: Record<string, string> = {
 };
 
 export const RELEASE_DAYS: Record<string, string> = {
+  "0.910.8": "2026-10-17",
+  "0.910.7": "2026-10-17",
+  "0.910.6": "2026-10-17",
+  "0.910.5": "2026-10-16",
+  "0.910.4": "2026-10-16",
+  "0.910.3": "2026-10-16",
+  "0.910.2": "2026-10-16",
+  "0.910.1": "2026-10-16",
+  "0.910.0": "2026-10-16",
+  "0.909.4": "2026-10-16",
+  "0.909.3": "2026-10-16",
+  "0.909.2": "2026-10-16",
+  "0.909.1": "2026-10-16",
+  "0.909.0": "2026-10-16",
+  "0.908.11": "2026-10-16",
+  "0.908.10": "2026-10-16",
+  "0.908.9": "2026-10-16",
+  "0.908.8": "2026-10-15",
+  "0.908.7": "2026-10-15",
+  "0.908.6": "2026-10-15",
+  "0.908.5": "2026-10-15",
+  "0.908.4": "2026-10-15",
   "0.908.3": "2026-10-15",
   "0.908.2": "2026-10-15",
   "0.908.1": "2026-10-15",

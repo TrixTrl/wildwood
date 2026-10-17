@@ -10,6 +10,7 @@ import { wornCardTotalsFor } from "./worn-cards";
 import { readPlayerProgress } from "./wide-stats";
 import { createCombatReport } from "./boss-combat";
 import { cardTotals } from "../../shared/card-effects";
+import { CARD_DROP_OUTCOMES } from "../../shared/cards";
 import { cardOffenseBound } from "../../shared/card-bounds";
 import { statRewardMultiplierFor, statRewardMultiplier } from "./prestige";
 import { awardCardDrops } from "./card-drops";
@@ -117,17 +118,17 @@ describe("cards outside a fight, on the server", () => {
 
   it("raises card and gear drop odds with Card Hunter and Treasure cards", () => {
     const view = wearing();
-    // A roll that just misses a regular card at 1 in 10,000 lands once Card Hunter's +10% is worn.
-    Object.assign(view.f.ctx, { random: Object.assign(() => 1.05 / 10_000, { integerInRange: (_min: number, max: number) => max }) });
+    // A roll that just misses a regular card at its plain odds lands once Card Hunter's +10% is worn.
+    Object.assign(view.f.ctx, { random: Object.assign(() => 1.05 / CARD_DROP_OUTCOMES.regular, { integerInRange: (_min: number, max: number) => max }) });
     const award = () => view.f.transaction(() => awardCardDrops(view.f.ctx, view.f.ctx.sender, "tutorial_forest", [{ enemy: "Needle", count: 1 }], 0));
     award();
     expect(cardCount(view.f.ctx, view.f.ctx.sender, "needle_card")).toBe(0);
     view.slot("forest_cap", ["nether_oracle_card"]);
     award();
     expect(cardCount(view.f.ctx, view.f.ctx.sender, "needle_card")).toBe(1);
-    // A drop at 1 in 100 rolled at 1.05 lands with Treasure's +6%.
+    // A drop at 1 in 100 that rolled 2 lands with Treasure's +6% when the second draw falls in that 6%.
     const loot = [{ itemId: "forest_cap", wins: 1, outcomes: 100 }] as any;
-    const roll = { random: Object.assign(() => 0, { integerInRange: () => 1.05 }) } as any;
+    const roll = { random: Object.assign(() => .05, { integerInRange: () => 2 }) } as any;
     expect(rollRegularEnemyLoot(roll, "tutorial_forest", 1, loot).size).toBe(0);
     expect(rollRegularEnemyLoot(roll, "tutorial_forest", 1, loot, 1.06).get("forest_cap")).toBe(1);
   });

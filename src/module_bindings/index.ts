@@ -46,6 +46,7 @@ import ApplyBuildCardsReducer from "./apply_build_cards_reducer";
 import BeginAccountLinkReducer from "./begin_account_link_reducer";
 import BeginAdventureReducer from "./begin_adventure_reducer";
 import BuyOxShopCosmeticReducer from "./buy_ox_shop_cosmetic_reducer";
+import BuyShopCardReducer from "./buy_shop_card_reducer";
 import CancelGemPurchaseReducer from "./cancel_gem_purchase_reducer";
 import CancelItemUpgradeReducer from "./cancel_item_upgrade_reducer";
 import ChallengeGuildReducer from "./challenge_guild_reducer";
@@ -281,6 +282,7 @@ import MyBalanceApologyNoticeRow from "./my_balance_apology_notice_table";
 import MyBowSkillsRow from "./my_bow_skills_table";
 import MyBuildsRow from "./my_builds_table";
 import MyCardDropRow from "./my_card_drop_table";
+import MyCardShopPurchasesRow from "./my_card_shop_purchases_table";
 import MyCardsRow from "./my_cards_table";
 import MyChatMuteRow from "./my_chat_mute_table";
 import MyCopyRefinesRow from "./my_copy_refines_table";
@@ -341,6 +343,7 @@ import PlayerItemDropRow from "./player_item_drop_table";
 import PlayerItemRefineRow from "./player_item_refine_table";
 import PlayerItemUpgradeRow from "./player_item_upgrade_table";
 import PlayerLifetimeRow from "./player_lifetime_table";
+import PlayerLuckResearchRow from "./player_luck_research_table";
 import PlayerMapFrameRow from "./player_map_frame_table";
 import PlayerMapMarkerRow from "./player_map_marker_table";
 import PlayerMiningLevelRow from "./player_mining_level_table";
@@ -747,6 +750,17 @@ const tablesSchema = __schema({
       { name: 'player_lifetime_identity_key', constraint: 'unique', columns: ['identity'] },
     ],
   }, PlayerLifetimeRow),
+  playerLuckResearch: __table({
+    name: 'player_luck_research',
+    indexes: [
+      { accessor: 'identity', name: 'player_luck_research_identity_idx_btree', algorithm: 'btree', columns: [
+        'identity',
+      ] },
+    ],
+    constraints: [
+      { name: 'player_luck_research_identity_key', constraint: 'unique', columns: ['identity'] },
+    ],
+  }, PlayerLuckResearchRow),
   playerMapFrame: __table({
     name: 'player_map_frame',
     indexes: [
@@ -1116,6 +1130,13 @@ const tablesSchema = __schema({
     constraints: [
     ],
   }, MyCardDropRow),
+  myCardShopPurchases: __table({
+    name: 'my_card_shop_purchases',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, MyCardShopPurchasesRow),
   myCards: __table({
     name: 'my_cards',
     indexes: [
@@ -1426,6 +1447,7 @@ const reducersSchema = __reducers(
   __reducerSchema("begin_account_link", BeginAccountLinkReducer),
   __reducerSchema("begin_adventure", BeginAdventureReducer),
   __reducerSchema("buy_ox_shop_cosmetic", BuyOxShopCosmeticReducer),
+  __reducerSchema("buy_shop_card", BuyShopCardReducer),
   __reducerSchema("cancel_gem_purchase", CancelGemPurchaseReducer),
   __reducerSchema("cancel_item_upgrade", CancelItemUpgradeReducer),
   __reducerSchema("challenge_guild", ChallengeGuildReducer),

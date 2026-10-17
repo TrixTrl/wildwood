@@ -13,7 +13,7 @@ type SnowPineDecor = Extract<WorldDecor, { type: "snowPine" }>;
 type UpgradeBenchDecor = Extract<WorldDecor, { type: "upgradeBench" }>;
 type CharredTreeDecor = Extract<WorldDecor, { type: "charredTree" }>;
 type TallDecor = TreeDecor | CactusDecor | SnowPineDecor | UpgradeBenchDecor | CharredTreeDecor | SoulPropDecor | OreRockDecor;
-type Portal = { depth: number };
+type Portal = { depth: number; x?: number; width?: number; height?: number };
 type BootsPickup = { y: number; r: number; collected: boolean };
 type DepthLayerKind = "enemy" | "boss" | "boots" | "portal" | "secondaryPortal" | "remotePlayer" | "player";
 type DepthLayer = { depth: number; priority: number; kind: DepthLayerKind; entity?: WorldDecor | EnemyState | RemotePlayer; opacity: number };
@@ -218,6 +218,17 @@ export function createDepthWorldRenderer(options: {
     if (includePortal && portal) queueLayer(portal.depth, 2, "portal");
     const secondary = options.secondaryPortal();
     if (secondary) queueLayer(secondary.depth, 2, "secondaryPortal");
+    // Someone standing still in a gateway draws over its swirl; walking, everyone sorts by their feet, so they
+    // sink into a portal and come out of it.
+    const inFront = (x: number, feet: number, standing: boolean) => {
+      let depth = feet;
+      if (!standing) return depth;
+      for (const gate of [includePortal ? portal : null, secondary]) {
+        if (!gate || gate.x === undefined || !gate.width || !gate.height) continue;
+        if (Math.abs(x - gate.x) <= gate.width * .32 && feet < gate.depth && feet > gate.depth - gate.height * .5) depth = Math.max(depth, gate.depth + .5);
+      }
+      return depth;
+    };
     for (const remotePlayer of remotePlayers) {
       if (
         remotePlayer.x < camera.x - 65 ||
@@ -225,9 +236,10 @@ export function createDepthWorldRenderer(options: {
         remotePlayer.y < camera.y - 70 ||
         remotePlayer.y > camera.y + visibleH + 70
       ) continue;
-      queueLayer(remotePlayer.y + 29, 1, "remotePlayer", remotePlayer);
+      queueLayer(inFront(remotePlayer.x, remotePlayer.y + 29, !remotePlayer.moving), 1, "remotePlayer", remotePlayer);
     }
-    queueLayer(options.player.y + 29, 1, "player");
+    const local = options.player;
+    queueLayer(inFront(local.x, local.y + 29, !local.moving), 1, "player");
     dynamicLayers.length = layerCount;
     dynamicLayers.sort((a, b) => a.depth - b.depth || a.priority - b.priority);
 

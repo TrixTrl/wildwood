@@ -293,6 +293,26 @@ describe("walking straight through a portal", () => {
     expect(f.currentMapId()).toBe("town");
   });
 
+  it("leaves the player's own input alone through a walk-through, and carries the camera with the player", () => {
+    const camera = { x: 40, y: 10, zoom: 1 }, keys = { clear: vi.fn() }, stopTouchMove = vi.fn();
+    const f = portalArrivalHarness({ x: 300, y: 400 }, { instantTravelReady: () => true, camera, keys, stopTouchMove, changeMap: vi.fn(() => new Promise<boolean>(() => {})) });
+    f.controller.updatePortal(1 / 60);
+    expect(f.currentMapId()).toBe(f.desertMapId);
+    // Held keys and the stick carry on: the player walks on as long as they hold them, and stops when they let go.
+    expect(keys.clear).not.toHaveBeenCalled();
+    expect(stopTouchMove).not.toHaveBeenCalled();
+    // The arch holds its place on screen: the camera moved exactly as far as the player.
+    expect(camera).toEqual({ x: 240, y: 210, zoom: 1 });
+  });
+
+  it("still stops the player for a crossing that waits on the server behind the fade", () => {
+    const keys = { clear: vi.fn() }, stopTouchMove = vi.fn();
+    const f = portalArrivalHarness({ x: 300, y: 400 }, { instantTravelReady: () => false, keys, stopTouchMove });
+    f.controller.updatePortal(1 / 60);
+    expect(keys.clear).toHaveBeenCalled();
+    expect(stopTouchMove).toHaveBeenCalled();
+  });
+
   it("waits for the server, as before, when the destination's art is still loading", async () => {
     const f = portalArrivalHarness({ x: 300, y: 400 }, { instantTravelReady: () => false });
     f.controller.updatePortal(1 / 60);

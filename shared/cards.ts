@@ -1,5 +1,6 @@
 import type { RewardType } from "./enemy-definitions";
 import { canonicalItemId, isUpgradeableItem, itemDefinition } from "./items";
+import { chanceWithLuck } from "./luck-research";
 
 /** Cards: a rare drop from every campaign enemy and boss, slotted into a weapon, helmet or armor for good. */
 
@@ -44,8 +45,16 @@ export type CardDefinition = {
   effects: readonly CardEffect[];
 };
 
-/** Kills per card drop; for bosses, boss kills. */
-export const CARD_DROP_OUTCOMES: Readonly<Record<CardRarity, number>> = Object.freeze({ regular: 10_000, elite: 20_000, boss: 1_000 });
+/** Kills per card drop as designed; for bosses, boss kills. */
+export const DESIGNED_CARD_DROP_OUTCOMES: Readonly<Record<CardRarity, number>> = Object.freeze({ regular: 10_000, elite: 20_000, boss: 1_000 });
+/** The alpha's boost to every card drop; removing it restores the designed odds. */
+export const ALPHA_CARD_DROP_BOOST = 10;
+/** Kills per card drop in play; for bosses, boss kills. */
+export const CARD_DROP_OUTCOMES: Readonly<Record<CardRarity, number>> = Object.freeze({
+  regular: DESIGNED_CARD_DROP_OUTCOMES.regular / ALPHA_CARD_DROP_BOOST,
+  elite: DESIGNED_CARD_DROP_OUTCOMES.elite / ALPHA_CARD_DROP_BOOST,
+  boss: DESIGNED_CARD_DROP_OUTCOMES.boss / ALPHA_CARD_DROP_BOOST,
+});
 /**
  * Each kill also fills its card's meter by the kill's odds; a full meter guarantees the card. Full is this many times
  * the average kills a card takes, so the odds stay the same but nobody goes forever without one.
@@ -53,6 +62,9 @@ export const CARD_DROP_OUTCOMES: Readonly<Record<CardRarity, number>> = Object.f
 export const CARD_METER_MULTIPLE = 2;
 /** The meter a card needs, in kills at plain odds. */
 export const cardMeterFull = (rarity: CardRarity) => CARD_DROP_OUTCOMES[rarity] * CARD_METER_MULTIPLE;
+/** One kill's chance at its card: `odds` kills' worth out of `outcomes`, raised by Card Luck, never past certainty. */
+export const cardDropChance = (outcomes: number, odds: number, cardLuckRank = 0) =>
+  outcomes > 0 ? chanceWithLuck(odds / outcomes, "cardLuck", cardLuckRank) : 0;
 export const MAX_CARD_SLOTS = 4;
 /** Gear owned before cards has one slot. */
 export const OWNED_GEAR_SLOTS = 1;

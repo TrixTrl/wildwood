@@ -23,6 +23,7 @@ import { smartMove } from './auto-farm-kite';
 import { BossKind, BossStates } from '../boss/boss-registry';
 import { BOSS_DAMAGE_PROFILES } from '../../boss-damage';
 import { armorDamageReduction } from '../../combat';
+import { createAutoMine, type AutoMineSource } from './auto-mine';
 
 /** An attacker of another kind is fought off on the way only if it dies within this many seconds. */
 const QUICK_DEFENCE_SECONDS = 3;
@@ -145,9 +146,14 @@ export function createAutoFarmController(options: {
   /** Whether a kill of this reward gives nothing now, the stat at its cap: the "Capped" its label shows (reward-labels.ts). */
   rewardCapped?: (reward: FarmReward, soul: SoulStatId | null) => boolean;
   bossDefinition?: () => EnemyState | BossStates[BossKind] | null;
+  /** The mining session: with it, the Town's button runs Auto Mine (auto-mine.ts) instead. */
+  mining?: () => AutoMineSource | null | undefined;
 }) {
   const { player, enemies, spawnSites } = options;
   const now = options.now ?? monotonicNowMs;
+  /** Auto Mine steers in the Town, where nothing is farmed; Auto Farm everywhere else. */
+  const mine = options.mining ? createAutoMine({ player, mapId: options.mapId, source: options.mining, storage: options.priorityStorage, identity: options.localIdentity,
+    unavailable: options.unavailable, connection: options.connection, paused: options.paused, speed: options.speed, now }) : null;
   let priority: AutoFarmPriority = readAutoFarmPriority(options.priorityStorage);
   let pullAll = readAutoFarmPull(options.priorityStorage);
   /** The groups switched to Aggro beside their sliders; null until one is touched, when Pull Whole Group's own picks apply. */
@@ -168,6 +174,8 @@ export function createAutoFarmController(options: {
   /** A boss beaten that left the way forward shut: not fought again on that map. */
   const opensNothing = new Set<string>();
   let bossWin: { mapId: string; at: number } | null = null;
+  /** The map whose boss it beat this visit: Move On then goes at once instead of finishing the fight around it. */
+  let bossBeatenOn: string | null = null;
   let planClock = 0;
   /** How long it has stood waiting for a pulled group that never arrives. */
   let pullWait = 0;
@@ -395,10 +403,14 @@ export function createAutoFarmController(options: {
   /** Beaten, as far as it can tell: the way forward it holds is open, or a win here opened nothing. */
   const bossBeaten = () => options.bossUnlocksNext?.() === false || opensNothing.has(options.mapId());
   /** Whether to fight the boss now: Fight Bosses on, a boss standing that is not beaten, and power enough (a fight under way goes on). */
+  /** A fight that ended with the boss gone was won: whether that opened anything is read a few seconds on. */
+  function noteBossWin() {
+    const boss = options.mapBoss?.(), mapId = options.mapId();
+    if (phase === 'boss' && (!boss || boss.dead)) { bossWin = { mapId, at: now() }; bossBeatenOn = mapId; }
+  }
   function bossWanted() {
     const boss = options.mapBoss?.(), mapId = options.mapId();
-    // A fight that ended with the boss gone was won: whether that opened anything is read a few seconds on.
-    if (phase === 'boss' && (!boss || boss.dead)) bossWin = { mapId, at: now() };
+    noteBossWin();
     if (bossWin && bossWin.mapId === mapId && now() - bossWin.at >= BOSS_WIN_SETTLE_MS) {
       if (options.bossUnlocksNext?.() === true) opensNothing.add(mapId);
       bossWin = null;
@@ -588,8 +600,10 @@ export function createAutoFarmController(options: {
 
   /** Back a map, the next map, the boss, or a camp. */
   function choosePhase(dt: number) {
+    noteBossWin();
     const portal = exitPortal();
-    if (portal && !finishingFight(true)) { phase = 'portal'; travellingTo = portal.destination; return; }
+    const afterBoss = bossBeatenOn === options.mapId();
+    if (portal && !finishingFight(!afterBoss)) { phase = 'portal'; travellingTo = portal.destination; return; }
     if (!portal) finishingFight(false);
     if (bossWanted()) { phase = 'boss'; travellingTo = null; return; }
     if (phase !== 'farm') { target = null; route = []; lastGoal = null; routeClock = 0; holding = false; }
@@ -662,6 +676,8 @@ export function createAutoFarmController(options: {
    * any travel but its own, and a player farming by hand had to start it again.
    */
   function travelStarted() {
+    mine?.travelStarted();
+    bossBeatenOn = null;
     zeroWaiting = false;
     if (!active && !pendingResume) return;
     // After an update reload the farm waits as a restored intent, with no startedIdentity yet: travel carries that intent on.
@@ -680,6 +696,8 @@ export function createAutoFarmController(options: {
 
   function movement(manual: Movement, dt: number): Movement {
     refresh();
+    const mining = mine?.movement(manual, dt);
+    if (mining) return mining;
     manualControl = Boolean(manual.x || manual.y);
     if (recovering) return idle();
     // Waiting to resume on another map, the player can still walk (a town has nothing to farm).
@@ -856,8 +874,7 @@ export function createAutoFarmController(options: {
     return check.ready ? 'Boss Next' : check.line;
   }
 
-  return {
-    start, stop: (reason?: string) => { zeroWaiting = false; stop(reason); }, defeated, refresh, choices, movement, travelStarted,
+  return { start, stop: (reason?: string) => { zeroWaiting = false; stop(reason); }, defeated, refresh, choices, movement, travelStarted, mine,
     /** `waiting`: stopped for travel, and starting again on the next map with enemies. The player can still Stop it. */
     state: () => ({
       active, waiting: !active && Boolean(pendingResume), selected, selectedLabel, shares: { ...shares }, phase, advance, fightBosses,

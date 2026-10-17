@@ -133,6 +133,9 @@ export function drawableEnemyLayers(layers: LoadedSpriteLayer[] | undefined) {
   return layers?.filter((layer) => layer.image.complete && layer.image.naturalWidth > 0) ?? [];
 }
 
+/** A boss's body is about this share of its art's half-width (Ironhorn's tuned hitbox). */
+const BOSS_HITBOX_ART_SHARE = .76;
+
 export function enemySpriteVerticalBounds(sprite: LoadedEnemySprite | undefined, enemyRadius: number) {
   if (sprite?.animation) {
     const cached = enemyBoundsCache.get(sprite);
@@ -716,19 +719,20 @@ export function createActorRenderer(options: {
     const height = viewport.height / camera.zoom;
     const x = screenX(enemy.x);
     const y = screenY(enemy.y);
-    if (x < -80 || y < -80 || x > width + 80 || y > height + 80) return;
-
     const base = enemy.definition ?? ENEMY_TYPES[enemy.type];
     const sourceSprite = options.enemySprites[enemy.type];
-    const spriteScale = enemy.generatedBoss ? 2.4 : enemy.spriteScale ?? 1;
+    // An Endless boss borrows a map enemy's art: drawn to fit its own body, as a campaign boss's art does.
+    const spriteScale = enemy.generatedBoss && sourceSprite ? 2 * enemy.r / BOSS_HITBOX_ART_SHARE / sourceSprite.size : enemy.spriteScale ?? 1;
     const sprite = spriteScale !== 1 && sourceSprite ? { ...sourceSprite, size: sourceSprite.size * spriteScale } : sourceSprite;
+    const margin = Math.max(80, sprite?.size ?? 0);
+    if (x < -margin || y < -margin || x > width + margin || y > height + margin) return;
     const layers = sprite?.layers;
     const image = sprite?.image;
     const imageReady = Boolean(image?.complete && image.naturalWidth > 0);
     const spriteBounds = enemySpriteVerticalBounds(sprite, enemy.r);
     const spriteHeight = spriteBounds.height;
     if (!sprite?.animation?.hasBakedShadow) {
-      const shadowWidth = Math.max(34, Math.min(76, (sprite?.size ?? enemy.r * 2) * .9));
+      const shadowWidth = enemy.generatedBoss ? (sprite?.size ?? enemy.r * 2) * .6 : Math.max(34, Math.min(76, (sprite?.size ?? enemy.r * 2) * .9));
       const shadowY = y + enemyShadowOffsetY(sprite, enemy.r);
       options.drawShadow(x, shadowY, shadowWidth, .36 * visibility);
     }
@@ -747,7 +751,7 @@ export function createActorRenderer(options: {
       y: enemy.combatTargetY ?? options.player.y,
     };
     if (layers && sprite) {
-      ctx.globalAlpha = (enemy.hurt > 0 ? .7 : 1) * visibility;
+      ctx.globalAlpha = visibility;
       if (sprite.animation) {
         const animation = sprite.animation;
         const frame = sampleEnemyAnimation(enemy, animation, options.gameTime(), base.attackSpeed);
@@ -808,7 +812,7 @@ export function createActorRenderer(options: {
         }
       }
     } else if (imageReady && image && sprite) {
-      ctx.globalAlpha = (enemy.hurt > 0 ? .7 : 1) * visibility;
+      ctx.globalAlpha = visibility;
       ctx.drawImage(
         residentDrawable(image),
         -sprite.size / 2,

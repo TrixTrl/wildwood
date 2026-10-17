@@ -214,6 +214,11 @@
 .farm-sheet .farm-switch[aria-checked="true"] { border-color: var(--green); }
 .farm-switch[aria-checked="true"] .farm-knob { background: #2f7d38; box-shadow: none; }
 .farm-switch[aria-checked="true"] .farm-knob::after { transform: translateX(14px); background: #fff; }
+/* Auto Mine in the Town: what it is doing over its ore switches; a shut vein's switch is locked. */
+.farm-mine-status { margin: 0; padding: 2px 0; color: #fff; font-size: 14px; line-height: 1.3; text-align: center; white-space: normal; }
+.farm-mine-status.is-idle { color: var(--muted); }
+.farm-mine-ores { display: grid; gap: 8px; }
+.farm-sheet .farm-switch:disabled { opacity: .55; cursor: default; }
 /* More: Push, Pull and Target, folded away until wanted. */
 .farm-more { display: grid; gap: 8px; padding: 0 2px; }
 .farm-setting { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
@@ -798,6 +803,10 @@
 /* Where ore comes from: the Copper Hills, and the Smith's free pickaxe until it is taken. */
 .smith-sheet .smith-mining { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px; margin: 0 14px 12px; color: var(--muted); font-size: 13px; text-align: center; }
 .smith-sheet .smith-mining .smith-pickaxe { flex: 0 0 auto; height: 38px; min-height: 38px; font-size: 14px; }
+.smith-sheet .smith-filters { gap: 14px; margin: 0 14px 8px; }
+.smith-sheet .smith-filters .inventory-filter { min-height: 32px; font-size: 13px; }
+.smith-sheet .smith-filter-empty { margin: 0 14px 12px; }
+.smith-sheet .smith-filter-empty[hidden] { display: none; }
 .smith-sheet .smith-items { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin: 0 14px 12px; }
 .smith-sheet .smith-choice { position: relative; display: grid; place-items: center; aspect-ratio: 1; min-width: 0; margin: 0; padding: 4px; border: 2px solid rgba(255,255,255,.12); border-radius: 10px; background: rgba(255,255,255,.04); box-shadow: none; }
 .smith-sheet .smith-choice[aria-selected="true"] { border-color: #ffd75e; background: rgba(255,215,94,.1); }
@@ -821,6 +830,25 @@
 .smith-sheet .smith-card-grid .is-card[aria-selected="true"] { border-color: #ffd75e; background: rgba(255,215,94,.1); }
 .smith-sheet .smith-card-grid .is-card:disabled { opacity: .55; cursor: default; }
 .smith-sheet .smith-slot-pips { position: absolute; top: 2px; left: 4px; color: #ffd75e; font-size: 11px; letter-spacing: 1px; line-height: 1; }
+/* The Card Seller's window (card-seller-window.ts), in the Smith's sheet: the countdown, then a row per card for sale. */
+.card-seller-sheet .card-seller-timer { margin: 0 14px 10px; color: #fff; text-align: center; font-size: 15px; font-weight: 900; }
+.card-seller-sheet .card-seller-offers { display: grid; gap: 10px; margin: 0 14px 10px; }
+.card-seller-sheet .card-seller-offer { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 12px; align-items: start; padding: 12px; border: 2px solid rgba(255,255,255,.1); border-radius: 12px; background: rgba(255,255,255,.05); }
+.card-seller-sheet .card-seller-offer.is-elite { border-color: rgba(180,140,255,.35); }
+.card-seller-sheet .card-seller-offer.is-boss { border-color: rgba(242,193,78,.45); }
+.card-seller-sheet .card-seller-art { display: block; width: 76px; }
+.card-seller-sheet .card-seller-art > .inventory-item.is-card { width: 76px; pointer-events: none; }
+.card-seller-sheet .card-seller-copy { display: grid; gap: 4px; min-width: 0; }
+.card-seller-sheet .card-seller-copy strong { font-size: 16px; }
+.card-seller-sheet .card-seller-slot { color: var(--muted); font-size: 13px; font-weight: 800; }
+.card-seller-sheet .card-seller-effects { margin: 2px 0; text-align: left; font-size: 13px; }
+.card-seller-sheet .card-seller-price { display: grid; gap: 2px; margin: 2px 0 4px; padding: 0; list-style: none; font-size: 13px; font-weight: 800; }
+.card-seller-sheet .card-seller-price li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 10px; }
+.card-seller-sheet .card-seller-have { color: var(--muted); }
+.card-seller-sheet .card-seller-price .is-short .card-seller-have { color: #ff9b91; }
+.card-seller-sheet .farm-start.card-seller-buy { justify-self: start; min-width: 120px; height: 40px; min-height: 40px; font-size: 14px; }
+.card-seller-sheet .smith-outcome { margin: 0 14px 10px; }
+.card-seller-sheet .smith-outcome[hidden] { display: none; }
 /* A refine on any item: a gold star and its level, where the slot tier keeps its green +N. */
 .refine-badge { position: absolute; top: 2px; right: 4px; color: #ffd75e; font-size: 11px; font-weight: 900; text-shadow: 0 1px 0 #000, 0 0 3px rgba(0,0,0,.8); pointer-events: none; }
 /* A worn slot hides its +N (the banner says the level), so the star takes that corner. A bag tile's tier sits
@@ -923,13 +951,14 @@ html.text-outline-shadow .inventory-stack-count { text-shadow: 1px 0 0 #080b08, 
 .card-found { --card-found-color: #b9c3cc; position: fixed; inset: 0; z-index: 38; display: grid; place-items: center; overflow: hidden; background: radial-gradient(circle at 50% 40%, rgba(0,0,0,.3), rgba(0,0,0,.78)); cursor: pointer; animation: card-found-in .25s ease-out both; }
 .card-found[hidden] { display: none; }
 .card-found-rays, .card-found-burst, .card-found-sparks { position: absolute; top: 40%; left: 50%; pointer-events: none; }
-.card-found-rays { width: 190vmax; height: 190vmax; background: repeating-conic-gradient(from 0deg, var(--card-found-color) 0deg 4deg, transparent 4deg 15deg); -webkit-mask-image: radial-gradient(circle, #000 0, rgba(0,0,0,.8) 7%, transparent 30%); mask-image: radial-gradient(circle, #000 0, rgba(0,0,0,.8) 7%, transparent 30%); opacity: 0; transform: translate(-50%, -50%); animation: card-found-rays-in .7s ease-out .1s forwards, card-found-spin 24s linear 3; }
-.card-found-burst { width: 72vmin; height: 72vmin; border-radius: 50%; background: radial-gradient(circle, #fff 0, var(--card-found-color) 26%, transparent 66%); opacity: 0; transform: translate(-50%, -50%) scale(.2); animation: card-found-burst .8s ease-out forwards; }
+/* Sized to the circle the mask leaves visible (a 40vmax radius): it was 190vmax, five times the pixels to turn. */
+.card-found-rays { width: 84vmax; height: 84vmax; background: repeating-conic-gradient(from 0deg, var(--card-found-color) 0deg 4deg, transparent 4deg 15deg); -webkit-mask-image: radial-gradient(circle, #000 0, rgba(0,0,0,.8) 15.8%, transparent 67.9%); mask-image: radial-gradient(circle, #000 0, rgba(0,0,0,.8) 15.8%, transparent 67.9%); opacity: 0; transform: translate(-50%, -50%); will-change: transform; animation: card-found-rays-in .7s ease-out .1s forwards, card-found-spin 24s linear 3; }
+.card-found-burst { width: 72vmin; height: 72vmin; border-radius: 50%; background: radial-gradient(circle, #fff 0, var(--card-found-color) 26%, transparent 66%); opacity: 0; transform: translate(-50%, -50%) scale(.2); will-change: transform, opacity; animation: card-found-burst .8s ease-out forwards; }
 .card-found-sparks { width: 0; height: 0; }
 .card-found-sparks > span { position: absolute; top: -4px; left: -4px; width: 8px; height: 8px; border-radius: 50%; background: #fff; box-shadow: 0 0 8px 2px var(--card-found-color); opacity: 0; animation: card-found-spark .9s cubic-bezier(.2, .7, .3, 1) forwards; }
 .card-found-body { position: relative; display: grid; justify-items: center; gap: 6px; width: min(340px, calc(100vw - 32px)); margin-top: -4vh; color: #fff; text-align: center; text-shadow: 0 2px 0 #000, 0 0 10px rgba(0,0,0,.8); }
 .card-found-kicker { margin: 0; color: var(--card-found-color); font: 900 clamp(16px, 4.6vw, 21px)/1 var(--player-name-font); letter-spacing: .08em; animation: card-found-rise .4s ease-out both; }
-.card-found-art { position: relative; width: clamp(140px, 42vw, 176px); aspect-ratio: 4 / 5; overflow: hidden; border-radius: 12px; filter: drop-shadow(0 0 16px var(--card-found-color)); animation: card-found-pop .7s cubic-bezier(.2, 1.4, .4, 1) both; }
+.card-found-art { position: relative; width: clamp(140px, 42vw, 176px); aspect-ratio: 4 / 5; overflow: hidden; border-radius: 12px; box-shadow: 0 0 16px var(--card-found-color); will-change: transform; animation: card-found-pop .7s cubic-bezier(.2, 1.4, .4, 1) both; }
 .card-found-art img { display: block; width: 100%; height: 100%; }
 .card-found-shine { position: absolute; top: -20%; bottom: -20%; left: 0; width: 38%; background: linear-gradient(100deg, transparent, rgba(255,255,255,.7), transparent); transform: translateX(-170%) skewX(-18deg); animation: card-found-shine 2.6s ease-in-out .5s 3; }
 .card-found-name { margin: 6px 0 0; color: #fff; font: 900 clamp(21px, 6.2vw, 29px)/1.05 var(--player-name-font); animation: card-found-rise .45s ease-out .35s both; }
