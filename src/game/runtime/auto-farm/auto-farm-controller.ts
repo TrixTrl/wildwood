@@ -416,8 +416,8 @@ export function createAutoFarmController(options: {
     if (!boss) return { ready: false, line: `Boss definition missing` };
     if (!boss?.bossKind) {
       const bossDamage = boss.damage * (1 - armorDamageReduction(player.armor));
-      const hpThreshold = bossDamage * 2;
-      const regenThreshold = bossDamage / 3;
+      const hpThreshold = bossDamage * 2 * bossPower;
+      const regenThreshold = bossDamage / 3 * bossPower;
       const enoughHealth = player.maxHp > hpThreshold;
       const enoughRegen = player.regen > regenThreshold;
       if (enoughHealth && enoughRegen) return { ready: true, line: `Ready to fight boss` };
@@ -433,8 +433,8 @@ export function createAutoFarmController(options: {
       highestAttack = Math.max(highestAttack, BOSS_DAMAGE_PROFILES[boss.bossKind as BossKind][attack] * (1 - armorDamageReduction(player.armor)));
       attacks++;
     }
-    const hpThreshold = bossDamage;
-    const regenThreshold = bossDamage / (attacks - 1) / 6;
+    const hpThreshold = bossDamage * 2 * bossPower;
+    const regenThreshold = bossDamage / (attacks - 1) / 6 * bossPower;
     const enoughHealth = player.maxHp > hpThreshold;
     const enoughRegen = player.regen > regenThreshold;
     if (enoughHealth && enoughRegen) return { ready: true, line: `Ready to fight boss` };
