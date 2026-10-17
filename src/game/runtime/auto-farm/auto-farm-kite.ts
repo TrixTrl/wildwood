@@ -56,7 +56,7 @@ export function smartMove(player: PlayerState, enemies: EnemyState[], mapId: str
 
     const totalTimeTillDeath = player.hp / (dpsFollowing - player.regen);
 
-    console.log(timeTillDeath);
+    //console.log(timeTillDeath);
 
     const centreDist = Math.hypot(player.x - mapSize / 2, player.y - mapSize / 2);
     if (centreDist < CENTER_PUSH_RADIUS && centreDist > 0) {
@@ -138,14 +138,9 @@ function norm(v: Position): Position {
     return { x: v.x / mag, y: v.y / mag };
 }
 
-function moreUsefull(enemy0: EnemyState, enemy1: EnemyState): boolean {
-    const priorities: Array<RewardType> = ["regen", "damage", "health", "armor", "speed", "crit"];
-    return priorities.indexOf(enemy0.reward.type) <= priorities.indexOf(enemy1.reward.type);
-}
-
 function distanceBoost(enemy: EnemyState, player: PlayerState): number {
     const priorities: Array<RewardType> = ["regen", "health", "armor", "damage", "speed", "crit"];
-    return Math.log(priorities.indexOf(enemy.reward.type) + 1) * (enemy.reward.type === "health" ? player.maxHp / (player.regen * 5) : 1);
+    return Math.log(priorities.indexOf(enemy.reward.type) ** 1.5 + 1) * (enemy.reward.type === "health" ? (player.maxHp / (player.regen * 5)) ** 2 : 1);
 }
 
 function pushOutOfCentre(position: Position): Position {

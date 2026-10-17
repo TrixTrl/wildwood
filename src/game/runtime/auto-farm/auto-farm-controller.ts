@@ -413,9 +413,13 @@ export function createAutoFarmController(options: {
   /** Whether this map's boss is ready to fight with Fight At's margin, and the status line when it is not. */
   function readyForBoss(): { ready: boolean; line: string } {
     const boss = options.bossDefinition?.();
+    console.log(boss);
     if (!boss) return { ready: false, line: `Boss definition missing` };
+    if (!boss?.bossKind && !boss.damage) {
+      boss.bossKind = "dragon";
+    }
     if (!boss?.bossKind) {
-      const bossDamage = boss.damage * (1 - armorDamageReduction(player.armor));
+      const bossDamage = boss.damage ? (boss.damage * (1 - armorDamageReduction(player.armor))) : 300;
       const hpThreshold = bossDamage * 2 * bossPower;
       const regenThreshold = bossDamage / 3 * bossPower;
       const enoughHealth = player.maxHp > hpThreshold;
@@ -833,7 +837,7 @@ export function createAutoFarmController(options: {
     if (portal) {
       const check = readyForMap(portal.destination);
       if (!check.ready) return check.line;
-      return fightHeldSince !== null && active ? 'Moving On After This Fight' : 'Moving On';
+      return /*fightHeldSince !== null && active ? 'Moving On After This Fight' :*/ 'Moving On';
     }
     // The way forward is shut until this map's boss is beaten.
     if (options.bossUnlocksNext?.() === true && !opensNothing.has(options.mapId())) return 'Boss Needed';
