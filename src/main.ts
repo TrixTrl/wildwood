@@ -532,9 +532,8 @@ import {
   const farmProgress = createAutoFarmProgress({
     mapId: () => currentMapId, fetchBalance: mapId => coop?.mapIndexBalance?.(mapId), base: () => ({ maxHp: player.baseMaxHp, damage: player.damage, attackRate: player.attackRate, armor: player.armor, regen: player.regen }),
     equipment: () => ({ equippedHead: inventory.equippedHead, equippedChest: inventory.equippedChest, equippedRightHand: inventory.equippedRightHand, equippedLeftHand: inventory.equippedLeftHand }),
-    research: () => researchRanks(), upgradeLevel: itemId => coop?.itemLevel?.(itemId) ?? 0, rewardMultiplier: () => researchRewardMultiplier(), minAttackInterval: () => coop?.attackCapInPlay?.(), criticalChance: () => researchCriticalChance(), criticalMultiplier: (extra = 0) => researchCriticalDamageMultiplier(soulDimension.critDamage(), (player.critRating ?? 0) + extra),
-    reflectOnly: () => Boolean(coop?.prestigeChallenge?.()?.active), mapBoss: () => proceduralBoss.boss() ?? bossStateForMap(bosses, currentMapId), portalUnlocked: portal => mapController.portalIsUnlocked(portal as never), portals: () => { const config = MAP_CONFIG[currentMapId]; return [config.portal, "secondaryPortal" in config ? config.secondaryPortal : null]; }
-  });
+    weaponSkills: () => coop?.weaponSkills?.(inventory.equippedRightHand || inventory.equippedLeftHand), research: () => researchRanks(), upgradeLevel: itemId => coop?.itemLevel?.(itemId) ?? 0, rewardMultiplier: () => researchRewardMultiplier(), minAttackInterval: () => coop?.attackCapInPlay?.(), criticalChance: () => researchCriticalChance(), criticalMultiplier: (extra = 0) => researchCriticalDamageMultiplier(soulDimension.critDamage(), (player.critRating ?? 0) + extra),
+    reflectOnly: () => Boolean(coop?.prestigeChallenge?.()?.active), mapBoss: () => proceduralBoss.boss() ?? bossStateForMap(bosses, currentMapId), portalUnlocked: portal => mapController.portalIsUnlocked(portal as never), portals: () => { const config = MAP_CONFIG[currentMapId]; return [config.portal, "secondaryPortal" in config ? config.secondaryPortal : null]; } });
   const autoFarm = createAutoFarmController({
     resumeStore: createAutoFarmResumeStore(),
     player, enemies, spawnSites,
@@ -645,7 +644,7 @@ import {
   });
 
   playerCombat = createPlayerCombatController({
-    onEnemyDefeated: enemy => soulDimension.defeated(enemy) || (onboarding?.enemyDefeated() ?? false), soulStatOf: enemy => soulDimension.soulStatOf(enemy), onSoulKill: stat => soulDimension.soulKill(stat),
+    onEnemyDefeated: enemy => soulDimension.defeated(enemy) || (onboarding?.enemyDefeated() ?? false), soulStatOf: enemy => soulDimension.soulStatOf(enemy), onSoulKill: stat => soulDimension.soulKill(stat), soulRewardMultiplier: () => soulDimension.rewardMultiplier(),
     player, enemies, spawnSites, projectileStore, bosses,
     nowSeconds: () => session?.gameTime() ?? 0,
     serverNowMs: () => coop?.serverNowMs?.() ?? Date.now(),
@@ -820,12 +819,9 @@ import {
   const soulDimension = createSoulDimension({
     source: () => coop, player, inventory, enemies, spawnSites, decor, currentMapId: () => currentMapId, spawnFromSite, invalidateDepthOrder: () => worldRenderRuntime.invalidateDepthOrder(), townMap: MAP_CONFIG.town,
     strength: () => ({ dps: playerCombat.expectedDps(), maxHp: player.maxHp, armor: effectiveArmor(), regen: regenerationPerSecond() }), fullDps: () => playerCombat.expectedFullDps(), logPickup, damagePlayer: (damage, source) => playerCombat.damagePlayer(damage, source), message: showMessage, burst: spawnBurst, sendToTown: () => mapController.teleportHome(), researchCritMultiplier: researchCriticalDamageMultiplier,
-    attackCap: () => coop?.attackCapInPlay?.(), travel: mapController.travelFromHome, clearInput: playerInput.clear, fadeToWorld: (action, ms) => session.fadeToWorld(action, ms)
-  });
-  const guildHall = createGuildHall({
-    source: () => coop, player, decor, currentMapId: () => currentMapId, invalidateDepthOrder: () => worldRenderRuntime.invalidateDepthOrder(), clearInput: playerInput.clear, fadeToWorld: (action, ms) => session.fadeToWorld(action, ms),
-    travel: mapId => { autoFarm.stop("Autofarm stopped for the Guild Hall"); return mapController.teleportToMap(mapId, async () => Boolean(await coop?.changeMap?.(mapId, player.x, player.y))); }
-  });
+    levelUp: (level, multiplier) => runtimeHud.showProgressCompletion("Soul Level", `Lv ${level} · Rewards ${multiplier}×`, "✦", "#d9b8ff"), attackCap: () => coop?.attackCapInPlay?.(), travel: mapController.travelFromHome, clearInput: playerInput.clear, fadeToWorld: (action, ms) => session.fadeToWorld(action, ms) });
+  const guildHall = createGuildHall({ source: () => coop, player, decor, currentMapId: () => currentMapId, invalidateDepthOrder: () => worldRenderRuntime.invalidateDepthOrder(), clearInput: playerInput.clear, fadeToWorld: (action, ms) => session.fadeToWorld(action, ms),
+    travel: mapId => { autoFarm.stop("Autofarm stopped for the Guild Hall"); return mapController.teleportToMap(mapId, async () => Boolean(await coop?.changeMap?.(mapId, player.x, player.y))); } });
   const { activePortal, secondaryPortal, portalIsUnlocked, startDragonPortalCutscene, startSnowlandsPortalCutscene, startLavaPortalCutscene, startInfernalPortalCutscene, startWaterPortalCutscene, startSamuraiPortalCutscene } = mapController;
 
   const bossController = createBossController({
@@ -1830,7 +1826,7 @@ import {
 
   createAutoFarmPanel({
     farm: autoFarm, mapName: () => MAP_CONFIG[currentMapId].name, aggro: () => coop?.aggroChallenge?.(), identity: () => coop?.localIdentity?.(),
-    rewardMultiplier: researchRewardMultiplier,
+    rewardMultiplier: researchRewardMultiplier, soulRewardMultiplier: () => soulDimension.rewardMultiplier(),
     showBaseStatRewards: appShell.showBaseStatRewards,
     rewardAmount: rewardDisplay.displayedAmount,
     visible: () => (farmUnlocked() || Boolean(coop?.aggroChallenge?.()?.active)) && currentMapId !== "home_exterior" && !guildHall.guildId() && Boolean(session?.isRunning()) && player.hp > 0 && !isDueling() && !mapController.isMapTransitioning() && !mapController.isCutsceneActive(),

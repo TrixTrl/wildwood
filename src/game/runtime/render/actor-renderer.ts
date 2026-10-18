@@ -1,5 +1,5 @@
 import { SOUL_STAT_DETAILS, type SoulStatId } from "../../../../shared/soul-dimension";
-import { soulStatOfCampName } from "../../soul-world";
+import { soulRewardText, soulStatOfCampName } from "../../soul-world";
 import { residentDrawable } from "./resident-image";
 import { isMeleeWeapon } from "../../weapon-combat";
 import { paintArrowProjectile, paintRockProjectile, rockProjectileSize } from "./weapon-projectile-renderer";
@@ -374,12 +374,14 @@ export function createActorRenderer(options: {
 
   /** A Soul Dimension enemy is named for the soul stat it pays, and shows that flat reward in its colour. */
   function soulEnemyLabels(stat: SoulStatId) {
-    const capped = soulRewardCapped(stat, options.rewardContext?.());
-    const cacheKey = `soul:${stat}:${capped ? "capped" : ""}`;
+    const context = options.rewardContext?.();
+    const capped = soulRewardCapped(stat, context);
+    const multiplier = Math.max(1, context?.soulRewardMultiplier ?? 1);
+    const cacheKey = `soul:${stat}:${capped ? "capped" : ""}:${multiplier}`;
     const cached = enemyLabelCache.get(cacheKey);
     if (cached) return cached;
     const detail = SOUL_STAT_DETAILS[stat];
-    const amount = capped ? "Capped" : stat === "critDamage" ? `+${+(detail.reward * 100).toFixed(1)}%` : stat === "attackSpeed" ? `+${detail.reward}/s` : `+${detail.reward}`;
+    const amount = capped ? "Capped" : stat === "critDamage" ? `+${+(detail.reward * multiplier * 100).toFixed(1)}%` : soulRewardText(stat, multiplier);
     const labels = {
       name: createLabelBitmap([{ text: `Soul ${detail.label}`, color: "#f5e9c4" }], "bottom"),
       reward: createLabelBitmap([{ text: amount, color: "#ffffff" }, { text: " ", color: "#ffffff" }, { text: detail.label, color: detail.color }], "top"),
@@ -837,11 +839,10 @@ export function createActorRenderer(options: {
     // Slowed (Frost Nova, or a chill card): a pale blue glaze over the body and a frost ring at its feet.
     if (enemy.cardStatus?.slow && deathProgress <= 0) {
       const glaze = (sprite?.size ?? enemy.r * 2) * .42;
-      ctx.globalAlpha = .26 * visibility;
-      ctx.globalCompositeOperation = "lighter";
-      ctx.fillStyle = "#8fdcff";
+      // Plain blending: an additive glaze per slowed enemy, every frame, was slow to draw in Firefox.
+      ctx.globalAlpha = .22 * visibility;
+      ctx.fillStyle = "#bfeaff";
       ctx.beginPath(); ctx.ellipse(0, (spriteBounds.top + spriteBounds.bottom) / 2, glaze, (spriteBounds.bottom - spriteBounds.top) * .5, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.globalCompositeOperation = "source-over";
       ctx.globalAlpha = .7 * visibility;
       ctx.strokeStyle = "#bdeeff";
       ctx.lineWidth = 2;
