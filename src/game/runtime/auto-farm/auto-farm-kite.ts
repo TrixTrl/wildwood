@@ -34,7 +34,7 @@ export function smartMove(player: PlayerState, enemies: EnemyState[], mapId: str
     }
 
 
-    const usableEnemies = enemies.filter(e => validEnemy(e));
+    const usableEnemies = enemies.filter(e => validEnemy(e) && (e.reward.type !== "speed" && e.reward.type !== "crit"));
 
     const followingEnemies = usableEnemies.filter(e => e.engaged);
 
@@ -140,13 +140,13 @@ function norm(v: Position): Position {
 
 function distanceBoost(enemy: EnemyState, player: PlayerState): number {
     const priorities: Array<RewardType> = ["regen", "health", "armor", "damage", "speed", "crit"];
-    return Math.log((priorities.indexOf(enemy.reward.type) * 3) ** 2 + 1) * (enemy.reward.type === "health" ? (player.maxHp / (player.regen * 5)) ** 4 : 1) * (enemy.reward.type === "regen" ? ((player.regen * 5) / player.maxHp) ** 2 : 1);
+    return Math.log((priorities.indexOf(enemy.reward.type) * 3)) * (enemy.reward.type === "health" ? (player.maxHp / (player.regen * 5)) ** 4 : 1) * (enemy.reward.type === "regen" ? ((player.regen * 5) / player.maxHp) ** 2 : 1) + (enemy.reward.type === "speed" || enemy.reward.type === "crit" ? 1000000 : 0);
 }
 
 function closenessBoost(enemy: EnemyState, enemies: EnemyState[], player: PlayerState) {
     let sum = 0;
-    enemies.forEach(e => { if (!e.engaged) sum += 1 / ((Math.hypot(enemy.x - e.x, enemy.y - e.y) * 0.1) ** 2) * distanceBoost(e, player); });
-    return 1 / (Math.log(sum + 1) + 3);
+    enemies.forEach(e => { if (!e.engaged) sum += 1 / ((Math.max(Math.hypot(enemy.x - e.x, enemy.y - e.y), 100)) ** 2) * distanceBoost(e, player); });
+    return 1 / (sum + 1);
 }
 
 function pushOutOfCentre(position: Position): Position {
