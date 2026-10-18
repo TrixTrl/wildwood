@@ -74,11 +74,11 @@ export function createGameOverlays(d: Record<string, any>) {
   });
   // The game says it is in alpha on the sign-in screen; the version label is
   // where a player looks for it while playing.
-  const versionLabel = `alpha v${d.version}`;
+  const versionLabel = `alpha v${d.version} ~ Hallowed's Version`;
   e.signinVersionButton.textContent = versionLabel;
-  e.signinVersionButton.setAttribute("aria-label", `WildStat alpha version ${d.version}. Toggle release notes`);
+  e.signinVersionButton.setAttribute("aria-label", `WildStat alpha version ${d.version} ~ Hallowed's Version. Toggle release notes`);
   e.minimapVersionEl.textContent = versionLabel;
-  e.minimapVersionEl.setAttribute("aria-label", `Game alpha version ${d.version}. Open release notes`);
+  e.minimapVersionEl.setAttribute("aria-label", `Game alpha version ${d.version} ~ Hallowed's Version. Open release notes`);
   installAppUpdateNotice();
   return overlays;
 }
@@ -95,14 +95,16 @@ export function createGameRuntimeHud(d: Record<string, any>) {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function createPrestigePanel(d: Record<string, any>) {
   const e = d.e;
-  return createPrestigeController({ openButton: e.prestigeBtn, ownActions: e.profileOwnActions, overlay: e.prestigeOverlay,
+  return createPrestigeController({
+    openButton: e.prestigeBtn, ownActions: e.profileOwnActions, overlay: e.prestigeOverlay,
     closeButton: e.closePrestigeBtn, confirmButton: e.prestigeConfirmBtn, level: e.prestigeLevel, bonus: e.prestigeBonus,
     points: e.prestigePoints, peak: e.prestigePeak, cost: e.prestigeCost, status: e.prestigeStatus,
     perkList: e.prestigePerks, prestige: d.prestige, unlocked: d.unlocked, completed: d.completed, runPrestige: d.runPrestige,
     perks: d.perks, spendPerk: d.spendPerk, respec: d.respec, expanded: d.expanded, expansionCountdown: d.expansionCountdown, challenge: d.challenge,
     // Each of these once went missing here, and the window quietly ran without it.
     challengeGoal: d.challengeGoal, challengesWon: d.challengesWon,
-    showMessage: d.showMessage, beforeOpen: d.beforeOpen });
+    showMessage: d.showMessage, beforeOpen: d.beforeOpen
+  });
 }
 
 /**
@@ -195,10 +197,12 @@ export function createDevPanel(d: Record<string, any>) {
     closeCompetingWindows: d.closeCompetingWindows,
     showMessage: d.showMessage,
   });
-  return { ...panel, setDeveloperAccess(developer: boolean) {
-    panel.setDeveloperAccess(developer);
-    travel.render();
-  } };
+  return {
+    ...panel, setDeveloperAccess(developer: boolean) {
+      panel.setDeveloperAccess(developer);
+      travel.render();
+    }
+  };
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
