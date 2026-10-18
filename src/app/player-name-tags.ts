@@ -1,3 +1,5 @@
+import { isAlteredDeveloperIdentity } from "../../shared/developer-identity";
+import { ALTERED_DEVELOPER_BADGE } from "../game/runtime/render/player-identity-renderer";
 import { isDeveloperIdentity } from "./developer";
 
 type NameTag = { guildTag: string; showDevTag: boolean };
@@ -23,17 +25,20 @@ export function developerNameTagVisible(identity?: string) { return isDeveloperI
 export function playerNamePrefix(identity?: string, developer = isDeveloperIdentity(identity)) {
   if (provider) return provider.prefix(identity);
   const tag = tags.get(key(identity));
-  return `${developer && tag?.showDevTag !== false ? "[dev]" : ""}${tag?.guildTag ? `[${tag.guildTag}]` : ""}`;
+  return `${developer && tag?.showDevTag !== false ? "[dev]" : ""}${isAlteredDeveloperIdentity(identity) ? ALTERED_DEVELOPER_BADGE : ""}${tag?.guildTag ? `[${tag.guildTag}]` : ""}`;
 }
 export function appendPlayerNameTags(element: HTMLElement, identity?: string, developer = isDeveloperIdentity(identity), showGuildTag = true) {
   const fullPrefix = playerNamePrefix(identity, developer);
-  const prefix = showGuildTag ? fullPrefix : fullPrefix.startsWith("[dev]") ? "[dev]" : "";
+  const prefix = showGuildTag ? fullPrefix : fullPrefix.startsWith("[dev]") ? "[dev]" : (fullPrefix.startsWith(ALTERED_DEVELOPER_BADGE) ? ALTERED_DEVELOPER_BADGE : "");
   if (!prefix) return;
   const badge = element.ownerDocument.createElement("span");
   badge.className = "player-name-tags";
   if (prefix.startsWith("[dev]")) {
     const dev = element.ownerDocument.createElement("span"); dev.className = "dev-badge"; dev.textContent = "[dev]";
     badge.append(dev, element.ownerDocument.createTextNode(prefix.slice(5)));
+  } else if (prefix.startsWith(ALTERED_DEVELOPER_BADGE)) {
+    const dev = element.ownerDocument.createElement("span"); dev.className = "client-dev-badge"; dev.textContent = ALTERED_DEVELOPER_BADGE;
+    badge.append(dev, element.ownerDocument.createTextNode(prefix.slice(ALTERED_DEVELOPER_BADGE.length)));
   } else badge.textContent = prefix;
   element.append(badge);
 }

@@ -34,6 +34,7 @@ type SpeechBubbleMessage = Pick<ChatMessage, "id" | "sender" | "senderName" | "m
 type SpeechBubble = { sentAtMs: number; lines: string[]; width: number; height: number };
 
 const DEVELOPER_BADGE = "[dev]";
+export const ALTERED_DEVELOPER_BADGE = "[\"dev\":3]";
 const SPEECH_BUBBLE_DURATION_MS = 8_000;
 const SPEECH_BUBBLE_FADE_MS = 1_250;
 const SPEECH_BUBBLE_STACK_GAP = 5;
@@ -343,13 +344,20 @@ export function createPlayerIdentityRenderer(options: {
     const badgeLeft = textLeft + nameWidth + badgeGap;
     const nameBottom = powerValue ? bottom - 16 : bottom;
     const developerPrefix = DEVELOPER_BADGE;
+    const alteredDeveloperPrefix = ALTERED_DEVELOPER_BADGE;
     if (displayName.startsWith(developerPrefix)) {
       const playerName = displayName.slice(developerPrefix.length);
       const prefixWidth = ctx.measureText(developerPrefix).width;
       ctx.textAlign = "left";
       options.outlinedText(developerPrefix, textLeft, nameBottom, "#ffd85b", 4);
       options.outlinedText(playerName, textLeft + prefixWidth, nameBottom, color, 4);
-    } else {
+    } else if (displayName.startsWith(alteredDeveloperPrefix)) {
+      const playerName = displayName.slice(alteredDeveloperPrefix.length);
+      const prefixWidth = ctx.measureText(alteredDeveloperPrefix).width;
+      ctx.textAlign = "left";
+      options.outlinedText(alteredDeveloperPrefix, textLeft, nameBottom, "#49de1c", 4);
+      options.outlinedText(playerName, textLeft + prefixWidth, nameBottom, color, 4);
+    } {
       ctx.textAlign = "left";
       options.outlinedText(displayName, textLeft, nameBottom, color, 4);
     }

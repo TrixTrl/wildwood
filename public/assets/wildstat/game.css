@@ -105,6 +105,7 @@
     --green: #69e56f;
     --gold: #ffd85b;
     --red: #ff6767;
+    --purple: #6a18b7;
     --stat-armor: #74d8ff;
     --stat-regen: #ff7ccb;
     --font-rounded: "Arial Rounded MT Bold", "Arial Rounded MT", Arial, sans-serif;
@@ -3749,6 +3750,7 @@
   #leaderboard[data-stat="armor"] .leaderboard-value, #leaderboard[data-stat="armor"] #leaderboardValueHeading { color: var(--stat-armor); }
   #leaderboard[data-stat="regen"] .leaderboard-value, #leaderboard[data-stat="regen"] #leaderboardValueHeading { color: var(--stat-regen); }
   .dev-badge { color: var(--gold); }
+  .client-dev-badge { color: var(--purple); }
   .developer-settings-row[hidden] { display: none; }
   .dev-audit-button { min-width: 112px; background: linear-gradient(#5b4a20, #332810); color: var(--gold); font-size: 12px; }
   .modal.dev-audit-modal { display: flex; flex-direction: column; width: var(--game-window-width); max-height: calc(100vh - var(--toolbar-height) - 20px); max-height: calc(100dvh - var(--toolbar-height) - 20px); min-height: 0; box-sizing: border-box; padding: 13px; overflow: hidden; text-align: left; }
