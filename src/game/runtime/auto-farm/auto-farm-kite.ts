@@ -8,7 +8,7 @@ const INFLUENCE_CONSTANT = 300000;
 const mapSize = 5000;
 const CENTER_PULL_STRENGTH = 10;
 const CENTER_PULL_RADIUS = 2000;
-const CENTER_PUSH_RADIUS = 400;
+const CENTER_PUSH_RADIUS = 600;
 
 const BOSS_CORNER_SIZE = 800;
 const BOSS_CORNER_BUFFER = 200;
@@ -143,7 +143,7 @@ function norm(v: Position): Position {
 
 function distanceBoost(enemy: EnemyState, player: PlayerState): number {
     const priorities: Array<RewardType> = ["regen", "health", "armor", "damage", "speed", "crit"];
-    return Math.log((priorities.indexOf(enemy.reward.type)) ** 2) * (enemy.reward.type === "health" ? (player.maxHp / (player.regen * 5)) ** 1 : 1) * (enemy.reward.type === "regen" ? ((player.regen * 5) / player.maxHp) ** 1 : 1) + (enemy.reward.type === "speed" || enemy.reward.type === "crit" ? 1000000 : 0);
+    return (priorities.indexOf(enemy.reward.type)) ** 2 * (enemy.reward.type === "health" ? (player.maxHp / (player.regen * 5)) ** 1 : 1) * (enemy.reward.type === "regen" ? ((player.regen * 5) / player.maxHp) ** 1 : 1) + (enemy.reward.type === "speed" || enemy.reward.type === "crit" ? 1000000 : 0);
 }
 
 function closenessBoost(enemy: EnemyState, enemies: EnemyState[], player: PlayerState) {
