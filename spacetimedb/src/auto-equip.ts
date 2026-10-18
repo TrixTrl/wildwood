@@ -3,7 +3,7 @@ import type { Identity } from "spacetimedb";
 import { itemDefinition, STARTER_STONE, type ItemLevel } from "../../shared/items";
 import { CAMPAIGN_UNLOCK_FIELDS, equipmentMapRequirement, withoutLockedEquipment } from "../../shared/equipment-access";
 import {
-  EQUIP_BEST_SLOTS, equipComparisonPower, equippedInSlot, gearOnlyLevel, isEquipUpgrade, weaponKind, withItemEquipped,
+  EQUIP_BEST_SLOTS, equipComparisonPower, equippedInSlot, isEquipUpgrade, weaponKind, withItemEquipped,
   type EquipLoadout, type WeaponKind,
 } from "../../shared/equip-best";
 import { weaponSkillRollFor } from "./weapon-skills";
@@ -54,7 +54,7 @@ export function createAutoEquip(deps: {
   function comparisonPower(ctx: Ctx, identity: Identity) {
     const research = ctx.db.playerResearch.identity.find(identity);
     return (candidate: any) => equipComparisonPower(candidate, research,
-      gearOnlyLevel(itemId => deps.itemUpgradeLevelFor(ctx, identity, itemId)),
+      itemId => deps.itemUpgradeLevelFor(ctx, identity, itemId),
       itemId => weaponSkillRollFor(ctx, identity, itemId));
   }
 
@@ -110,7 +110,7 @@ export function createAutoEquip(deps: {
    * loadout carry over, and gear above tier 1 is locked again until its map
    * is reached. Every slot holding locked gear gets the best gear the player
    * can use instead, a hand the best weapon of the kind it held: an archer
-   * stays an archer. A swordsman with no usable sword gets the best ranged
+   * stays an archer. A swordsman with no usable sword, or a staff player with no usable staff, gets the best ranged
    * weapon, and a hand with nothing usable at all the starter stone, which
    * every player owns. Slots holding usable gear, or any slot the player left
    * empty, hands included, stay as they were.
@@ -147,7 +147,7 @@ export function createAutoEquip(deps: {
       }
       const held = weaponKind(equippedInSlot(progress, "HAND"));
       next = { ...next, equippedRightHand: "", equippedLeftHand: "" };
-      for (const kind of held === "MELEE" ? ["MELEE", "RANGED"] as const : ["RANGED"] as const) {
+      for (const kind of held === "RANGED" ? ["RANGED"] as const : [held, "RANGED"] as const) {
         for (const itemId of inventory) if (itemDefinition(itemId)?.slot === "HAND") next = withUpgrade(ctx, next, itemId, inventory, true, kind);
         if (equippedInSlot(next, "HAND")) break;
       }

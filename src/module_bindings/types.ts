@@ -463,6 +463,17 @@ export const DuelRiposte = __t.object("DuelRiposte", {
 });
 export type DuelRiposte = __Infer<typeof DuelRiposte>;
 
+export const DuelStaffSkill = __t.object("DuelStaffSkill", {
+  duelId: __t.u64(),
+  challengerMeteor: __t.f64(),
+  challengerChain: __t.f64(),
+  challengerFrostNova: __t.f64(),
+  opponentMeteor: __t.f64(),
+  opponentChain: __t.f64(),
+  opponentFrostNova: __t.f64(),
+});
+export type DuelStaffSkill = __Infer<typeof DuelStaffSkill>;
+
 export const DuelWideStats = __t.object("DuelWideStats", {
   duelId: __t.u64(),
   challenger: __t.identity(),
@@ -955,6 +966,9 @@ export const MotionDetailFrameSchedule = __t.object("MotionDetailFrameSchedule",
 });
 export type MotionDetailFrameSchedule = __Infer<typeof MotionDetailFrameSchedule>;
 
+export const MyActiveCards = __t.object("MyActiveCards", {});
+export type MyActiveCards = __Infer<typeof MyActiveCards>;
+
 export const MyAdGemReward = __t.object("MyAdGemReward", {});
 export type MyAdGemReward = __Infer<typeof MyAdGemReward>;
 
@@ -1086,6 +1100,9 @@ export type MySocialMessagesWithReactions = __Infer<typeof MySocialMessagesWithR
 
 export const MySoulStats = __t.object("MySoulStats", {});
 export type MySoulStats = __Infer<typeof MySoulStats>;
+
+export const MyStaffSkills = __t.object("MyStaffSkills", {});
+export type MyStaffSkills = __Infer<typeof MyStaffSkills>;
 
 export const MySwordSkills = __t.object("MySwordSkills", {});
 export type MySwordSkills = __Infer<typeof MySwordSkills>;
@@ -1272,6 +1289,14 @@ export const PlayerAccountStatus = __t.object("PlayerAccountStatus", {
   isGuest: __t.bool(),
 });
 export type PlayerAccountStatus = __Infer<typeof PlayerAccountStatus>;
+
+export const PlayerActiveCard = __t.object("PlayerActiveCard", {
+  identity: __t.identity(),
+  hand: __t.array(__t.string()),
+  head: __t.array(__t.string()),
+  chest: __t.array(__t.string()),
+});
+export type PlayerActiveCard = __Infer<typeof PlayerActiveCard>;
 
 export const PlayerAdReward = __t.object("PlayerAdReward", {
   identity: __t.identity(),
@@ -1860,6 +1885,14 @@ export const PlayerPrestige = __t.object("PlayerPrestige", {
 });
 export type PlayerPrestige = __Infer<typeof PlayerPrestige>;
 
+export const PlayerPrestigeCardPerk = __t.object("PlayerPrestigeCardPerk", {
+  identity: __t.identity(),
+  weaponCards: __t.u32(),
+  helmetCards: __t.u32(),
+  armorCards: __t.u32(),
+});
+export type PlayerPrestigeCardPerk = __Infer<typeof PlayerPrestigeCardPerk>;
+
 export const PlayerPrestigeChallenge = __t.object("PlayerPrestigeChallenge", {
   identity: __t.identity(),
   active: __t.bool(),
@@ -2072,6 +2105,18 @@ export const PlayerSoulStats = __t.object("PlayerSoulStats", {
 });
 export type PlayerSoulStats = __Infer<typeof PlayerSoulStats>;
 
+export const PlayerStaffSkill = __t.object("PlayerStaffSkill", {
+  key: __t.string(),
+  identity: __t.identity(),
+  itemId: __t.string(),
+  copyId: __t.u64(),
+  offerId: __t.u64(),
+  meteor: __t.f32(),
+  chain: __t.f32(),
+  frostNova: __t.f32(),
+});
+export type PlayerStaffSkill = __Infer<typeof PlayerStaffSkill>;
+
 export const PlayerSwordSkill = __t.object("PlayerSwordSkill", {
   key: __t.string(),
   identity: __t.identity(),
@@ -2115,6 +2160,15 @@ export const PlayerWornSkill = __t.object("PlayerWornSkill", {
   shockwave: __t.f32(),
 });
 export type PlayerWornSkill = __Infer<typeof PlayerWornSkill>;
+
+export const PlayerWornStaffSkill = __t.object("PlayerWornStaffSkill", {
+  identity: __t.identity(),
+  itemId: __t.string(),
+  meteor: __t.f32(),
+  chain: __t.f32(),
+  frostNova: __t.f32(),
+});
+export type PlayerWornStaffSkill = __Infer<typeof PlayerWornStaffSkill>;
 
 export const PresenceChatCooldown = __t.object("PresenceChatCooldown", {
   identity: __t.identity(),

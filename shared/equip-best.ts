@@ -19,9 +19,7 @@ import {
  * candidate in that slot. Boots add no power; only Black Boots' speed counts.
  * A weapon's skills count too, multiplied into its damage (see
  * equipComparisonPower), so of two copies of one weapon the better roll wins.
- * Slotted cards do not: power counts a card's stats but not its other effects
- * (Reflect, Prism), so a regen-carded tier-10 armor outscored the tier-15 one
- * carrying the build's Prismshells. Cards go with whichever piece is worn.
+ * Active cards do not: they stay on whatever is worn.
  */
 export type EquipLoadout = {
   equippedHead: string;
@@ -44,12 +42,6 @@ export const EQUIP_BEST_SLOTS: readonly (readonly [ItemSlot, LoadoutField, Equip
 const LOADOUT_FIELDS: readonly LoadoutField[] = ["equippedHead", "equippedChest", "equippedFeet", "equippedRightHand", "equippedLeftHand"];
 
 export type WeaponSkillsOf = (itemId: string) => WeaponSkillRoll | null | undefined;
-
-/** An item's level for comparing gear: its slot tier and refine, without the cards slotted in it. */
-export const gearOnlyLevel = (itemUpgradeLevel: (itemId: string) => ItemLevel) => (itemId: string): ItemLevel => {
-  const level = itemUpgradeLevel(itemId);
-  return level && typeof level === "object" ? { ...level, cards: [] } : level;
-};
 
 /**
  * Power for comparing gear, not for showing: the same stats as the player's
@@ -106,14 +98,16 @@ export function withItemEquipped<T extends EquipLoadout>(loadout: T, itemId: str
   return next;
 }
 
-export type WeaponKind = "RANGED" | "MELEE";
+export type WeaponKind = "RANGED" | "MELEE" | "MAGIC";
 
 /**
- * How a weapon fights: a sword strikes up close, a bow or the stone from
- * range. Nothing in the hand reads as ranged, as the stone it falls back to.
+ * How a weapon fights: a sword strikes up close, a staff casts bursting bolts,
+ * a bow or the stone shoots from range. Nothing in the hand reads as ranged,
+ * as the stone it falls back to.
  */
 export function weaponKind(itemId: string | undefined): WeaponKind {
-  return itemDefinition(itemId)?.weapon?.mode === "MELEE" ? "MELEE" : "RANGED";
+  const weapon = itemDefinition(itemId)?.weapon;
+  return weapon?.mode === "MELEE" ? "MELEE" : weapon?.projectile === "BOLT" ? "MAGIC" : "RANGED";
 }
 
 /**
@@ -121,7 +115,7 @@ export function weaponKind(itemId: string | undefined): WeaponKind {
  * (weaponKind) that the player owns and may use, by the item's own damage
  * bonus. The starter stone, which every player owns, is ranged, so a ranged
  * hand always has one; a sword hand with no usable sword takes the strongest
- * ranged one. Never "". A blank hand is a normal saved state (older saves,
+ * ranged one, and so does a staff hand with no usable staff. Never "". A blank hand is a normal saved state (older saves,
  * gear whose map is locked again), and a player with no weapon cannot attack,
  * so the server's reading of a saved hand and the client's bag both fill it
  * from here.
@@ -141,14 +135,14 @@ export function fallbackWeapon(itemIds: readonly string[], access: CampaignAcces
     }
     return best;
   };
-  return (kind === "MELEE" && strongest("MELEE")) || strongest("RANGED");
+  return (kind !== "RANGED" && strongest(kind)) || strongest("RANGED");
 }
 
 /**
  * Whether putting this item on would beat what is in its slot now. Cosmetic
  * looks never do, and a weapon only ever replaces one of its own kind: swords
  * hit harder than bows but only up close, so power alone would trade every
- * archer's bow for a sword. `kind` is the hand's kind, by default what it
+ * archer's bow for a sword (or a staff). `kind` is the hand's kind, by default what it
  * holds; callers that read locked gear as an empty hand pass the locked
  * weapon's kind, so locking a sword away does not make its owner an archer.
  */

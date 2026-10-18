@@ -8,7 +8,8 @@ import { attackCapInPlay, statRewardMultiplierFor, prestigePerkRanks } from "./p
 import { WORLD_REFLECT_SHARE, preArmorFactor, prestigePerkValue, prestigeReachMultiplier, prestigeSwingMultiplier } from "../../shared/prestige-perks";
 import { armorDamageReduction } from "../../shared/combat";
 import { criticalDamageMultiplier } from "../../shared/critical-damage";
-import { cardStatFactors, cardTotalsForLevels, type CardTotals } from "../../shared/card-effects";
+import { cardStatFactors, type CardTotals } from "../../shared/card-effects";
+import { activeCardTotalsFor } from "./active-cards";
 import { soulStatsFor, withSoulStats } from "./soul-dimension";
 import { bowSkillRollFor } from "./bow-skills";
 import { bowSkillReachMultiplier, isSkillBow } from "../../shared/bow-skills";
@@ -16,6 +17,8 @@ import { CARD_SPLASH_MAX_TARGETS, bowSkillsWithCards, cardGuardFactor, cardOffen
 import { cardValue } from "../../shared/card-effects";
 import { swordSkillChance, swordSkillReachMultiplier } from "../../shared/sword-skills";
 import { swordSkillRollFor } from "./sword-skills";
+import { STAFF_BOLT_DAMAGE_FACTOR, isStaff, staffSkillReachMultiplier, weaponAttackInterval } from "../../shared/staff-skills";
+import { staffSkillRollFor } from "./staff-skills";
 import type { ModuleReducerCtx as GameReducerContext } from "./index";
 import { readPlayerProgress } from "./wide-stats";
 
@@ -61,7 +64,7 @@ export function createCombatReport(deps: CombatReportDeps) {
    * what it and the head and chest make of any base damage, with each slot's
    * upgrade level read at most once. The formula has to stay researchedDamage's.
    */
-  function damageLoadout(ctx: GameReducerContext, progress: any, research: any) {
+  function damageLoadout(ctx: GameReducerContext, progress: any, research: any, cardTotals: CardTotals) {
     const inventory = inventoryForProgress(progress);
     const weapon = equippedRightHandForProgress(progress, inventory) || equippedLeftHandForProgress(progress, inventory);
     const head = equippedHeadForProgress(progress, inventory), chest = equippedChestForProgress(progress, inventory);
@@ -77,8 +80,7 @@ export function createCombatReport(deps: CombatReportDeps) {
     const [weaponLevel, headLevel, chestLevel] = [levelFor(weapon), levelFor(head), levelFor(chest)];
     const warcraft = 1 + (research?.warcraft ?? 0) * .02;
     const equipment = 1 + equipmentDamageMultiplierBonus(weapon, head, chest, weaponLevel, headLevel, chestLevel);
-    // The worn cards, carried by the levels: attack cards multiply damage as they do power.
-    const cardTotals = cardTotalsForLevels(weaponLevel, headLevel, chestLevel);
+    // The active cards: attack cards multiply damage as they do power.
     const cards = cardStatFactors(cardTotals);
     return { weapon, levelFor, cardTotals, cards, damage: (base: number) => base * equipment * warcraft * cards.damage };
   }
@@ -99,18 +101,19 @@ export function createCombatReport(deps: CombatReportDeps) {
     function load() {
       const saved = readPlayerProgress(ctx, ctx.sender);
       const research = ctx.db.playerResearch.identity.find(ctx.sender);
-      // The worn cards, read once for the report (syncCardAttackCap) rather than again by each helper.
+      // The active cards, read once for the report (syncCardAttackCap) rather than again by each helper.
       const statMultiplier = statRewardMultiplierFor(ctx, ctx.sender, worn);
       // Soul stats add to the run's in every fight; the saved row and the earned rewards stay the run's alone.
       const soul = soulStatsFor(ctx, ctx.sender);
-      const loadout = saved ? damageLoadout(ctx, saved, research) : null;
+      const cards = worn ?? activeCardTotalsFor(ctx, ctx.sender);
+      const loadout = saved ? damageLoadout(ctx, saved, research, cards) : null;
       const challenge = ctx.db.playerPrestigeChallenge.identity.find(ctx.sender);
       // Reflect Only wins and Quick Draw set the attack speed cap, Aggro runs included (attackCapInPlay).
       // The bounds above keep stored research, the looser side.
       const ranks = prestigePerkRanks(ctx, ctx.sender);
       const minInterval = attackCapInPlay(ctx, ctx.sender, worn);
       const earned = saved ? createEnemyRewardAccumulator(saved, statMultiplier, minInterval) : null;
-      const statsFor = saved ? preparePlayerPowerStats(saved, research, loadout?.levelFor) : null;
+      const statsFor = saved ? preparePlayerPowerStats(saved, research, loadout?.levelFor, cards) : null;
       // Armor rewards can change the nonlinear reduction inside a report.
       // Calculate it once per distinct effective armor, never reuse a stale value.
       const armorFactors = new Map<number, { reduction: number; preArmor: number }>();
@@ -147,6 +150,9 @@ export function createCombatReport(deps: CombatReportDeps) {
       // Bow skill cards add to a bow's own roll.
       const bowSkills = isSkillBow(loadout.weapon) ? bowSkillsWithCards(bowSkillRollFor(ctx, ctx.sender, loadout.weapon), loadout.cardTotals) : null;
       const swordSkills = swordSkillRollFor(ctx, ctx.sender, loadout.weapon);
+      // A staff's bolt bursts on every enemy around its impact, and its skills reach further (staff-skills.ts).
+      const staff = isStaff(loadout.weapon);
+      const staffReach = staff ? staffSkillReachMultiplier(staffSkillRollFor(ctx, ctx.sender, loadout.weapon)) : 1;
       const armorReduction = armorFor(statsFor(withSoulStats(saved, soul, minInterval)).armor).reduction;
       return { saved, earned, statsFor, armorFor, soul, minInterval, gear: {
         loadout, critical, swing: prestigeSwingMultiplier(ranks),
@@ -155,7 +161,9 @@ export function createCombatReport(deps: CombatReportDeps) {
         projectiles: !armed || itemDefinition(loadout.weapon)?.weapon?.mode === "MELEE" ? 1 : Math.max(1, saved.projectileCount),
         // Reflect returns the hit before armor, so armor raises what it adds.
         reach: (prestigeReachMultiplier(ranks, armorReduction) + cardBound.reflect * WORLD_REFLECT_SHARE * preArmorFactor(armorReduction))
-          * bowSkillReachMultiplier(bowSkills) * swordSkillReachMultiplier(swordSkills) * cardBound.reach,
+          * bowSkillReachMultiplier(bowSkills) * swordSkillReachMultiplier(swordSkills) * staffReach * cardBound.reach,
+        // A bolt hits a little harder than an arrow, and casts come slower.
+        weapon: loadout.weapon, boltDamage: staff ? STAFF_BOLT_DAMAGE_FACTOR : 1,
         cardDamage: cardBound.damage,
         reflects: prestigePerkValue(ranks, "riposte") > 0 || cardBound.reflect > 0,
         // Prism: a reflected hit strikes the enemies near its attacker as well.
@@ -174,10 +182,10 @@ export function createCombatReport(deps: CombatReportDeps) {
         const { saved, earned, gear, statsFor, armorFor, soul, minInterval } = report();
         if (!saved) return { dps: 0, attackInterval: 1 };
         const progress = withSoulStats(earned!.preview(reward), soul, minInterval);
-        const attackInterval = attackIntervalForProgress(progress);
-        if (!gear) return { dps: 0, attackInterval, projectiles: 1 };
+        if (!gear) return { dps: 0, attackInterval: attackIntervalForProgress(progress), projectiles: 1 };
+        const attackInterval = weaponAttackInterval(gear.weapon, attackIntervalForProgress(progress));
         const dps = gear.armed
-          ? gear.loadout.damage(progress.damage) * gear.critical(progress.critRating) * gear.swing * gear.cardDamage * gear.projectiles / attackInterval : 0;
+          ? gear.loadout.damage(progress.damage) * gear.boltDamage * gear.critical(progress.critRating) * gear.swing * gear.cardDamage * gear.projectiles / attackInterval : 0;
         // Reflect throws a hit back as it arrived before armor
         // (capped at max health outside Reflect Only). What got through can
         // never total more than the player's health, what regen restores and
@@ -206,7 +214,7 @@ export function createCombatReport(deps: CombatReportDeps) {
         return { attackInterval, projectiles: gear.projectiles, reach: gear.reach, dps, reflectDps, reflectTick: REFLECT_ONLY_TICK_SECONDS };
       },
       commit: (reward: EnemyStatReward) => report().earned?.commit(reward),
-      /** The worn cards the caller read for this report, if it passed them. */
+      /** The active cards the caller read for this report, if it passed them. */
       wornCards: () => worn,
       rewardedProgress: () => report().earned?.current(),
       /** The saved progress row as the report found it; nothing in validation writes it. */
