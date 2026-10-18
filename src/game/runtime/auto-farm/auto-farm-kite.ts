@@ -34,7 +34,7 @@ export function smartMove(player: PlayerState, enemies: EnemyState[], mapId: str
     }
 
 
-    const usableEnemies = enemies.filter(e => validEnemy(e) && (e.reward.type !== "speed" && e.reward.type !== "crit"));
+    const usableEnemies = enemies.filter(e => validEnemy(e) && (e.engaged || (e.reward.type !== "speed" && e.reward.type !== "crit")));
 
     const followingEnemies = usableEnemies.filter(e => e.engaged);
 
