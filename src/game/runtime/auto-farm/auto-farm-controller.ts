@@ -152,8 +152,10 @@ export function createAutoFarmController(options: {
   const { player, enemies, spawnSites } = options;
   const now = options.now ?? monotonicNowMs;
   /** Auto Mine steers in the Town, where nothing is farmed; Auto Farm everywhere else. */
-  const mine = options.mining ? createAutoMine({ player, mapId: options.mapId, source: options.mining, storage: options.priorityStorage, identity: options.localIdentity,
-    unavailable: options.unavailable, connection: options.connection, paused: options.paused, speed: options.speed, now }) : null;
+  const mine = options.mining ? createAutoMine({
+    player, mapId: options.mapId, source: options.mining, storage: options.priorityStorage, identity: options.localIdentity,
+    unavailable: options.unavailable, connection: options.connection, paused: options.paused, speed: options.speed, now
+  }) : null;
   let priority: AutoFarmPriority = readAutoFarmPriority(options.priorityStorage);
   let pullAll = readAutoFarmPull(options.priorityStorage);
   /** The groups switched to Aggro beside their sliders; null until one is touched, when Pull Whole Group's own picks apply. */
@@ -425,7 +427,7 @@ export function createAutoFarmController(options: {
   /** Whether this map's boss is ready to fight with Fight At's margin, and the status line when it is not. */
   function readyForBoss(): { ready: boolean; line: string } {
     const boss = options.bossDefinition?.();
-    console.log(boss);
+    //console.log(boss);
     if (!boss) return { ready: false, line: `Boss definition missing` };
     if (!boss?.bossKind && !boss.damage) {
       boss.bossKind = "dragon";
@@ -874,7 +876,8 @@ export function createAutoFarmController(options: {
     return check.ready ? 'Boss Next' : check.line;
   }
 
-  return { start, stop: (reason?: string) => { zeroWaiting = false; stop(reason); }, defeated, refresh, choices, movement, travelStarted, mine,
+  return {
+    start, stop: (reason?: string) => { zeroWaiting = false; stop(reason); }, defeated, refresh, choices, movement, travelStarted, mine,
     /** `waiting`: stopped for travel, and starting again on the next map with enemies. The player can still Stop it. */
     state: () => ({
       active, waiting: !active && Boolean(pendingResume), selected, selectedLabel, shares: { ...shares }, phase, advance, fightBosses,

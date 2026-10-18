@@ -140,7 +140,7 @@ function norm(v: Position): Position {
 
 function distanceBoost(enemy: EnemyState, player: PlayerState): number {
     const priorities: Array<RewardType> = ["regen", "health", "armor", "damage", "speed", "crit"];
-    return Math.log((priorities.indexOf(enemy.reward.type) * 3)) * (enemy.reward.type === "health" ? (player.maxHp / (player.regen * 5)) ** 4 : 1) * (enemy.reward.type === "regen" ? ((player.regen * 5) / player.maxHp) ** 2 : 1) + (enemy.reward.type === "speed" || enemy.reward.type === "crit" ? 1000000 : 0);
+    return Math.log((priorities.indexOf(enemy.reward.type) * 3)) * (enemy.reward.type === "health" ? (player.maxHp / (player.regen * 5)) ** 1 : 1) * (enemy.reward.type === "regen" ? ((player.regen * 5) / player.maxHp) ** 1 : 1) + (enemy.reward.type === "speed" || enemy.reward.type === "crit" ? 1000000 : 0);
 }
 
 function closenessBoost(enemy: EnemyState, enemies: EnemyState[], player: PlayerState) {
