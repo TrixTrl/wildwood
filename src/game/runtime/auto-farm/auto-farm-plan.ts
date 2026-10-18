@@ -182,7 +182,6 @@ export function decodeFarmPlan(choice: string): FarmShares | null {
 }
 
 export const AUTO_FARM_ADVANCE_KEY = 'wildstat:autofarm-advance:v1';
-export const AUTO_FARM_BOSSES_KEY = 'wildstat:autofarm-bosses:v1';
 function readSwitch(key: string, storage: () => Storage | undefined) {
   try { return storage()?.getItem(key) === '1'; } catch { return false; }
 }
@@ -191,23 +190,16 @@ function writeSwitch(key: string, on: boolean, storage: () => Storage | undefine
 }
 export const readFarmAdvance = (storage: () => Storage | undefined = () => localStorage) => readSwitch(AUTO_FARM_ADVANCE_KEY, storage);
 export const writeFarmAdvance = (on: boolean, storage: () => Storage | undefined = () => localStorage) => writeSwitch(AUTO_FARM_ADVANCE_KEY, on, storage);
-/** Never set, it starts as Move On is: Move On used to fight the boss itself, and would otherwise wait at "Boss Needed". */
-export const readFightBosses = (storage: () => Storage | undefined = () => localStorage) => {
-  try { if (storage()?.getItem(AUTO_FARM_BOSSES_KEY) == null) return readFarmAdvance(storage); } catch { return false; }
-  return readSwitch(AUTO_FARM_BOSSES_KEY, storage);
-};
-export const writeFightBosses = (on: boolean, storage: () => Storage | undefined = () => localStorage) => writeSwitch(AUTO_FARM_BOSSES_KEY, on, storage);
 
 /**
- * The sliders under Move On and Fight Bosses: how much of the next map's, or
- * the boss's, recommended power the player wants before going, 0.1x (go early)
- * to 10x (only when far ahead). Even steps either side of 1x, so the middle of
- * each slider is the map's or boss's own power.
+ * Move At, the slider under Move On: how much of the next map's recommended
+ * power the player wants before going (and before the boss that holds it),
+ * 0.1x (go early) to 10x (only when far ahead). Even steps either side of 1x,
+ * so the middle is the map's own power.
  */
 export const POWER_STEPS = [.1, .2, .3, .5, .75, 1, 1.5, 2, 3, 5, 10] as const;
 export const DEFAULT_POWER_STEP = 1;
 export const AUTO_FARM_MOVE_POWER_KEY = 'wildstat:autofarm-move-power:v1';
-export const AUTO_FARM_BOSS_POWER_KEY = 'wildstat:autofarm-boss-power:v1';
 /** The step nearest `value` (by ratio), so anything saved or passed lands on the slider. */
 export function powerStep(value: number) {
   if (!Number.isFinite(value) || value <= 0) return DEFAULT_POWER_STEP;
@@ -228,5 +220,3 @@ function writeStep(key: string, value: number, storage: () => Storage | undefine
 }
 export const readMovePower = (storage: () => Storage | undefined = () => localStorage) => readStep(AUTO_FARM_MOVE_POWER_KEY, storage, DEFAULT_MOVE_STEP);
 export const writeMovePower = (value: number, storage: () => Storage | undefined = () => localStorage) => writeStep(AUTO_FARM_MOVE_POWER_KEY, value, storage);
-export const readBossPower = (storage: () => Storage | undefined = () => localStorage) => readStep(AUTO_FARM_BOSS_POWER_KEY, storage);
-export const writeBossPower = (value: number, storage: () => Storage | undefined = () => localStorage) => writeStep(AUTO_FARM_BOSS_POWER_KEY, value, storage);

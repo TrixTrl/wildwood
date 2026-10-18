@@ -1,4 +1,24 @@
 export const RELEASE_NOTES: Record<string, string[]> = {
+  "0.914.4": [
+    "Auto Farm with only Aggro on stands where you left it, by a boss too, instead of walking off to a clear spot first",
+    "Cards tab: tighter at the top, no drop note, and zone counts without the word Owned",
+  ],
+  "0.914.3": [
+    "Auto Farm's Fight Bosses switch is gone: Move On fights the boss that locks the next map, then moves on",
+    "Auto Farm waits until it would beat the boss too, not just the next map's enemies, before fighting it",
+  ],
+  "0.914.2": [
+    "Auto Farm has one Move At slider: Fight Bosses fights the boss once you're ready for the map it unlocks, then moves on",
+  ],
+  "0.914.1": [
+    "Cards tab: Equip, first, works like the Smith did: pick Weapon, Helmet or Armor and equip from your cards of that type",
+    "Cards tab: Cards shows every card as a tile again, by zone, every zone open to start",
+    "Soul Level goes up to 20, and each level needs twice the Soul XP of the one before instead of three times",
+  ],
+  "0.914.0": [
+    "A Training Dummy stands just outside the Town's west fence: hit it to see your DPS",
+    "Dreadreaper's Reap works whatever brought the enemy low (Reflect, splash, burn), at 10% a card, up to 40%",
+  ],
   "0.913.6": [
     "Firefox: the minimap, Town water and range ring no longer slow down after the window is made smaller",
     "Standing in a portal after an update, walking into it takes you through instead of doing nothing",
@@ -3548,7 +3568,11 @@ const RELEASE_DATES: Record<string, string> = {
 };
 
 export const RELEASE_DAYS: Record<string, string> = {
-  "0.913.6 ~ Hallowed's Version": "2026-10-18",
+  "0.914.4": "2026-10-18",
+  "0.914.3": "2026-10-18",
+  "0.914.2": "2026-10-18",
+  "0.914.1": "2026-10-18",
+  "0.914.0": "2026-10-18",
   "0.913.6": "2026-10-17",
   "0.913.5": "2026-10-17",
   "0.913.4": "2026-10-17",

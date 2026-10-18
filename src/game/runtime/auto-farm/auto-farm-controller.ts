@@ -13,8 +13,8 @@ import { bossSurfaceDistance, bossVerticalRadius } from '../../../../shared/boss
 import { carryFarmGroup, compareAutoFarmTargets, farmGroupMatches, farmGroupOf, farmStatGroup, readAutoFarmPriority, soulFarmReward, readAutoFarmPull, readAutoFarmPullGroups, writeAutoFarmPriority, writeAutoFarmPull, writeAutoFarmPullGroups, type AutoFarmGroup, type AutoFarmPriority } from './auto-farm-priority';
 import type { createAutoFarmResumeStore } from '../../../app/auto-farm-resume';
 import {
-  SHARE_REPLAN_SECONDS, decodeFarmPlan, encodeFarmPlan, legacyShares, readBossPower, writeBossPower, readMovePower, writeMovePower, powerStep, readFarmAdvance, readFightBosses, readSavedShares, sharesForGroups, shareFarmKey,
-  writeFarmAdvance, writeFightBosses, writeSavedShares, type FarmReward, type FarmShares,
+  SHARE_REPLAN_SECONDS, decodeFarmPlan, encodeFarmPlan, legacyShares, readMovePower, writeMovePower, powerStep, readFarmAdvance, readSavedShares, sharesForGroups, shareFarmKey,
+  writeFarmAdvance, writeSavedShares, type FarmReward, type FarmShares,
 } from './auto-farm-plan';
 import { formatCompactNumber } from '../../../../shared/compact-number';
 import { isSoulMap, SOUL_STAT_DETAILS, type SoulStatId } from '../../../../shared/soul-dimension';
@@ -25,7 +25,6 @@ import { BOSS_DAMAGE_PROFILES } from '../../boss-damage';
 import { armorDamageReduction } from '../../combat';
 import { createAutoMine, type AutoMineSource } from './auto-mine';
 import { bossAggroRange, BOSS_ZONE_PAD } from './boss-zone';
-import { regularEnemyAggroRadius } from '../enemies/enemy-simulation';
 
 /** An attacker of another kind is fought off on the way only if it dies within this many seconds. */
 const QUICK_DEFENCE_SECONDS = 3;
@@ -103,9 +102,9 @@ export function autoFarmStandoff(options: {
  *   sliders adding up to 100%, 0% never farmed.
  * - Move On: to the next map once power reaches Move At times its
  *   recommended power.
- * - Fight Bosses: the boss once power reaches Fight At times its recommended
- *   power, fought until it or the player is down. A boss already beaten is left
- *   alone. Both set off at COMMIT_HEALTH, or after a minute at half health; straight after a boss win at once.
+ * - The boss holding the way forward: Move On fights it once it would be ready for the map it opens (Move At), until
+ *   it or the player is down. A boss already beaten is left alone. Both set off at COMMIT_HEALTH, or after a
+ *   minute at half health; straight after a boss win at once.
  * - Boss range: while not fighting it, targets, stand points and routes keep out of its attack range.
  * - Deaths: it respawns and goes on with the same settings. Nothing is
  *   remembered, nothing is retried later, it never steps back a map.
@@ -139,7 +138,7 @@ export function createAutoFarmController(options: {
    * it (tests, the sim), the recommended power above is used.
    */
   mapReady?: (mapId: string, margin: number) => Readiness | null | undefined;
-  /** The same for this map's boss and Fight Bosses; null when it cannot tell, and the boss's power is used. */
+  /** The same for this map's boss, for when no locked map is behind it; null when it cannot tell, and the boss's power is used. */
   bossReady?: (margin: number) => Readiness | null | undefined;
   /** This map's boss while it stands (null once it is down or respawning). */
   mapBoss?: () => (Fight & { dead?: boolean }) | null;
@@ -151,6 +150,8 @@ export function createAutoFarmController(options: {
   previousPortal?: () => (Position & { destination: string }) | null;
   /** Whether beating this map's boss opens a locked way forward. */
   bossUnlocksNext?: () => boolean;
+  /** The map that way forward leads to, while it is locked: the boss is fought once Move On would be ready for it. */
+  lockedNextMap?: () => string | null;
   /** How many picked camps (stat groups) Pull aggroes at once: one, one more per Aggro win, and none during a run. */
   pullCamps?: () => number;
   /** During an Aggro run: the stat groups the player picked and how many must chase them on every map, farming or not. */
@@ -175,10 +176,8 @@ export function createAutoFarmController(options: {
   /** The groups switched to Aggro beside their sliders; null until one is touched, when Pull Whole Group's own picks apply. */
   let pullPicks = readAutoFarmPullGroups(options.priorityStorage);
   let advance = readFarmAdvance(options.priorityStorage);
-  let fightBosses = readFightBosses(options.priorityStorage);
-  /** The sliders under the switches: the share of the next map's power, and of the boss's, to have before going (1 is even). */
+  /** Move At: the share of the next map's power to have before going (1 is even); the boss holding that map waits for it too. */
   let movePower = readMovePower(options.priorityStorage);
-  let bossPower = readBossPower(options.priorityStorage);
   /** This map's sliders, and its groups above 0%, the largest first. */
   let shares: FarmShares = {};
   let order: string[] = [];
@@ -238,8 +237,10 @@ export function createAutoFarmController(options: {
     keptKeys.set(site, { type: site.type, definition: site.definition, campName: site.campName, key });
     return key;
   };
-  type Choice = { key: AutoFarmGroup; type: EnemyKind; kinds: EnemyKind[]; label: string;
-    alive: number; total: number; reward: FarmReward; maxReward: number; soul: SoulStatId | null };
+  type Choice = {
+    key: AutoFarmGroup; type: EnemyKind; kinds: EnemyKind[]; label: string;
+    alive: number; total: number; reward: FarmReward; maxReward: number; soul: SoulStatId | null
+  };
   // The groups as this map's sites make them, built again only when the sites change; alive is counted on each call (every frame).
   // A live balance load swaps a kind's reward in place (map-balance-loader.ts), so each site's reward is part of what is compared.
   let builtChoices: Choice[] = [], builtMap = '', builtSites: SpawnSite[] = [], builtRewards: unknown[] = [];
@@ -424,16 +425,19 @@ export function createAutoFarmController(options: {
   }
   const needsLine = (readiness: Readiness) => readiness.needs === 'both' ? 'Need More Damage And Health'
     : readiness.needs === 'damage' ? 'Need More Damage' : 'Need More Health';
-  /** Whether the next map is ready, and the status line when it is not (no fixed table, worked out on the client). */
-  function readyForMap(destination: string): { ready: boolean; line: string } {
+  /**
+   * Whether a map is ready at Move At's margin, and the status line when it is not (no fixed table, worked out on the
+   * client). `label` names what waits on it: Move On's next map, or the boss that holds it.
+   */
+  function readyForMap(destination: string, label = 'Next Map'): { ready: boolean; line: string } {
     return { ready: true, line: `Always moving on` };
     /*
     if (!options.mapReady) {
       const needs = mapNeeds(destination);
-      return { ready: currentPower() >= needs, line: `Next Map At ${atPower(needs)}` };
+      return { ready: currentPower() >= needs, line: `${label} At ${atPower(needs)}` };
     }
     const readiness = cachedReady(`map:${destination}:${movePower}`, () => options.mapReady!(destination, movePower));
-    if (readiness === undefined) return { ready: false, line: 'Reading Next Map' };
+    if (readiness === undefined) return { ready: false, line: `Reading ${label}` };
     if (readiness === null || readiness.ready) return { ready: true, line: '' };
     return { ready: false, line: `Next Map: ${needsLine(readiness)}` };
     */
@@ -446,8 +450,8 @@ export function createAutoFarmController(options: {
   }
 
   // ---- Fight Bosses ----
-  /** The power Fight Bosses waits for: Fight At times the boss's recommended power. */
-  const bossNeeds = () => (options.bossPower?.() ?? options.mapPower?.(options.mapId()) ?? 0) * bossPower;
+  /** The boss's own recommended power at Move At's margin, for a boss with no locked map behind it to judge by. */
+  const bossNeeds = () => (options.bossPower?.() ?? options.mapPower?.(options.mapId()) ?? 0) * movePower;
   /** Beaten, as far as it can tell: the way forward it holds is open, or a win here opened nothing. */
   const bossBeaten = () => options.bossUnlocksNext?.() === false || opensNothing.has(options.mapId());
   /** Whether to fight the boss now: Fight Bosses on, a boss standing that is not beaten, and power enough (a fight under way goes on). */
@@ -463,7 +467,8 @@ export function createAutoFarmController(options: {
       if (options.bossUnlocksNext?.() === true) opensNothing.add(mapId);
       bossWin = null;
     }
-    if (!fightBosses || options.reflectOnly?.() || !boss || boss.dead || bossBeaten()) return false;
+    // Move On takes the boss in its way: there is no going on without it.
+    if (!advance || options.reflectOnly?.() || !boss || boss.dead || bossBeaten()) return false;
     // A fight under way goes on until the boss or the player is down.
     if (phase === 'boss') return true;
     return currentPower() >= (bossRetryPower.get(mapId) ?? 0) && readyForBoss().ready && healthyToSetOff();
@@ -486,9 +491,14 @@ export function createAutoFarmController(options: {
   const waitsForHealth = () => active && healthWaitSince !== null && !(healthShare() >= COMMIT_HEALTH);
   /** Each map's boss after a death to it: the power to reach before trying again. */
   const bossRetryPower = new Map<string, number>();
-  /** Whether this map's boss is ready to fight with Fight At's margin, and the status line when it is not. */
+  /**
+   * Whether to fight this map's boss, and the status line when not. One setting, Move At, for both: Move On would be
+   * ready for the map it opens, and the boss itself would be beaten, each at Move At's margin. The map's check alone
+   * (8 s a kill) sent players who did not yet one-shot this map's enemies into a boss they could not beat.
+   */
   function readyForBoss(): { ready: boolean; line: string } {
     const boss = options.bossDefinition?.();
+    const bossPower = options.bossPower?.() ?? 1;
     //console.log(boss);
     if (!boss) return { ready: false, line: `Boss definition missing` };
     if (!boss?.bossKind && !boss.damage) {
@@ -555,33 +565,6 @@ export function createAutoFarmController(options: {
     else if (playerBossFightOn !== mapId || !inside) playerBossFightOn = null;
   }
   const playerBossFight = () => active && playerBossFightOn === options.mapId();
-  /** A camp it is not fighting would wake if it stood here. */
-  const wakesCamp = (point: Position) => enemies.some(enemy => !enemy.dead && !enemy.engaged && !enemy.remoteCombatGhost && !enemy.generatedBoss
-    && !pulledEnemy(enemy) && Math.hypot(enemy.x - point.x, enemy.y - point.y) < regularEnemyAggroRadius(enemy) + enemy.r + player.r + 20);
-  /**
-   * Pull brings everything to where it stands. Inside the boss's range, or where an Aggro-free camp wakes, it walks to the
-   * nearest spot clear of both first, leaning towards the pulled camps; null when where it stands will do.
-   */
-  let spot: { goal: Position | null; at: number } | null = null;
-  function pullSpot(zone: Circle | null): Position | null {
-    const bad = (point: Position) => inZone(zone, point) || wakesCamp(point);
-    if (spot && now() - spot.at < 1_000 && now() >= spot.at) return spot.goal && Math.hypot(spot.goal.x - player.x, spot.goal.y - player.y) > WAYPOINT_REACHED ? spot.goal : null;
-    let goal: Position | null = null;
-    if (bad(player)) {
-      const sites = spawnSites.filter(site => pulledGroups().has(choiceKey(site)));
-      const centre = sites.length ? { x: sites.reduce((sum, site) => sum + site.x, 0) / sites.length, y: sites.reduce((sum, site) => sum + site.y, 0) / sites.length } : player;
-      const edge = player.r + 40;
-      let best = Infinity;
-      for (let ring = 1; ring <= 8; ring++) for (let turn = 0; turn < 12; turn++) {
-        const angle = turn * Math.PI / 6, point = { x: player.x + Math.cos(angle) * ring * 120, y: player.y + Math.sin(angle) * ring * 120 };
-        if (point.x < edge || point.y < edge || point.x > WORLD.w - edge || point.y > WORLD.h - edge || bad(point)) continue;
-        const cost = Math.hypot(point.x - player.x, point.y - player.y) + Math.hypot(point.x - centre.x, point.y - centre.y) / 2;
-        if (cost < best) { best = cost; goal = point; }
-      }
-    }
-    spot = { goal, at: now() };
-    return goal;
-  }
 
   /**
    * Death does not end a farm: the session stops running while the player is
@@ -877,9 +860,9 @@ export function createAutoFarmController(options: {
     if (phase === 'farm' && !pulling()) for (const enemy of enemies) {
       if (!enemy.generatedBoss && farmedGroup(enemy) && worthDefending(enemy) && isEnemyAttackingPlayer(enemy, options.localIdentity?.()) && (!threat || distance(enemy) < distance(threat))) threat = enemy;
     }
-    // Everything it farms comes to it: it stands its ground.
-    const relocate = phase === 'farm' && pullCoversFarm() ? pullSpot(zone) : null;
-    if (phase === 'farm' && pullCoversFarm() && !relocate) {
+    // Everything it farms comes to it: it stands its ground, where the player left it. It used to walk first to a spot
+    // clear of the boss's range and of camps not pulled, which read as wandering off, and away from a boss being farmed.
+    if (phase === 'farm' && pullCoversFarm()) {
       const reachAll = weaponAttackRange(options.equippedWeapon?.(), player.attackRange);
       const inReach = enemies.some(enemy => pulledEnemy(enemy) && distance(enemy) <= reachAll + enemy.r);
       holding = true; route = []; status = inReach ? 'Farming' : enemies.some(pulledEnemy) ? 'Pulling' : 'Waiting for respawn';
@@ -888,7 +871,7 @@ export function createAutoFarmController(options: {
     // With the group on its way (pulled, or already chasing), stand and let it come; walk out only if nothing has reached range for a few seconds.
     // A melee weapon waits only for what is pulled: it walks into its own reach of the rest instead of stopping where they woke.
     const reach = weaponAttackRange(options.equippedWeapon?.(), player.attackRange), melee = isMeleeWeapon(options.equippedWeapon?.());
-    if (phase === 'farm' && !threat && !relocate && !inZone(zone, player)) {
+    if (phase === 'farm' && !threat && !inZone(zone, player)) {
       const coming = enemies.some(enemy => validEnemy(enemy) && ((enemy.engaged && !melee) || pullsEnemy(enemy)));
       const inReach = enemies.some(enemy => validEnemy(enemy) && distance(enemy) <= reach + enemy.r);
       pullWait = coming && !inReach ? pullWait + dt : 0;
@@ -896,17 +879,17 @@ export function createAutoFarmController(options: {
     }
     // A boss is aimed at its hitbox, not its sprite's foot.
     const bossPoint = boss ? { x: boss.x, y: boss.y + (boss.hitboxOffsetY ?? 0) } : null;
-    let destination: Position | null = relocate ?? threat ?? target ?? portal ?? bossPoint;
+    let destination: Position | null = threat ?? target ?? portal ?? bossPoint;
     if (!destination) {
       for (const site of spawnSites) if (choiceKey(site) === selected && (!destination || (inZone(zone, site) === inZone(zone, destination) ? distance(site) < distance(destination) : !inZone(zone, site)))) destination = site;
     }
     if (!destination) { stop('No matching enemies in this map'); return idle(); }
     const weapon = options.equippedWeapon?.();
-    const enemy = relocate ? null : threat ?? target;
+    const enemy = threat ?? target;
     // A campaign boss is hit at the surface of its hitbox, an oval off its feet; an Endless boss is a regular enemy, hit at its centre unless melee.
     const hitbox = !enemy && boss?.isBoss ? boss : null;
     const bossReach = !enemy && boss && !hitbox && isMeleeWeapon(weapon) ? boss.r : 0;
-    let standoff = !enemy && (portal || relocate) ? { stop: 0, resume: 0 } : autoFarmStandoff({
+    let standoff = !enemy && portal ? { stop: 0, resume: 0 } : autoFarmStandoff({
       weaponRange: hitbox ? Math.min(weaponAttackRange(weapon, player.attackRange), BOSS_STAND_GAP + AUTO_FARM_REACH_MARGIN) : weaponAttackRange(weapon, player.attackRange) + bossReach,
       playerAttackRange: player.attackRange,
       melee: isMeleeWeapon(weapon),
@@ -937,13 +920,13 @@ export function createAutoFarmController(options: {
     const away = Math.atan2(player.y - destination.y, player.x - destination.x);
     let goal = distance(destination) > 0 ? standAt(away) : { x: destination.x, y: destination.y };
     // Out of the boss's range: the same reach from another side, if one is clear of it.
-    if (zone && !portal && !relocate && inZone(zone, goal)) {
+    if (zone && !portal && inZone(zone, goal)) {
       for (const turn of [1, -1, 2, -2, 3, -3, 4]) { const other = standAt(away + turn * Math.PI / 4); if (!inZone(zone, other)) { goal = other; break; } }
     }
     const clearOfZone = !inZone(zone, player) || inZone(zone, goal);
     holding = remaining <= (holding ? standoff.resume : standoff.stop) + slack && clearOfZone;
     if (holding && !portal) {
-      status = relocate ? 'Pulling' : threat ? 'Defending' : boss ? 'Fighting the boss' : target ? 'Farming' : 'Waiting for respawn';
+      status = threat ? 'Defending' : boss ? 'Fighting the boss' : target ? 'Farming' : 'Waiting for respawn';
       route = [];
       routeClock = 0;
       return idle();
@@ -970,7 +953,7 @@ export function createAutoFarmController(options: {
     while (route.length && distance(route[0]) < WAYPOINT_REACHED) route.shift();
     const waypoint = route[0];
     if (!waypoint) { status = 'Waiting for a clear route'; return idle(); }
-    status = relocate ? 'Moving To A Clear Spot' : threat ? 'Moving to attacker' : portal ? 'Heading to the next map' : boss ? 'Moving to the boss' : target ? 'Moving to enemy' : 'Moving to spawn';
+    status = threat ? 'Moving to attacker' : portal ? 'Heading to the next map' : boss ? 'Moving to the boss' : target ? 'Moving to enemy' : 'Moving to spawn';
     const length = distance(waypoint), magnitude = Math.min(1, length / Math.max(1, options.speed() * dt));
     return { x: (waypoint.x - player.x) / length * magnitude, y: (waypoint.y - player.y) / length * magnitude, source: 'steer' };
   }
@@ -992,16 +975,17 @@ export function createAutoFarmController(options: {
     }
     const crowd = [...near].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([tag, count]) => `${tag}:${count}`).join(',');
     const here = options.mapReady ? cachedReady(`map:${options.mapId()}:1`, () => options.mapReady!(options.mapId(), 1)) : null;
-    return [`map=${options.mapId()}`, `st=${status}`, `ph=${phase}`, `sel=${selected ?? '-'}`, `mv=${movePower}`, `fb=${bossPower}`,
+    return [`map=${options.mapId()}`, `st=${status}`, `ph=${phase}`, `sel=${selected ?? '-'}`, `mv=${movePower}`,
     `pull=${pulling() ? pulledGroups().size : 0}/${pullLimit()}`, `near=${crowd || '-'}`, `burst=${((now() - lastHealthyAt) / 1000).toFixed(1)}s`,
     `pw=${atPower(currentPower())}`, `need=${here ? here.needs ?? 'none' : '?'}`].join(';').slice(0, 240);
   }
 
   const atPower = (power: number) => formatCompactNumber(Math.ceil(power));
-  /** Move On's line: going, the power the next map asks, or the boss it waits for. */
+  /** Move On's line: going, the power the next map asks, or the boss in the way (its fight, or what it waits for). */
   function moveStatus() {
     if (options.reflectOnly?.()) return 'Off In Reflect Only';
     if (phase === 'portal') return 'Moving On';
+    if (phase === 'boss') return 'Fighting Boss';
     const portal = options.nextPortal?.();
     if (portal) {
       const check = readyForMap(portal.destination);
@@ -1010,11 +994,11 @@ export function createAutoFarmController(options: {
       if (fightHeldSince !== null && active) return 'Moving On After This Fight';
       return waitsForHealth() && bossBeatenOn !== options.mapId() ? 'Moving On Once Healed' : 'Moving On';
     }
-    // The way forward is shut until this map's boss is beaten.
-    if (options.bossUnlocksNext?.() === true && !opensNothing.has(options.mapId())) return 'Boss Needed';
+    // The way forward is shut until this map's boss is beaten: what that fight waits for.
+    if (options.bossUnlocksNext?.() === true && !opensNothing.has(options.mapId())) return bossLine() || 'Boss Needed';
     return '';
   }
-  /** Fight Bosses' line: fighting, beaten, or the power the boss asks (told quietly with the switch off). */
+  /** The boss's line: fighting, beaten, or what its fight waits for. */
   function bossLine() {
     if (options.reflectOnly?.()) return 'Off In Reflect Only';
     if (phase === 'boss') return 'Fighting Boss';
@@ -1027,14 +1011,15 @@ export function createAutoFarmController(options: {
     return check.ready ? waitsForHealth() ? 'Boss Once Healed' : 'Boss Next' : check.line;
   }
 
-  return { start, stop: (reason?: string) => { zeroWaiting = false; stop(reason); }, defeated, refresh,
+  return {
+    start, stop: (reason?: string) => { zeroWaiting = false; stop(reason); }, defeated, refresh,
     // Copies for the window: the kept ones are recounted every frame.
     choices: () => choices().map(choice => ({ ...choice, kinds: [...choice.kinds], reward: { ...choice.reward } })), movement, travelStarted, mine,
     /** Whether it is walking to the portal for this map now (Move On). */
     headingTo: (destination: string) => active && phase === 'portal' && travellingTo === destination,
     /** `waiting`: stopped for travel, and starting again on the next map with enemies. The player can still Stop it. */
     state: () => ({
-      active, waiting: !active && Boolean(pendingResume), selected, selectedLabel, shares: { ...shares }, phase, advance, fightBosses,
+      active, waiting: !active && Boolean(pendingResume), selected, selectedLabel, shares: { ...shares }, phase, advance,
       status: active && !recovering && options.paused() ? 'Paused' : status
     }),
     /** The camp being farmed; null at the boss or on the way out, so the boss and anything in the way are fair game. */
@@ -1046,19 +1031,13 @@ export function createAutoFarmController(options: {
     holdsGround: () => pullCoversFarm(),
     advance: () => advance,
     setAdvance(next: boolean) { advance = next; writeFarmAdvance(next, options.priorityStorage); },
-    fightBosses: () => fightBosses,
-    setFightBosses(next: boolean) { fightBosses = next; writeFightBosses(next, options.priorityStorage); },
-    /** Move On's slider, 0.1x to 10x the next map's power. */
+    /** Move At, 0.1x to 10x the next map's power: Move On goes, and the boss holding the way is fought, once it is reached. */
     movePower: () => movePower,
     setMovePower(next: number) { movePower = powerStep(next); writeMovePower(movePower, options.priorityStorage); },
-    /** Fight Bosses' slider, 0.1x to 10x the boss's power. */
-    bossPower: () => bossPower,
-    setBossPower(next: number) { bossPower = powerStep(next); writeBossPower(bossPower, options.priorityStorage); },
     moveStatus,
-    /** Whether Move On is going now: the panel shows it lit. */
-    moveReady: () => moveStatus() === 'Moving On',
+    /** Whether Move On is going now, to the next map or the boss in the way: the panel shows it lit. */
+    moveReady: () => ['Moving On', 'Fighting Boss', 'Boss Next'].includes(moveStatus()),
     bossStatus: bossLine,
-    bossReady: () => ['Boss Next', 'Fighting Boss'].includes(bossLine()),
     /** Sliders all at 0%: farms what is pulled, or what chases in an Aggro run, standing still, and follows the Aggro switches. */
     startZero,
     /** The sliders saved for this map, for the panel to show, and saving them without starting. */
