@@ -19,9 +19,9 @@ import {
 } from "./presence-runtime";
 import { advanceDuelCombat, duelOutcome, initialDuelCombatState, DUEL_COMBAT_VERSION } from "../../shared/duel-combat";
 import { DUEL_CARDS_VERSION } from "../../shared/duel-cards";
-import { cardChance, cardStatFactors, cardValue, equippedCardIds } from "../../shared/card-effects";
+import { cardChance, cardStatFactors, cardValue } from "../../shared/card-effects";
 import { itemDefinition } from "../../shared/items";
-import { itemCardsFor, wornCardTotalsFor } from "./worn-cards";
+import { activeCardIdsFor, activeCardTotalsFor } from "./active-cards";
 import { duelAnnouncementText } from "../../shared/duel-announcement";
 import { prestigePerkRanks } from "./prestige";
 import { researchInPlay } from "./bonus-toggles";
@@ -29,6 +29,8 @@ import { prestigePerkValue, prestigeRiposteChance, prestigeSwingMultiplier } fro
 import { criticalDamageMultiplier } from "../../shared/critical-damage";
 import { duelBowSkillFields } from "./bow-skills";
 import { duelSwordSkillFields } from "./sword-skills";
+import { deleteDuelStaffSkills, duelStaffSkillFields, duelStaffSkillRow, insertDuelStaffSkills } from "./staff-skills";
+import { weaponAttackInterval, weaponHitFactor } from "../../shared/staff-skills";
 import { readCritRating, readPlayerProgress } from "./wide-stats";
 
 export const DUEL_REQUEST_COOLDOWN_MICROS = 120_000_000n;
@@ -64,7 +66,7 @@ export function clearExpiredDuelRequests(ctx: any) {
       expiredIds.push(current.id);
     }
   }
-  for (const id of expiredIds) { deleteSnapshotRow(ctx, "duel", id); ctx.db.duelRiposte.duelId.delete(id); ctx.db.duelCombatSnapshot.duelId.delete(id); }
+  for (const id of expiredIds) { deleteSnapshotRow(ctx, "duel", id); ctx.db.duelRiposte.duelId.delete(id); ctx.db.duelCombatSnapshot.duelId.delete(id); deleteDuelStaffSkills(ctx, id); }
 }
 
 export function returnDuelPlayer(ctx: any, identity: any, x: number, y: number) {
@@ -116,7 +118,7 @@ export function createDuelRuntime(deps: DuelRuntimeDeps) {
   function duelCrit(ctx: any, identity: any) {
     const research = researchInPlay(ctx, identity);
     const ranks = prestigePerkRanks(ctx, identity);
-    const cards = cardStatFactors(wornCardTotalsFor(ctx, identity));
+    const cards = cardStatFactors(activeCardTotalsFor(ctx, identity));
     return {
       chance: Math.min(1, (research?.criticalChance ?? 0) * .01 + prestigePerkValue(ranks, "keenEdge") + cards.critChance),
       multiplier: criticalDamageMultiplier({ researchRank: research?.criticalDamage, perks: ranks,
@@ -126,7 +128,7 @@ export function createDuelRuntime(deps: DuelRuntimeDeps) {
 
   function duelDamage(ctx: any, identity: any, damage: number, opponentWeapon = "") {
     const ranks = prestigePerkRanks(ctx, identity);
-    const totals = wornCardTotalsFor(ctx, identity);
+    const totals = activeCardTotalsFor(ctx, identity);
     const baseDamage = researchedDamage(ctx, identity, damage);
     const crit = duelCrit(ctx, identity);
     // Duel simulation is deterministic and both sides replay it, so random
@@ -140,7 +142,7 @@ export function createDuelRuntime(deps: DuelRuntimeDeps) {
 
   /** Iaido's first hit is a full critical: its damage over the averaged hit. */
   function duelFirstHit(ctx: any, identity: any) {
-    if (cardValue(wornCardTotalsFor(ctx, identity), "iaido") <= 0) return 1;
+    if (cardValue(activeCardTotalsFor(ctx, identity), "iaido") <= 0) return 1;
     const crit = duelCrit(ctx, identity);
     return crit.multiplier / (1 + crit.chance * (crit.multiplier - 1));
   }
@@ -260,10 +262,11 @@ export function createDuelRuntime(deps: DuelRuntimeDeps) {
     const riposte = ctx.db.duelRiposte.duelId.find(current.id);
     // The snapshot freezes both weapons' rolls, so changing equipment cannot change a running fight.
     // Old records without a snapshot keep their historical combat version.
-    const fight = { ...current, ...(ctx.db.duelCombatSnapshot.duelId.find(current.id) ?? { ...riposte, ...duelBowSkillFields(ctx, current), ...duelSwordSkillFields(ctx, current) }) };
+    const fight = { ...current, ...(ctx.db.duelCombatSnapshot.duelId.find(current.id) ?? { ...riposte, ...duelBowSkillFields(ctx, current), ...duelSwordSkillFields(ctx, current) }),
+      ...duelStaffSkillRow(ctx, current.id) };
     // Card duels keep running state the duel row does not store, so they resolve from the start each time.
     const fromStart = (current.combatVersion ?? 0) >= DUEL_CARDS_VERSION;
-    const { resolvedMicros, cards: _cards, ...combat } = advanceDuelCombat(fight, fromStart ? initialDuelCombatState(fight) : current,
+    const { resolvedMicros, cards: _cards, challengerChilledUntil: _chilledA, opponentChilledUntil: _chilledB, ...combat } = advanceDuelCombat(fight, fromStart ? initialDuelCombatState(fight) : current,
       fromStart ? 0 : Number(current.lastResolvedAt.microsSinceUnixEpoch - current.startsAtMicros),
       Number(resolutionMicros - current.startsAtMicros));
     const next = {
@@ -353,9 +356,12 @@ export function createDuelRuntime(deps: DuelRuntimeDeps) {
       opponentOriginY: 0,
       challengerHp: challengerMaxHp,
       challengerMaxHp,
-      challengerDamage: duelDamage(ctx, ctx.sender, challengerProgress.damage, opponentRightHandItem || opponentLeftHandItem),
+      // A staff's bolts hit a little harder and come slower (shared/staff-skills.ts).
+      challengerDamage: duelDamage(ctx, ctx.sender, challengerProgress.damage, opponentRightHandItem || opponentLeftHandItem)
+        * weaponHitFactor(challengerRightHandItem || challengerLeftHandItem),
       challengerArmor: researchedArmor(ctx, ctx.sender, challengerProgress.armor),
-      challengerAttackRate: challengerRightHandItem || challengerLeftHandItem ? attackIntervalForProgress(withSoulStats(challengerProgress, soulStatsFor(ctx, challengerProgress.identity), soulAttackCapFor(ctx, challengerProgress.identity))) : inactiveAttackRate,
+      challengerAttackRate: challengerRightHandItem || challengerLeftHandItem ? weaponAttackInterval(challengerRightHandItem || challengerLeftHandItem,
+        attackIntervalForProgress(withSoulStats(challengerProgress, soulStatsFor(ctx, challengerProgress.identity), soulAttackCapFor(ctx, challengerProgress.identity)))) : inactiveAttackRate,
       challengerRegen: researchedRegen(ctx, ctx.sender, challengerProgress.regen),
       challengerAttacks: 0,
       challengerDamageDealt: 0,
@@ -363,9 +369,11 @@ export function createDuelRuntime(deps: DuelRuntimeDeps) {
       challengerBlocked: 0,
       opponentHp: opponentMaxHp,
       opponentMaxHp,
-      opponentDamage: duelDamage(ctx, opponent, opponentProgress.damage, challengerRightHandItem || challengerLeftHandItem),
+      opponentDamage: duelDamage(ctx, opponent, opponentProgress.damage, challengerRightHandItem || challengerLeftHandItem)
+        * weaponHitFactor(opponentRightHandItem || opponentLeftHandItem),
       opponentArmor: researchedArmor(ctx, opponent, opponentProgress.armor),
-      opponentAttackRate: opponentRightHandItem || opponentLeftHandItem ? attackIntervalForProgress(withSoulStats(opponentProgress, soulStatsFor(ctx, opponentProgress.identity), soulAttackCapFor(ctx, opponentProgress.identity))) : inactiveAttackRate,
+      opponentAttackRate: opponentRightHandItem || opponentLeftHandItem ? weaponAttackInterval(opponentRightHandItem || opponentLeftHandItem,
+        attackIntervalForProgress(withSoulStats(opponentProgress, soulStatsFor(ctx, opponentProgress.identity), soulAttackCapFor(ctx, opponentProgress.identity)))) : inactiveAttackRate,
       opponentRegen: researchedRegen(ctx, opponent, opponentProgress.regen),
       opponentAttacks: 0,
       opponentDamageDealt: 0,
@@ -393,14 +401,15 @@ export function createDuelRuntime(deps: DuelRuntimeDeps) {
     ctx.db.duelRiposte.insert({
       duelId: insertedDuel.id,
       // Reflect cards add to the perk.
-      challengerRiposte: prestigeRiposteChance(prestigePerkRanks(ctx, ctx.sender)) + cardChance(wornCardTotalsFor(ctx, ctx.sender), "reflect") / 100,
-      opponentRiposte: prestigeRiposteChance(prestigePerkRanks(ctx, opponent)) + cardChance(wornCardTotalsFor(ctx, opponent), "reflect") / 100,
+      challengerRiposte: prestigeRiposteChance(prestigePerkRanks(ctx, ctx.sender)) + cardChance(activeCardTotalsFor(ctx, ctx.sender), "reflect") / 100,
+      opponentRiposte: prestigeRiposteChance(prestigePerkRanks(ctx, opponent)) + cardChance(activeCardTotalsFor(ctx, opponent), "reflect") / 100,
       riposteSeed: ctx.timestamp.microsSinceUnixEpoch,
     });
     ctx.db.duelCombatSnapshot.insert({ ...ctx.db.duelRiposte.duelId.find(insertedDuel.id), ...duelBowSkillFields(ctx, insertedDuel), ...duelSwordSkillFields(ctx, insertedDuel),
-      challengerCards: [...equippedCardIds(challengerProgress, itemId => itemCardsFor(ctx, ctx.sender, itemId))],
-      opponentCards: [...equippedCardIds(opponentProgress, itemId => itemCardsFor(ctx, opponent, itemId))],
+      challengerCards: activeCardIdsFor(ctx, ctx.sender),
+      opponentCards: activeCardIdsFor(ctx, opponent),
       challengerFirstHit: duelFirstHit(ctx, ctx.sender), opponentFirstHit: duelFirstHit(ctx, opponent) });
+    insertDuelStaffSkills(ctx, insertedDuel.id, duelStaffSkillFields(ctx, insertedDuel));
     ctx.db.duelResolutionSchedule.insert({
       scheduledId: 0n,
       scheduledAt: ScheduleAt.time(endsAtMicros),

@@ -8,7 +8,7 @@ import {
   STARTER_STONE,
   WOODEN_ARMOR,
 } from "../../shared/items";
-import { PROFILE_EQUIPMENT_SLOTS, profileEquipmentCardSlots, profileEquipmentPresentation, renderProfileEquipmentSlot, type ProfileEquipmentProgress } from "./profile-equipment";
+import { PROFILE_EQUIPMENT_SLOTS, profileEquipmentActiveCards, profileEquipmentPresentation, renderProfileEquipmentSlot, type ProfileEquipmentProgress } from "./profile-equipment";
 
 function equipment(overrides: Partial<ProfileEquipmentProgress> = {}): ProfileEquipmentProgress {
   return {
@@ -26,13 +26,15 @@ function equipment(overrides: Partial<ProfileEquipmentProgress> = {}): ProfileEq
   };
 }
 
-describe("profile card slots", () => {
-  it("shows a worn item's slots, one empty slot with no row yet, and none for a look or gear without card slots", () => {
+describe("profile active cards", () => {
+  it("shows a worn weapon's, helmet's or armor's type of active cards, and none for a look alone or boots", () => {
+    const active = ["needle_card", "mossback_card", "bramble_card"];
     const chest = profileEquipmentPresentation(equipment(), "CHEST");
-    expect(profileEquipmentCardSlots(chest, { [WOODEN_ARMOR]: { slots: 2, cards: ["mossback_card"] } })).toEqual({ slots: 2, cards: ["mossback_card"] });
-    expect(profileEquipmentCardSlots(chest, undefined)).toEqual({ slots: 1, cards: [] });
-    expect(profileEquipmentCardSlots(profileEquipmentPresentation(equipment({ cosmeticChest: FROST_ARMOR }), "CHEST"), {})).toBeUndefined();
-    expect(profileEquipmentCardSlots(profileEquipmentPresentation(equipment(), "FEET"), {})).toBeUndefined();
+    expect(profileEquipmentActiveCards(chest, active)).toEqual({ title: "Active Armor Cards", cards: ["mossback_card", "bramble_card"] });
+    expect(profileEquipmentActiveCards(profileEquipmentPresentation(equipment({ cosmeticChest: FROST_ARMOR }), "CHEST"), active)?.cards)
+      .toEqual(["mossback_card", "bramble_card"]);
+    expect(profileEquipmentActiveCards(profileEquipmentPresentation(equipment({ cosmeticChest: FROST_ARMOR, equippedChest: "" }), "CHEST"), active)).toBeUndefined();
+    expect(profileEquipmentActiveCards(profileEquipmentPresentation(equipment(), "FEET"), active)).toBeUndefined();
   });
 });
 
@@ -45,8 +47,13 @@ describe("profile equipment presentation", () => {
     });
   });
 
-  it("shows and inspects an active cosmetic instead of the stat item", () => {
+  it("shows an active cosmetic but inspects the gear under it", () => {
     expect(profileEquipmentPresentation(equipment({ cosmeticChest: FROST_ARMOR }), "CHEST")).toMatchObject({
+      kind: "COSMETIC",
+      displayItemId: FROST_ARMOR,
+      inspectionItemId: WOODEN_ARMOR,
+    });
+    expect(profileEquipmentPresentation(equipment({ cosmeticChest: FROST_ARMOR, equippedChest: "" }), "CHEST")).toMatchObject({
       kind: "COSMETIC",
       displayItemId: FROST_ARMOR,
       inspectionItemId: FROST_ARMOR,
@@ -61,12 +68,12 @@ describe("profile equipment presentation", () => {
     });
   });
 
-  it("shows the one active hand cosmetic in the single weapon slot", () => {
+  it("shows the one active hand cosmetic in the single weapon slot, over the weapon it inspects", () => {
     const progress = equipment({ cosmeticLeftHand: STARTER_BOW });
     expect(profileEquipmentPresentation(progress, "WEAPON")).toMatchObject({
       kind: "COSMETIC",
       displayItemId: STARTER_BOW,
-      inspectionItemId: STARTER_BOW,
+      inspectionItemId: STARTER_STONE,
     });
   });
 

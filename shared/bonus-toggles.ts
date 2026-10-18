@@ -26,14 +26,18 @@ const PERKS: readonly [keyof PrestigePerkRanks, string, string][] = [
   ["splitShot", "Split Shot", "Hits that reach a second enemy"], ["riposte", "Reflect", "Damage thrown back"],
   ["bossSlayer", "Boss Slayer", "Damage to bosses"], ["secondWind", "Second Wind", "Heal on kills"],
   ["longShot", "Long Shot", "Attack range"], ["fleetFoot", "Fleet Foot", "Move speed"], ["quickDraw", "Quick Draw", "Attack speed cap"],
+  ["weaponCards", "Weapon Card Slots", "More active weapon cards"], ["helmetCards", "Helmet Card Slots", "More active helmet cards"],
+  ["armorCards", "Armor Card Slots", "More active armor cards"],
 ];
-/** The research that changes combat or farming, by its player_research column. */
+/** The research that changes combat, farming or luck, by its research column (player_research or player_luck_research). */
 const RESEARCH: readonly [string, string, string][] = [
   ["foraging", "Foraging", "Stat gain"], ["prosperity", "Prosperity", "Stat gain"], ["warcraft", "Warcraft", "Damage"],
   ["vitality", "Vitality", "Max health"], ["precision", "Precision", "Armor"], ["regeneration", "Regeneration", "Regen"],
   ["criticalChance", "Critical Chance", "Crit chance"], ["criticalDamage", "Critical Damage", "Crit damage"], ["critCap", "Crit Cap", "Crit damage cap"],
   ["moveSpeed", "Move Speed", "Move speed"], ["utilityMoveSpeed", "Swiftness", "Move speed"], ["utilityAttackRange", "Attack Range", "Attack range"],
   ["enemyRespawn", "Enemy Respawn", "Enemies come back sooner"], ["bossRespawn", "Boss Respawn", "Bosses come back sooner"],
+  ["cardLuck", "Card Luck", "Card drop rate"], ["gearLuck", "Gear Luck", "Equipment drop rate"],
+  ["miningLuck", "Mining Luck", "Starshard chance"], ["skillLuck", "Skill Luck", "Weapon skill chance"], ["refineLuck", "Refine Luck", "Refine chance"],
 ];
 /** Soul stats, by their player_soul_stats column. */
 const SOUL: readonly [string, string][] = [

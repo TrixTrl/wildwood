@@ -50,7 +50,7 @@ export function createAutoEquip(deps: {
   itemUpgradeLevelFor: (ctx: Ctx, identity: Identity, itemId: string) => ItemLevel;
   writeProgressAndPresentation: (ctx: Ctx, progress: any) => void;
 }) {
-  /** The comparison Equip best makes, for this player's stats, research, slot tiers and bow rolls. */
+  /** The comparison Equip best makes, for this player's stats, research, slot tiers, refines and bow rolls (not cards). */
   function comparisonPower(ctx: Ctx, identity: Identity) {
     const research = ctx.db.playerResearch.identity.find(identity);
     return (candidate: any) => equipComparisonPower(candidate, research,
@@ -110,7 +110,7 @@ export function createAutoEquip(deps: {
    * loadout carry over, and gear above tier 1 is locked again until its map
    * is reached. Every slot holding locked gear gets the best gear the player
    * can use instead, a hand the best weapon of the kind it held: an archer
-   * stays an archer. A swordsman with no usable sword gets the best ranged
+   * stays an archer. A swordsman with no usable sword, or a staff player with no usable staff, gets the best ranged
    * weapon, and a hand with nothing usable at all the starter stone, which
    * every player owns. Slots holding usable gear, or any slot the player left
    * empty, hands included, stay as they were.
@@ -147,7 +147,7 @@ export function createAutoEquip(deps: {
       }
       const held = weaponKind(equippedInSlot(progress, "HAND"));
       next = { ...next, equippedRightHand: "", equippedLeftHand: "" };
-      for (const kind of held === "MELEE" ? ["MELEE", "RANGED"] as const : ["RANGED"] as const) {
+      for (const kind of held === "RANGED" ? ["RANGED"] as const : [held, "RANGED"] as const) {
         for (const itemId of inventory) if (itemDefinition(itemId)?.slot === "HAND") next = withUpgrade(ctx, next, itemId, inventory, true, kind);
         if (equippedInSlot(next, "HAND")) break;
       }

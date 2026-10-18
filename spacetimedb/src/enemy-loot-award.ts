@@ -3,7 +3,7 @@ import type schema from "./index";
 import { keepWantedDrops } from "./ignored-drops";
 import { rollRegularEnemyLoot } from "./regular-enemy-loot";
 import { readPlayerProgress } from "./wide-stats";
-import { wornCardTotalsFor } from "./worn-cards";
+import { activeCardTotalsFor } from "./active-cards";
 import { cardStatFactors, type CardTotals } from "../../shared/card-effects";
 import { defaultPlayerProgress, inventoryForProgress, restoreItemToProgress } from "./progress-helpers";
 import { activeItemUpgradeEntriesFor } from "./upgrade-bench-slots";
@@ -11,15 +11,18 @@ import { freeBagSlots, offerItemForFullBag, publishItemDrop } from "./equipment-
 import { isDuplicateOfferItem } from "../../shared/equipment-copies";
 import { insertSnapshotRow, updateSnapshotRow } from "./snapshot-row-writes";
 import type { pinnedMapBalance } from "./map-balance";
+import { luckInPlay } from "./luck-research";
+import { luckMultiplier } from "../../shared/luck-research";
 
 type Context = ReducerCtx<InferSchema<typeof schema>>;
 
 /** Gear from an accepted kill report, less what the loot filter drops. With `checkpoint` the caller writes the bag. */
 export function awardRegularEnemyLoot(ctx: Context, mapId: string, count: number, balance: ReturnType<typeof pinnedMapBalance>,
   checkpoint?: { progress: any; cards?: CardTotals }) {
-  // Treasure cards in the worn gear raise every drop's chance.
-  const treasure = 1 + cardStatFactors(checkpoint?.cards ?? wornCardTotalsFor(ctx, ctx.sender)).treasure;
-  const drops = keepWantedDrops(ctx, ctx.sender, rollRegularEnemyLoot(ctx, mapId, count, balance?.loot, treasure));
+  // Treasure cards in the worn gear and Gear Luck raise every drop's chance.
+  const treasure = 1 + cardStatFactors(checkpoint?.cards ?? activeCardTotalsFor(ctx, ctx.sender)).treasure;
+  const chance = treasure * luckMultiplier("gearLuck", luckInPlay(ctx, ctx.sender).gearLuck);
+  const drops = keepWantedDrops(ctx, ctx.sender, rollRegularEnemyLoot(ctx, mapId, count, balance?.loot, chance));
   if (!drops.size) return checkpoint?.progress;
   const current = checkpoint?.progress ?? readPlayerProgress(ctx, ctx.sender);
   let next = current ?? defaultPlayerProgress(ctx.sender);

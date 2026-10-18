@@ -1,4 +1,4 @@
-import { itemDefinition, itemDisplayName, itemStats } from "../../shared/items";
+import { STARTER_STAFF, itemDefinition, itemDisplayName, itemStats } from "../../shared/items";
 import {
   REFINE_MAX, REFINE_ORES, isRefinableItem, refineCost, refineSafeLimit, refineSuccessChance, type OreId,
 } from "../../shared/refine";
@@ -7,20 +7,22 @@ import { itemInspectionButtonLabel } from "./item-inspection-controller";
 import { formatEquipmentStat } from "./equipment-stat-format";
 import { refineStars } from "./refine-badge";
 import { ORE_ORDER } from "../../shared/ore-bag";
-import { CARDS, cardDefinition, cardFitsItem, type CardSlot } from "../../shared/cards";
-import { CARD_SLOT_NAMES, cardEffectText, cardName } from "../../shared/card-text";
-import { byMapThenRarity, cardTile } from "./cards-tab";
-import { cardPortrait } from "./card-portrait";
+import { itemTier } from "../../shared/item-tier";
 
 type Result = { ok: boolean; error?: string } | undefined;
-type GearSlots = { slots: number; cards: readonly string[] };
 type RefineResult = { itemId: string; copyId: bigint; fromLevel: number; toLevel: number; succeeded: boolean };
 /** One copy of an item the player holds: copy id 0 is the first copy, the one a slot holds. */
 export type SmithItem = { itemId: string; copyId: bigint; equipped: boolean };
 
 const key = (item: { itemId: string; copyId: bigint }) => `${item.itemId}:${item.copyId}`;
+/** The bag's filters for the gear the Smith works on (boots are not refined). */
+const SMITH_FILTERS = [["ALL", "All"], ["HAND", "Weapons"], ["CHEST", "Armor"], ["HEAD", "Helmets"]] as const;
 const nameOf = (itemId: string) => itemInspectionButtonLabel(itemDisplayName(itemId));
-const percent = (chance: number) => `${Math.round(chance * 100)}%`;
+// Refine Luck moves the odds by fractions of a percent, so they keep their decimals (2.2%, 0.031%).
+const percent = (chance: number) => {
+  const value = chance * 100;
+  return `${Number(value.toFixed(value >= 10 ? 1 : value >= 1 ? 2 : 3))}%`;
+};
 
 /**
  * The Smith's window, in the Town's smithy: pick a copy of an item, see what a try costs and how likely it is,
@@ -36,29 +38,28 @@ export function createSmithController(deps: {
   slotTier: (itemId: string) => number;
   ores: () => Readonly<Partial<Record<OreId, number>>>;
   refine: (itemId: string, copyId: bigint, expectedLevel: number) => Promise<Result>;
+  /** Refine Luck's rank, which raises the odds the server rolls against. */
+  refineLuck?: () => number;
   showMessage: (text: string, color: string) => void;
   /** Mining (shared/mining.ts): the free pickaxe he hands over, and the Mining stat once it is in hand. */
   hasPickaxe?: () => boolean;
   claimPickaxe?: () => Promise<Result>;
   mining?: () => number;
-  /** Cards (shared/cards.ts): those held, a copy's slots, and slotting one in. Without them there is no Cards tab. */
-  cards?: () => Readonly<Record<string, number>>;
-  gearSlots?: (itemId: string, copyId: bigint) => GearSlots;
-  slotCard?: (itemId: string, copyId: bigint, cardId: string, expectedCards: number) => Promise<Result>;
-  /** Lifts a slotted card back out for Starshards; without it the slots show no Remove. */
-  removeCard?: (itemId: string, copyId: bigint, index: number, expectedCards: number) => Promise<Result>;
+  /** The free Starter Staff he hands out, as he does the pickaxe. */
+  hasStarterStaff?: () => boolean;
+  claimStarterStaff?: () => Promise<Result>;
 }) {
   const dialog = document.createElement("dialog");
   dialog.className = "farm-sheet quest-sheet smith-sheet";
   dialog.setAttribute("aria-labelledby", "smithTitle");
   dialog.innerHTML = `<header class="farm-header"><h2 id="smithTitle" class="window-banner"><span>The Smith</span></h2></header>`
-    + `<div class="quest-body"><div class="inventory-tabs smith-tabs" role="tablist" aria-label="The Smith">`
-    + `<button type="button" class="inventory-tab" role="tab" data-tab="refine">Refine</button><button type="button" class="inventory-tab" role="tab" data-tab="cards">Cards</button></div>`
-    + `<p class="farm-map smith-intro"></p>`
+    + `<div class="quest-body"><p class="farm-map smith-intro">Refine gear with ore. Safe up to its limit; past it a try can fail, and a fail costs only the ore.</p>`
     + `<section class="smith-focus" aria-live="polite"></section>`
     + `<p class="smith-ores" aria-label="Your ores"></p>`
     + `<div class="smith-mining"><span class="smith-mining-text"></span><button type="button" class="farm-start smith-refine smith-pickaxe">Take a Pickaxe</button></div>`
-    + `<section class="smith-cards" aria-label="Your cards that fit"><p class="smith-empty smith-cards-note"></p><div class="inventory-items smith-card-grid"></div></section>`
+    + `<div class="smith-mining smith-staff-row"><span class="smith-mining-text">Starter Staff · Casts bolts that burst on a pack</span><button type="button" class="farm-start smith-refine smith-staff">Take a Staff</button></div>`
+    + `<div class="inventory-filters smith-filters" role="group" aria-label="Show gear"></div>`
+    + `<p class="smith-empty smith-filter-empty" hidden></p>`
     + `<div class="smith-items" role="listbox" aria-label="Your gear"></div></div>`
     + `<footer class="farm-footer"><div class="farm-actions"><button type="button" class="window-back-button">Back</button></div></footer>`;
   document.body.append(dialog);
@@ -68,30 +69,33 @@ export function createSmithController(deps: {
   const back = dialog.querySelector<HTMLButtonElement>(".window-back-button")!;
   const miningText = dialog.querySelector<HTMLElement>(".smith-mining-text")!;
   const pickaxeButton = dialog.querySelector<HTMLButtonElement>(".smith-pickaxe")!;
-  const intro = dialog.querySelector<HTMLElement>(".smith-intro")!;
-  const mining = dialog.querySelector<HTMLElement>(".smith-mining")!;
-  const cardsSection = dialog.querySelector<HTMLElement>(".smith-cards")!;
-  const cardGrid = dialog.querySelector<HTMLElement>(".smith-card-grid")!;
-  const cardsNote = dialog.querySelector<HTMLElement>(".smith-cards-note")!;
-  const tabButtons = [...dialog.querySelectorAll<HTMLButtonElement>(".smith-tabs .inventory-tab")];
-  const canSlot = Boolean(deps.cards && deps.gearSlots && deps.slotCard);
-  if (!canSlot) dialog.querySelector(".smith-tabs")!.remove();
-  let tab: "refine" | "cards" = "refine";
-  let pickedCard: string | null = null;
-  let slotting = false;
-  /** The slot whose Remove was tapped once: the next tap on it removes the card. */
-  let armedRemoval: string | null = null;
+  const staffRow = dialog.querySelector<HTMLElement>(".smith-staff-row")!;
+  const staffButton = dialog.querySelector<HTMLButtonElement>(".smith-staff")!;
+  const filterBar = dialog.querySelector<HTMLElement>(".smith-filters")!;
+  const filterEmpty = dialog.querySelector<HTMLElement>(".smith-filter-empty")!;
+  /** The gear shown, as the bag filters it: everything, or one kind. */
+  let shown: (typeof SMITH_FILTERS)[number][0] = "ALL";
+  for (const [kind, label] of SMITH_FILTERS) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "inventory-filter";
+    button.dataset.filter = kind;
+    button.textContent = label;
+    button.addEventListener("click", () => { if (shown !== kind) { shown = kind; render(); } });
+    filterBar.append(button);
+  }
   let selected: string | null = null;
   let refining = false;
   /** Taken here and on its way: the button goes before the server's row arrives. */
-  let pickaxeTaken = false, takingPickaxe = false;
+  let pickaxeTaken = false, takingPickaxe = false, takingStaff = false;
   let lastResult: { text: string; good: boolean } | null = null;
   let renderedState = "";
 
   function choices() {
-    return deps.items().filter(item => isRefinableItem(item.itemId))
-      // Worn first, then the bag; a kept copy after its first copy.
-      .sort((a, b) => Number(b.equipped) - Number(a.equipped) || a.itemId.localeCompare(b.itemId) || (a.copyId < b.copyId ? -1 : 1));
+    return deps.items().filter(item => isRefinableItem(item.itemId) && (shown === "ALL" || itemDefinition(item.itemId)?.slot === shown))
+      // Worn first, then the bag by tier as the bag sorts it, highest first; a kept copy after its first copy.
+      .sort((a, b) => Number(b.equipped) - Number(a.equipped) || (itemTier(b.itemId) ?? 0) - (itemTier(a.itemId) ?? 0)
+        || nameOf(a.itemId).localeCompare(nameOf(b.itemId)) || (a.copyId < b.copyId ? -1 : 1));
   }
 
   function renderFocus(item: SmithItem | undefined) {
@@ -100,7 +104,7 @@ export function createSmithController(deps: {
       return;
     }
     const level = deps.refineLevel(item.itemId, item.copyId), next = level + 1, tier = deps.slotTier(item.itemId);
-    const atTop = level >= REFINE_MAX, safe = refineSafeLimit(item.itemId), chance = atTop ? 0 : refineSuccessChance(item.itemId, next);
+    const atTop = level >= REFINE_MAX, safe = refineSafeLimit(item.itemId), chance = atTop ? 0 : refineSuccessChance(item.itemId, next, deps.refineLuck?.() ?? 0);
     const cost = atTop ? null : refineCost(item.itemId, next);
     const held = deps.ores();
     const short = cost ? Object.entries(cost).filter(([oreId, count]) => (held[oreId as OreId] ?? 0) < (count ?? 0)) : [];
@@ -152,104 +156,25 @@ export function createSmithController(deps: {
     focus.append(outcome);
   }
 
-  const slotsOf = (item: SmithItem) => deps.gearSlots?.(item.itemId, item.copyId) ?? { slots: 0, cards: [] };
-
-  /** The Cards tab's focus: the copy's slots, and the picked card with its effects and the button to slot it. */
-  function renderSlots(item: SmithItem | undefined) {
-    if (!item) {
-      focus.innerHTML = `<p class="smith-empty">Bring the Smith a weapon, helmet or armor to slot cards into.</p>`;
-      return;
-    }
-    const { slots, cards } = slotsOf(item);
-    focus.replaceChildren(itemHead(item, `Card Slots ${cards.length} / ${slots}`));
-    const row = document.createElement("div");
-    row.className = "smith-slot-row";
-    for (let index = 0; index < slots; index++) {
-      const card = cardDefinition(cards[index]);
-      const chip = document.createElement("div");
-      chip.className = card ? `smith-slot is-filled is-${card.rarity}` : "smith-slot";
-      if (card) {
-        const art = document.createElement("img");
-        art.alt = "";
-        void cardPortrait(card.id).then(source => { if (source) art.src = source; });
-        const name = document.createElement("span");
-        name.textContent = cardName(card);
-        chip.append(art, name);
-        if (deps.removeCard) chip.append(removeButton(item, index, cards.length));
-      } else chip.textContent = "Empty Slot";
-      row.append(chip);
-    }
-    focus.append(row);
-    const card = cardDefinition(pickedCard);
-    if (card && cards.length < slots) {
-      const effects = document.createElement("ul");
-      effects.className = "smith-card-effects";
-      for (const effect of card.effects) {
-        const line = document.createElement("li");
-        line.textContent = cardEffectText(effect);
-        if (effect.value < 0) line.className = "is-cost";
-        effects.append(line);
-      }
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "farm-start smith-refine";
-      button.textContent = slotting ? "Slotting…" : `Slot ${cardName(card)}`;
-      button.disabled = slotting;
-      button.addEventListener("click", () => { void slot(item, card.id, cards.length); });
-      const warning = document.createElement("p");
-      warning.className = "smith-empty";
-      warning.textContent = deps.removeCard ? "Cards come back out free here, and return to your cards if the gear is destroyed." : "A slotted card stays in for good.";
-      focus.append(effects, button, warning);
-    }
-    appendOutcome();
-  }
-
-  /** The cards held that fit the chosen copy; one is picked to slot, none once every slot is full. */
-  function renderCardList(item: SmithItem | undefined) {
-    cardsSection.hidden = tab !== "cards";
-    if (tab !== "cards") return;
-    const held = deps.cards?.() ?? {};
-    const fitting = item ? CARDS.filter(card => (held[card.id] ?? 0) > 0 && cardFitsItem(card.id, item.itemId)).sort(byMapThenRarity) : [];
-    const { slots, cards } = item ? slotsOf(item) : { slots: 0, cards: [] };
-    const full = cards.length >= slots;
-    if (!fitting.some(card => card.id === pickedCard) || full) pickedCard = null;
-    cardGrid.replaceChildren(...(full ? [] : fitting).map(card => {
-      const tile = cardTile(card, held[card.id] ?? 0, () => { pickedCard = card.id; lastResult = null; render(); });
-      tile.setAttribute("aria-selected", String(card.id === pickedCard));
-      tile.disabled = slotting;
-      return tile;
-    }));
-    const slotName = CARD_SLOT_NAMES[(itemDefinition(item?.itemId ?? "")?.slot ?? "HAND") as CardSlot];
-    cardsNote.textContent = !item ? "" : slots === 0 ? "This gear has no card slots." : full ? "Every slot in this gear is full."
-      : fitting.length ? "Pick a card to slot it." : `No ${slotName} cards yet. Cards drop rarely from enemies and bosses.`;
-    cardsNote.hidden = !item;
-  }
-
   function render() {
     const items = choices();
     if (!selected || !items.some(item => key(item) === selected)) selected = items[0] ? key(items[0]) : null;
     const chosen = items.find(item => key(item) === selected);
     // Presence updates also refresh open windows. Keep focus and buttons in place until this window changes.
     const state = JSON.stringify([
-      tab, selected, pickedCard, slotting, armedRemoval, refining, lastResult, pickaxeTaken, takingPickaxe,
-      deps.ores(), deps.hasPickaxe?.(), deps.mining?.(), deps.cards?.(),
-      items.map(item => [key(item), item.equipped, deps.refineLevel(item.itemId, item.copyId), deps.slotTier(item.itemId), slotsOf(item)]),
+      shown, selected, refining, lastResult, pickaxeTaken, takingPickaxe, takingStaff, deps.hasStarterStaff?.(),
+      deps.ores(), deps.hasPickaxe?.(), deps.mining?.(),
+      items.map(item => [key(item), item.equipped, deps.refineLevel(item.itemId, item.copyId), deps.slotTier(item.itemId)]),
     ]);
     if (state === renderedState) return;
     renderedState = state;
-    for (const button of tabButtons) {
-      const active = button.dataset.tab === tab;
-      button.classList.toggle("is-active", active);
-      button.setAttribute("aria-selected", String(active));
-      button.tabIndex = active ? 0 : -1;
-      button.disabled = slotting;
-    }
-    intro.textContent = tab === "cards" ? "Slot cards into gear. Each card adds its effects to the gear it is in."
-      : "Refine gear with ore. Safe up to its limit; past it a try can fail, and a fail costs only the ore.";
-    oreLine.hidden = mining.hidden = tab === "cards";
-    renderCardList(chosen);
-    if (tab === "cards") renderSlots(chosen);
-    else renderFocus(chosen);
+    // Shown until the bag holds one; a thrown-away staff can be taken again.
+    staffRow.hidden = !deps.claimStarterStaff || Boolean(deps.hasStarterStaff?.());
+    staffButton.disabled = takingStaff;
+    for (const button of filterBar.querySelectorAll<HTMLButtonElement>(".inventory-filter")) button.setAttribute("aria-pressed", String(button.dataset.filter === shown));
+    filterEmpty.hidden = items.length > 0 || shown === "ALL";
+    filterEmpty.textContent = `No ${SMITH_FILTERS.find(([kind]) => kind === shown)?.[1].toLowerCase() ?? "gear"} to bring`;
+    renderFocus(chosen);
     const held = deps.ores();
     oreLine.textContent = ORE_ORDER.map(oreId => `${REFINE_ORES[oreId].name} ${held[oreId] ?? 0}`).join(" · ");
     // Where the ore comes from, and the pickaxe to get it with.
@@ -261,7 +186,6 @@ export function createSmithController(deps: {
       const option = document.createElement("button");
       option.type = "button";
       option.className = "smith-choice";
-      option.disabled = slotting;
       option.setAttribute("role", "option");
       const isSelected = key(item) === selected, level = deps.refineLevel(item.itemId, item.copyId);
       option.setAttribute("aria-selected", String(isSelected));
@@ -269,17 +193,8 @@ export function createSmithController(deps: {
       option.innerHTML = `<span class="smith-choice-art">${itemArtMarkup(item.itemId)}</span>`
         + (level > 0 ? `<span class="refine-badge">${refineStars(level)}</span>` : "")
         + (item.equipped ? `<span class="smith-worn">Worn</span>` : "");
-      // On the Cards tab each copy shows its slots: ◆ holds a card, ◇ is open.
-      if (tab === "cards") {
-        const { slots, cards } = slotsOf(item);
-        const pips = document.createElement("span");
-        pips.className = "smith-slot-pips";
-        pips.textContent = "◆".repeat(Math.min(cards.length, slots)) + "◇".repeat(Math.max(0, slots - cards.length));
-        option.append(pips);
-      }
       option.addEventListener("click", () => {
-        if (slotting) return;
-        selected = key(item); lastResult = null; pickedCard = null; render();
+        selected = key(item); lastResult = null; render();
       });
       return option;
     }));
@@ -310,75 +225,6 @@ export function createSmithController(deps: {
       : { text: "It failed. Nothing lost but the ore.", good: false };
     deps.showMessage(result.succeeded ? `Refined · ${name}` : `Refine Failed · ${name}`, result.succeeded ? "#ffd75e" : "#ff9b91");
     if (dialog.open) render();
-  }
-
-  /** Remove on a slotted card: a first tap arms it, a second takes it out, free. */
-  function removeButton(item: SmithItem, index: number, expectedCards: number) {
-    const slotKey = `${key(item)}:${index}`;
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "smith-slot-remove";
-    const armed = armedRemoval === slotKey;
-    button.textContent = slotting ? "Working…" : armed ? "Confirm Remove" : "Remove";
-    button.classList.toggle("is-armed", armed);
-    button.disabled = slotting;
-    button.addEventListener("click", () => {
-      if (armedRemoval !== slotKey) { armedRemoval = slotKey; render(); return; }
-      armedRemoval = null;
-      void removeSlotted(item, index, expectedCards);
-    });
-    return button;
-  }
-
-  async function removeSlotted(item: SmithItem, index: number, expectedCards: number) {
-    const card = cardDefinition(slotsOf(item).cards[index]);
-    if (slotting || !card || !deps.removeCard) return;
-    slotting = true;
-    lastResult = null;
-    render();
-    try {
-      const result = await deps.removeCard(item.itemId, item.copyId, index, expectedCards);
-      if (result?.ok) {
-        lastResult = { text: `${cardName(card)} is back in your cards.`, good: true };
-        deps.showMessage(`Card Removed · ${cardName(card)}`, "#ffd75e");
-      } else {
-        lastResult = { text: result?.error ?? "Not connected", good: false };
-        deps.showMessage(result?.error ?? "Not Connected", "#ff9b91");
-      }
-    } finally {
-      slotting = false;
-      if (dialog.open) render();
-    }
-  }
-
-  async function slot(item: SmithItem, cardId: string, expectedCards: number) {
-    const card = cardDefinition(cardId);
-    if (slotting || !card || !deps.slotCard) return;
-    slotting = true;
-    lastResult = null;
-    render();
-    try {
-      const result = await deps.slotCard(item.itemId, item.copyId, cardId, expectedCards);
-      if (result?.ok) {
-        pickedCard = null;
-        lastResult = { text: `${cardName(card)} slotted into ${nameOf(item.itemId)}.`, good: true };
-        deps.showMessage(`Card Slotted · ${cardName(card)}`, "#ffd75e");
-      } else {
-        lastResult = { text: result?.error ?? "Not connected", good: false };
-        deps.showMessage(result?.error ?? "Not Connected", "#ff9b91");
-      }
-    } finally {
-      slotting = false;
-      if (dialog.open) render();
-    }
-  }
-
-  function setTab(next: "refine" | "cards") {
-    if (slotting || tab === next) return;
-    tab = next;
-    lastResult = null;
-    pickedCard = null;
-    render();
   }
 
   function close() {
@@ -414,15 +260,18 @@ export function createSmithController(deps: {
       if (dialog.open) render();
     }
   });
-  tabButtons.forEach((button, index) => {
-    button.addEventListener("click", () => setTab(button.dataset.tab === "cards" ? "cards" : "refine"));
-    button.addEventListener("keydown", event => {
-      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-      event.preventDefault();
-      const next = tabButtons[(index + 1) % tabButtons.length];
-      setTab(next.dataset.tab === "cards" ? "cards" : "refine");
-      next.focus();
-    });
+  staffButton.addEventListener("click", async () => {
+    if (takingStaff || !deps.claimStarterStaff) return;
+    takingStaff = true;
+    render();
+    try {
+      const result = await deps.claimStarterStaff();
+      if (result?.ok) deps.showMessage("The Smith hands you a Starter Staff. Equip it from your bag.", "#ffd75e");
+      else deps.showMessage(result?.error ?? "Not Connected", "#ff9b91");
+    } finally {
+      takingStaff = false;
+      if (dialog.open) render();
+    }
   });
   back.addEventListener("click", close);
   dialog.addEventListener("cancel", event => { event.preventDefault(); close(); });
@@ -434,17 +283,15 @@ export function createSmithRuntime(deps: {
   coop: () => {
     hasPickaxe?: () => boolean;
     claimPickaxe?: () => Promise<Result>;
+    claimStarterStaff?: () => Promise<Result>;
     mining?: () => number;
     itemRefine?: (itemId: string, copyId?: bigint) => number;
     itemUpgradeLevel?: (itemId: string) => number;
     ores?: () => Readonly<Partial<Record<OreId, number>>>;
     refineItem?: (itemId: string, copyId: bigint, expectedLevel: number) => Promise<Result>;
+    researchInPlay?: () => { refineLuck?: number };
     equipmentCopies?: () => readonly { id: bigint; itemId: string }[];
     setOnRefineResult?: (callback: ((result: RefineResult) => void) | null) => void;
-    cards?: () => Readonly<Record<string, number>>;
-    gearSlots?: (itemId: string, copyId?: bigint) => GearSlots;
-    slotCard?: (itemId: string, copyId: bigint, cardId: string, expectedCards: number) => Promise<Result>;
-    removeCard?: (itemId: string, copyId: bigint, index: number, expectedCards: number) => Promise<Result>;
   } | null | undefined;
   inventory: { itemIds: string[]; equippedHead: string; equippedChest: string; equippedRightHand: string; equippedLeftHand: string };
   showMessage: (text: string, color: string) => void;
@@ -466,13 +313,12 @@ export function createSmithRuntime(deps: {
     slotTier: itemId => deps.coop()?.itemUpgradeLevel?.(itemId) ?? 0,
     ores: () => deps.coop()?.ores?.() ?? {},
     refine: async (itemId, copyId, expectedLevel) => deps.coop()?.refineItem?.(itemId, copyId, expectedLevel) ?? { ok: false, error: "Not Connected" },
+    refineLuck: () => deps.coop()?.researchInPlay?.()?.refineLuck ?? 0,
     hasPickaxe: () => deps.coop()?.hasPickaxe?.() ?? false,
     claimPickaxe: async () => deps.coop()?.claimPickaxe?.() ?? { ok: false, error: "Not Connected" },
+    hasStarterStaff: () => inventory.itemIds.includes(STARTER_STAFF),
+    claimStarterStaff: async () => deps.coop()?.claimStarterStaff?.() ?? { ok: false, error: "Not Connected" },
     mining: () => deps.coop()?.mining?.() ?? 0,
-    cards: () => deps.coop()?.cards?.() ?? {},
-    gearSlots: (itemId, copyId) => deps.coop()?.gearSlots?.(itemId, copyId) ?? { slots: 0, cards: [] },
-    slotCard: async (itemId, copyId, cardId, expectedCards) => deps.coop()?.slotCard?.(itemId, copyId, cardId, expectedCards) ?? { ok: false, error: "Not Connected" },
-    removeCard: async (itemId, copyId, index, expectedCards) => deps.coop()?.removeCard?.(itemId, copyId, index, expectedCards) ?? { ok: false, error: "Not Connected" },
   });
   let listening = false;
   return {

@@ -52,6 +52,8 @@ export type BaseSubscriptionHandlers = {
   progress: RowHandler;
   research: RowHandler;
   removeResearch: RowHandler;
+  luckResearch: RowHandler;
+  removeLuckResearch: RowHandler;
   activeResearch: RowHandler;
   removeActiveResearch: RowHandler;
   pausedResearch: RowHandler;
@@ -67,6 +69,7 @@ export type BaseSubscriptionHandlers = {
   dailyQuest: RowHandler; removeDailyQuest: RowHandler; guildQuestWeek: RowHandler; removeGuildQuestWeek: RowHandler;
   prestigeExpansionPerk: RowHandler;
   removePrestigeExpansionPerk: RowHandler;
+  prestigeCardPerk: RowHandler; removePrestigeCardPerk: RowHandler;
   bonusToggle: RowHandler; removeBonusToggle: RowHandler;
   removePrestigePerk: RowHandler;
   itemUpgrade: RowHandler;
@@ -117,6 +120,8 @@ type BaseSubscriptionHandlerSources = {
     upsertProgress: BaseSubscriptionHandlers["progress"];
     upsertResearch: BaseSubscriptionHandlers["research"];
     removeResearch: BaseSubscriptionHandlers["removeResearch"];
+    upsertLuckResearch: BaseSubscriptionHandlers["luckResearch"];
+    removeLuckResearch: BaseSubscriptionHandlers["removeLuckResearch"];
     upsertActiveResearch: BaseSubscriptionHandlers["activeResearch"];
     removeActiveResearch: BaseSubscriptionHandlers["removeActiveResearch"];
     upsertPausedResearch: BaseSubscriptionHandlers["pausedResearch"];
@@ -131,6 +136,7 @@ type BaseSubscriptionHandlerSources = {
     upsertFreeRespec: RowHandler; removeFreeRespec: RowHandler;
     upsertDailyQuest: RowHandler; removeDailyQuest: RowHandler; upsertGuildQuestWeek: RowHandler; removeGuildQuestWeek: RowHandler;
     upsertPrestigeExpansionPerk: RowHandler; removePrestigeExpansionPerk: RowHandler;
+    upsertPrestigeCardPerk: RowHandler; removePrestigeCardPerk: RowHandler;
     upsertBonusToggle: RowHandler; removeBonusToggle: RowHandler;
     removePrestigePerk: BaseSubscriptionHandlers["removePrestigePerk"];
     upsertItemUpgrade: BaseSubscriptionHandlers["itemUpgrade"];
@@ -221,6 +227,8 @@ export function createBaseSubscriptionHandlers(sources: BaseSubscriptionHandlerS
     progress: progression.upsertProgress,
     research: progression.upsertResearch,
     removeResearch: progression.removeResearch,
+    luckResearch: progression.upsertLuckResearch,
+    removeLuckResearch: progression.removeLuckResearch,
     activeResearch: progression.upsertActiveResearch,
     removeActiveResearch: progression.removeActiveResearch,
     pausedResearch: progression.upsertPausedResearch,
@@ -236,6 +244,7 @@ export function createBaseSubscriptionHandlers(sources: BaseSubscriptionHandlerS
     dailyQuest: progression.upsertDailyQuest, removeDailyQuest: progression.removeDailyQuest,
     guildQuestWeek: progression.upsertGuildQuestWeek, removeGuildQuestWeek: progression.removeGuildQuestWeek,
     prestigeExpansionPerk: progression.upsertPrestigeExpansionPerk, removePrestigeExpansionPerk: progression.removePrestigeExpansionPerk,
+    prestigeCardPerk: progression.upsertPrestigeCardPerk, removePrestigeCardPerk: progression.removePrestigeCardPerk,
     bonusToggle: progression.upsertBonusToggle, removeBonusToggle: progression.removeBonusToggle,
     removePrestigePerk: progression.removePrestigePerk,
     itemUpgrade: progression.upsertItemUpgrade,
@@ -368,6 +377,9 @@ export function startBaseSubscription(dependencies: BaseSubscriptionDependencies
   connection.db.playerResearch.onInsert((_ctx, row) => { if (shouldHandle()) handlers.research(row); });
   connection.db.playerResearch.onUpdate((_ctx, _oldRow, row) => { if (shouldHandle()) handlers.research(row); });
   connection.db.playerResearch.onDelete((_ctx, row) => { if (shouldHandle()) handlers.removeResearch(row); });
+  connection.db.playerLuckResearch.onInsert((_ctx, row) => { if (shouldHandle()) handlers.luckResearch(row); });
+  connection.db.playerLuckResearch.onUpdate((_ctx, _oldRow, row) => { if (shouldHandle()) handlers.luckResearch(row); });
+  connection.db.playerLuckResearch.onDelete((_ctx, row) => { if (shouldHandle()) handlers.removeLuckResearch(row); });
   connection.db.activeResearch.onInsert((_ctx, row) => { if (shouldHandle()) handlers.activeResearch(row); });
   connection.db.activeResearch.onUpdate((_ctx, _oldRow, row) => { if (shouldHandle()) handlers.activeResearch(row); });
   connection.db.activeResearch.onDelete((_ctx, row) => { if (shouldHandle()) handlers.removeActiveResearch(row); });
@@ -398,6 +410,9 @@ export function startBaseSubscription(dependencies: BaseSubscriptionDependencies
   connection.db.playerPrestigeExpansionPerk.onInsert((_ctx, row) => { if (shouldHandle()) handlers.prestigeExpansionPerk(row); });
   connection.db.playerPrestigeExpansionPerk.onUpdate((_ctx, _old, row) => { if (shouldHandle()) handlers.prestigeExpansionPerk(row); });
   connection.db.playerPrestigeExpansionPerk.onDelete((_ctx, row) => { if (shouldHandle()) handlers.removePrestigeExpansionPerk(row); });
+  connection.db.playerPrestigeCardPerk.onInsert((_ctx, row) => { if (shouldHandle()) handlers.prestigeCardPerk(row); });
+  connection.db.playerPrestigeCardPerk.onUpdate((_ctx, _old, row) => { if (shouldHandle()) handlers.prestigeCardPerk(row); });
+  connection.db.playerPrestigeCardPerk.onDelete((_ctx, row) => { if (shouldHandle()) handlers.removePrestigeCardPerk(row); });
   connection.db.playerBonusToggle.onInsert((_ctx, row) => { if (shouldHandle()) handlers.bonusToggle(row); });
   connection.db.playerBonusToggle.onUpdate((_ctx, _old, row) => { if (shouldHandle()) handlers.bonusToggle(row); });
   connection.db.playerBonusToggle.onDelete((_ctx, row) => { if (shouldHandle()) handlers.removeBonusToggle(row); });
@@ -488,6 +503,7 @@ export function startBaseSubscription(dependencies: BaseSubscriptionDependencies
       tables.playerProgress.where((progress) => progress.identity.eq(dependencies.identity)),
       tables.playerInventory.where((bag) => bag.identity.eq(dependencies.identity)),
       tables.playerResearch.where((research) => research.identity.eq(dependencies.identity)),
+      tables.playerLuckResearch.where((research) => research.identity.eq(dependencies.identity)),
       tables.activeResearch.where((research) => research.identity.eq(dependencies.identity)),
       tables.pausedResearch.where((research) => research.identity.eq(dependencies.identity)),
       // Whole table, not only our row: the level badge beside every name needs
@@ -503,6 +519,7 @@ export function startBaseSubscription(dependencies: BaseSubscriptionDependencies
       // on, so a tab left open past the turn of the week still gets the new one.
       tables.guildQuestWeek.where(row => row.week.gte(questWeek(questDay(BigInt(Date.now()) * 1000n)))),
       tables.playerPrestigeExpansionPerk.where(row => row.identity.eq(dependencies.identity)),
+      tables.playerPrestigeCardPerk.where(row => row.identity.eq(dependencies.identity)),
       tables.playerBonusToggle.where(row => row.identity.eq(dependencies.identity)),
       tables.playerPrestigePerk.where((prestigePerk) => prestigePerk.identity.eq(dependencies.identity)),
       // Prestige asks for a number of cleared Endless stages, and the window
@@ -549,6 +566,7 @@ export function startBaseSubscription(dependencies: BaseSubscriptionDependencies
         for (const row of connection.db.releaseNotice.iter()) handlers.releaseNotice(row);
         for (const row of connection.db.playerProgress.iter()) handlers.progress(withWideProgress(connection, row));
         for (const row of connection.db.playerResearch.iter()) handlers.research(row);
+        for (const row of connection.db.playerLuckResearch.iter()) handlers.luckResearch(row);
         for (const row of connection.db.activeResearch.iter()) handlers.activeResearch(row);
         if (![...connection.db.activeResearch.iter()].some(row => row.identity.toHexString() === dependencies.identity.toHexString())) handlers.removeActiveResearch({ identity: dependencies.identity });
         for (const row of connection.db.pausedResearch.iter()) handlers.pausedResearch(row);
@@ -563,6 +581,8 @@ export function startBaseSubscription(dependencies: BaseSubscriptionDependencies
         for (const row of connection.db.guildQuestWeek.iter()) handlers.guildQuestWeek(row);
         for (const row of connection.db.playerPrestigeExpansionPerk.iter()) handlers.prestigeExpansionPerk(row);
         if (![...connection.db.playerPrestigeExpansionPerk.iter()].some(row => row.identity.toHexString() === dependencies.identity.toHexString())) handlers.removePrestigeExpansionPerk({ identity: dependencies.identity });
+        for (const row of connection.db.playerPrestigeCardPerk.iter()) handlers.prestigeCardPerk(row);
+        if (![...connection.db.playerPrestigeCardPerk.iter()].some(row => row.identity.toHexString() === dependencies.identity.toHexString())) handlers.removePrestigeCardPerk({ identity: dependencies.identity });
         for (const row of connection.db.playerBonusToggle.iter()) handlers.bonusToggle(row);
         if (![...connection.db.playerBonusToggle.iter()].some(row => row.identity.toHexString() === dependencies.identity.toHexString())) handlers.removeBonusToggle({ identity: dependencies.identity });
         for (const row of connection.db.playerItemUpgrade.iter()) handlers.itemUpgrade(row);

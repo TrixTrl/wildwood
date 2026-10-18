@@ -14,6 +14,8 @@ export type MapPortal = { x: number; y: number; width: number; height: number; d
 type MapConfig = Record<MapId, { portal: MapPortal | null; arrival: { x: number; y: number }; secondaryPortal?: MapPortal }>;
 
 const PORTAL_TRIGGER_RADIUS = 48;
+/** Walking this much deeper into a guarded portal than the player has been since the guard is walking into it on purpose. */
+const PORTAL_WALK_IN = 6;
 /** How long a map change waits for its fade's dark before it loads without it. */
 const MAP_FADE_FALLBACK_MS = 5_000;
 
@@ -87,6 +89,8 @@ export function createMapController(options: {
   /** Closes those windows: walking off the portal leaves it, as the server only sends a player on from beside it. */
   closeHomeTravel?: () => void;
   onTravelStarted?: () => void;
+  /** Whether Auto Farm is taking the player through a portal to this map: the arrival guard does not hold it back. */
+  travelWanted?: (destination: string) => boolean;
   mapConfig: MapConfig;
   tutorialMapId: MapId;
   desertMapId: MapId;
@@ -144,6 +148,18 @@ export function createMapController(options: {
   let mapLoadGeneration = 0;
   let portalCooldown = 0;
   let portalExitGuard: MapPortal | null = null;
+  /** How close to the guarded portal's middle the player has been since the guard: deeper than that is walking in. */
+  let guardClosest = Infinity;
+  /**
+   * Until stepped off: a portal just come through (the walk carries on across its middle and out, which is not walking
+   * back in) and the Town's pads (walking about on one after Back never reopens its window).
+   */
+  let guardUntilStepOff = false;
+  function guardPortal(portal: MapPortal | null, untilStepOff = false) {
+    portalExitGuard = portal;
+    guardClosest = portal ? portalDistance(portal) : Infinity;
+    guardUntilStepOff = untilStepOff;
+  }
   let homeDeparture: MapId | null = null;
   let portalCutsceneIntensity = -1;
   let portalCutsceneBlackoutOpacity = 0;
@@ -161,12 +177,16 @@ export function createMapController(options: {
    * its portal back, `offset` from its middle as they stood in the one they walked into; anywhere else, its arrival.
    */
   function arrivalFrom(destination: MapId, from: MapId, offset: { x: number; y: number }) {
+    const exit = exitFor(destination, from);
+    return exit ? stepThrough(exit, offset) : mapConfig[destination].arrival;
+  }
+  function exitFor(destination: MapId, from: MapId) {
     const entry = mapConfig[destination];
     const travelled = (MAP_IDS as readonly string[]).includes(destination) || isProceduralMap(destination);
     const portals = travelled ? [entry.portal, entry.secondaryPortal].filter((portal): portal is MapPortal => Boolean(portal)) : [];
-    const exit = exitPortalFor(destination, portals, from, from === "town");
-    return exit ? stepThrough(exit, offset) : entry.arrival;
+    return exitPortalFor(destination, portals, from, from === "town");
   }
+
 
   /** Where the player stands relative to a portal's middle (its use point, as the server measures it). */
   const offsetIn = (portal: MapPortal) => ({ x: player.x - portal.x, y: player.y - (portal.y - portal.height * .32) });
@@ -243,14 +263,30 @@ export function createMapController(options: {
   function secondaryPortal() { return mapConfig[getCurrentMapId()].secondaryPortal ?? null; }
   function portalIsUnlocked(portal: MapPortal) { return portal.destination === tutorialMapId || mapUnlocked(portal.destination); }
 
+  function portalDistance(portal: MapPortal) {
+    return Math.hypot(player.x - portal.x, player.y - (portal.y - portal.height * .32));
+  }
   function playerIsInsidePortal(portal: MapPortal) {
-    return Math.hypot(player.x - portal.x, player.y - (portal.y - portal.height * .32)) <= PORTAL_TRIGGER_RADIUS;
+    return portalDistance(portal) <= PORTAL_TRIGGER_RADIUS;
   }
 
   function guardPortalContainingPlayer() {
-    portalExitGuard = [activePortal(), secondaryPortal()]
+    guardPortal([activePortal(), secondaryPortal()]
       .filter((portal): portal is MapPortal => portal !== null)
-      .find(playerIsInsidePortal) ?? null;
+      .find(playerIsInsidePortal) ?? null);
+  }
+  /**
+   * A guarded portal lets the player through once they step out of it. One they were loaded in (a reload, an update)
+   * or sent back to (a refused trip) also lets them through when they walk deeper into it: walking into the arch
+   * they stood in after an update did nothing until they had walked off and come back.
+   */
+  function guardHolds(guard: MapPortal) {
+    if (!playerIsInsidePortal(guard)) return false;
+    if (guardUntilStepOff) return true;
+    const distance = portalDistance(guard);
+    if (distance < guardClosest - PORTAL_WALK_IN) return false;
+    guardClosest = Math.min(guardClosest, distance);
+    return true;
   }
 
   function portalColliders() {
@@ -313,8 +349,9 @@ export function createMapController(options: {
     portalCooldown = Math.max(0, portalCooldown - dt);
     if (mapTransitioning || arrivalPending || portalCutscene.active || portalCooldown > 0 || isDueling()) return;
     if (portalExitGuard) {
-      if (playerIsInsidePortal(portalExitGuard)) return;
-      portalExitGuard = null;
+      // A reload mid Move On lands the player in the portal, where Auto Farm stood for good waiting for a step out.
+      if (guardHolds(portalExitGuard) && !options.travelWanted?.(portalExitGuard.destination)) return;
+      guardPortal(null);
       if (getCurrentMapId() === "town") options.closeHomeTravel?.();
     }
     const portal = [activePortal(), secondaryPortal()].filter((candidate): candidate is MapPortal => candidate !== null).find((candidate) =>
@@ -325,20 +362,21 @@ export function createMapController(options: {
     if (getCurrentMapId() === "town" && options.openHomeTravel) {
       // The picker chooses the destination. Guarding the pad means standing
       // on it after Back never reopens the window; walking off and on does.
-      portalExitGuard = portal;
+      guardPortal(portal, true);
       keys.clear(); stopTouchMove(); player.moving = false;
       options.openHomeTravel(portal);
       return;
     }
     options.onTravelStarted?.();
     mapTransitioning = true;
+    const destination = portal.destination;
+    const departure = getCurrentMapId();
+    // Walking straight through leaves the player's input alone: they walk on as long as they hold it, no longer.
+    if (options.instantTravelReady?.(destination)) { void travelThroughPortal(portal, destination); return; }
     keys.clear();
     stopTouchMove();
     player.moving = false;
-    const destination = portal.destination;
-    const departure = getCurrentMapId();
     const offset = offsetIn(portal);
-    if (options.instantTravelReady?.(destination)) { void travelThroughPortal(portal, destination); return; }
     const attempt = mapLoadGeneration;
     void prepareMapTransition(
       () => changeMap(destination, player.x, player.y),
@@ -347,7 +385,7 @@ export function createMapController(options: {
       if (attempt !== mapLoadGeneration) return;
       if (!changed) {
         mapTransitioning = false;
-        portalExitGuard = portal;
+        guardPortal(portal);
         portalCooldown = 1;
         return;
       }
@@ -355,6 +393,7 @@ export function createMapController(options: {
       fadeToMap(() => {
         if (attempt !== mapLoadGeneration) return;
         loadMap(destination, arrival.x, arrival.y, player.facing);
+        guardUntilStepOff = true;
         snapCameraToPlayer(camera, player, viewport());
         resetPresentationState();
         syncStoppedPosition();
@@ -363,7 +402,7 @@ export function createMapController(options: {
     }).catch(() => {
       if (attempt !== mapLoadGeneration) return;
       mapTransitioning = false;
-      portalExitGuard = portal;
+      guardPortal(portal);
       portalCooldown = 1;
     });
   }
@@ -378,7 +417,10 @@ export function createMapController(options: {
     const arrival = arrivalFrom(destination, departure.mapId, portal ? offsetIn(portal) : { x: 0, y: 0 });
     const move = Promise.resolve(changeMap(destination, departure.x, departure.y));
     loadMap(destination, arrival.x, arrival.y, departure.facing);
-    snapCameraToPlayer(camera, player, viewport());
+    guardUntilStepOff = true;
+    // The camera moves as far as the player did, so the arch holds its place on screen and the follow keeps its ease.
+    camera.x += player.x - departure.x;
+    camera.y += player.y - departure.y;
     resetPresentationState();
     portalTravelScene.arrivedAt = performance.now();
     arrivalPending = true;
@@ -390,7 +432,7 @@ export function createMapController(options: {
       snapCameraToPlayer(camera, player, viewport());
       resetPresentationState();
       syncStoppedPosition();
-      if (portal) portalExitGuard = portal;
+      if (portal) guardPortal(portal);
       portalCooldown = 1;
       return false;
     };

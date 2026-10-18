@@ -2,6 +2,8 @@ import { watchDefeatSession } from "./coop/services/defeat-session-watch";
 import { watchOfflineProgress, type OfflineProgressSummary } from "./coop/services/offline-progress-watch";
 import { createAccountAudioSettings } from "./coop/services/account-audio-settings";
 import { createAccountRowServices } from "./coop/services/account-row-services";
+import { activeCardSlots } from "../shared/active-cards";
+import { createFramePlayers } from "./coop/services/frame-players";
 import { consumeUpdateResumeMode, reloadWithUpdateResume } from "./coop/services/update-resume-browser";
 import { configureConnectionDiagnostics, recordConnectionDiagnostic, flushConnectionDiagnostics } from "./coop/services/connection-diagnostic-runtime";
 import { bindProgressFlushOnHide } from "./coop/services/flush-on-hide";
@@ -113,7 +115,14 @@ let worldEntryPromise: Promise<boolean> | null = null;
 let worldEntryGeneration = 0;
 let worldEntryBlocked = false;
 let protocolReadyGeneration = 0;
-const accountRows = createAccountRowServices(() => connection, onChange, itemId => progressionService.api.itemUpgradeLevel(itemId), () => progressionService.api.savedProgress());
+// The slots follow the perks in play, which are kept until they change; so are the slots.
+let cardSlotsFor: ReturnType<typeof progressionService.api.prestigePerks> | null = null, cardSlots = activeCardSlots(null);
+function keptCardSlots() {
+  const perks = progressionService.api.prestigePerks();
+  if (perks !== cardSlotsFor) { cardSlotsFor = perks; cardSlots = activeCardSlots(perks); }
+  return cardSlots;
+}
+const accountRows = createAccountRowServices(() => connection, onChange, itemId => progressionService.api.itemUpgradeLevel(itemId), keptCardSlots);
 const accountAudio = createAccountAudioSettings();
 let accountService!: AccountService;
 const startupTelemetryRuntime = createStartupTelemetryRuntime({
@@ -194,6 +203,7 @@ function batchChanges(action: () => void) {
 }
 
 let presenceService!: PresenceService;
+const frameRemotePlayers = createFramePlayers(() => presenceService.api.remotePlayers());
 const virtualPlayerLoadTest = createVirtualPlayerLoadTest({
   host,
   databaseName,
@@ -416,7 +426,7 @@ const progressionService = createProgressionService({ gameBridgeCaller: () => ru
   reserveStoppedMotion: () => presenceService.reserveStoppedMotion(),
   commitStoppedPosition: (position, sequence) => presenceService.commitStoppedPosition(position, sequence),
   storage: localStorage,
-  pendingProgressKey, cardAttackCapRaise: () => accountRows.api.wornCardStats().attackCapRaise,
+  pendingProgressKey, cardAttackCapRaise: () => accountRows.api.activeCardStats().attackCapRaise,
   lootTabId: () => accountService.tabId(),
 });
 
@@ -888,6 +898,8 @@ export const wildstatCoop = {
     return virtualPlayerLoadTest.stop(Boolean(connection?.isActive && isDeveloperIdentity(localIdentity)));
   },
   ...accountService.api,
+  /** Whether another tab holds the world: the one flag the game loop reads each frame, without the whole account state. */
+  sessionConflict: () => worldEntryBlocked,
   accountState() {
     const diagnostics = connectionLifecycle.snapshot();
     return {
@@ -922,6 +934,7 @@ export const wildstatCoop = {
   ...remoteCombatStatsService.api,
   ...chatService.api,
   ...duelService.api,
+  remotePlayers: frameRemotePlayers,
   guild: guildService.api,
   social: socialService.api,
   devModeration: devModerationService.api,

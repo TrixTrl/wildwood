@@ -1,10 +1,10 @@
 import { SOUL_STAT_DETAILS, type SoulStatId } from "../../../../shared/soul-dimension";
-import { soulStatOfCampName } from "../../soul-world";
+import { soulRewardText, soulStatOfCampName } from "../../soul-world";
 import { residentDrawable } from "./resident-image";
 import { isMeleeWeapon } from "../../weapon-combat";
 import { paintArrowProjectile, paintRockProjectile, rockProjectileSize } from "./weapon-projectile-renderer";
 export { rockProjectileSize } from "./weapon-projectile-renderer";
-import { ENEMY_TYPES, REWARD_DATA, rewardAmountLabel, rewardStatLabel, type EnemyDefinition, type LoadedEnemySprite, type LoadedSpriteLayer } from "../../enemies";
+import { ENEMY_TYPES, EnemyKind, REWARD_DATA, rewardAmountLabel, rewardStatLabel, type EnemyDefinition, type LoadedEnemySprite, type LoadedSpriteLayer } from "../../enemies";
 import { clamp } from "../../math";
 import type { RemotePlayer } from "../../../wildstat-coop";
 import type { PlayerGender } from "../../../../shared/player-gender";
@@ -26,8 +26,10 @@ import { finishedEquipmentSprite } from "../../player-appearance";
 import type { StaticWorldSpriteFrame } from "./webgl-static-world-layer";
 import { drawScreenSpaceAt, snapWorldRenderCoordinate } from "./render-space";
 import { createTintedImageCanvas } from "./image-tint";
+import { boltSprite, drawBolt, staffBoltColor } from "../../staff-look";
 import { createEnemyAnimationSampler } from "../enemies/enemy-animation";
 import { ENEMY_HP_LOSS_FLASH_SECONDS } from "../../constants";
+import { ENEMY_BASE_VALUES } from "../../../../shared/enemy-base-values";
 
 
 type Viewport = { width: number; height: number };
@@ -132,6 +134,9 @@ export function drawableEnemyLayers(layers: LoadedSpriteLayer[] | undefined) {
   return layers?.filter((layer) => layer.image.complete && layer.image.naturalWidth > 0) ?? [];
 }
 
+/** A boss's body is about this share of its art's half-width (Ironhorn's tuned hitbox). */
+const BOSS_HITBOX_ART_SHARE = .76;
+
 export function enemySpriteVerticalBounds(sprite: LoadedEnemySprite | undefined, enemyRadius: number) {
   if (sprite?.animation) {
     const cached = enemyBoundsCache.get(sprite);
@@ -228,7 +233,7 @@ export function createActorRenderer(options: {
   const sampleEnemyAnimation = createEnemyAnimationSampler();
   const screenX = (worldX: number) => snapWorldRenderCoordinate(worldX - camera.x, camera.zoom, options.devicePixelRatio());
   const screenY = (worldY: number) => snapWorldRenderCoordinate(worldY - camera.y, camera.zoom, options.devicePixelRatio());
-  const enemyLabelCache = new Map<string, { name: LabelBitmap; reward: LabelBitmap }>();
+  const enemyLabelCache = new Map<string, { name: LabelBitmap; reward: LabelBitmap, dps: LabelBitmap }>();
   // Labels and plates are packed onto a few shared pages instead of a canvas each (canvas-atlas.ts).
   // Two atlases: a plate is drawn from a label, and a page is never drawn onto itself.
   const labelAtlas = createCanvasAtlas();
@@ -308,6 +313,7 @@ export function createActorRenderer(options: {
     const projectileKind = enemy ? undefined : projectileKindForWeapon(weaponItem);
     let source: HTMLCanvasElement | HTMLImageElement | null = null;
     if (projectileKind === "ARROW") source = arrowSprite();
+    else if (projectileKind === "BOLT") source = boltSprite(staffBoltColor(weaponItem));
     else if (projectileKind === "ROCK") {
       const image = options.itemSprite(weaponItem);
       if (image?.complete && image.naturalWidth > 0) source = image;
@@ -318,7 +324,7 @@ export function createActorRenderer(options: {
     const { width, height } = projectileKind === "ROCK"
       ? rockProjectileSize(weaponItem, sourceWidth, sourceHeight)
       : { width: sourceWidth, height: sourceHeight };
-    const rotation = projectileKind === "ARROW" || projectileKind === "ROCK"
+    const rotation = projectileKind === "ARROW" || projectileKind === "ROCK" || projectileKind === "BOLT"
       ? Math.atan2(projectile.vy, projectile.vx)
       : undefined;
     return { source, left: x - width / 2, top: y - height / 2, width, height, rotation };
@@ -368,15 +374,18 @@ export function createActorRenderer(options: {
 
   /** A Soul Dimension enemy is named for the soul stat it pays, and shows that flat reward in its colour. */
   function soulEnemyLabels(stat: SoulStatId) {
-    const capped = soulRewardCapped(stat, options.rewardContext?.());
-    const cacheKey = `soul:${stat}:${capped ? "capped" : ""}`;
+    const context = options.rewardContext?.();
+    const capped = soulRewardCapped(stat, context);
+    const multiplier = Math.max(1, context?.soulRewardMultiplier ?? 1);
+    const cacheKey = `soul:${stat}:${capped ? "capped" : ""}:${multiplier}`;
     const cached = enemyLabelCache.get(cacheKey);
     if (cached) return cached;
     const detail = SOUL_STAT_DETAILS[stat];
-    const amount = capped ? "Capped" : stat === "critDamage" ? `+${+(detail.reward * 100).toFixed(1)}%` : stat === "attackSpeed" ? `+${detail.reward}/s` : `+${detail.reward}`;
+    const amount = capped ? "Capped" : stat === "critDamage" ? `+${+(detail.reward * multiplier * 100).toFixed(1)}%` : soulRewardText(stat, multiplier);
     const labels = {
       name: createLabelBitmap([{ text: `Soul ${detail.label}`, color: "#f5e9c4" }], "bottom"),
       reward: createLabelBitmap([{ text: amount, color: "#ffffff" }, { text: " ", color: "#ffffff" }, { text: detail.label, color: detail.color }], "top"),
+      dps: createLabelBitmap([{ text: "DPS not implemented yet", color: "#ffffff" }], "top"),
     };
     enemyLabelCache.set(cacheKey, labels);
     return labels;
@@ -394,6 +403,8 @@ export function createActorRenderer(options: {
     const cacheKey = `${type}:${reward.type}:${amountText}`;
     const cached = enemyLabelCache.get(cacheKey);
     if (cached) return cached;
+    const enemyDefinition = ENEMY_BASE_VALUES[type as EnemyKind];
+    const dps = enemyDefinition ? enemyDefinition.damage * enemyDefinition.attackSpeed : -1;
     const labels = {
       name: createLabelBitmap([{ text: type, color: "#f5e9c4" }], "bottom"),
       reward: createLabelBitmap([
@@ -401,6 +412,7 @@ export function createActorRenderer(options: {
         { text: " ", color: "#ffffff" },
         { text: reward.type === "speed" ? "Atk Speed" : reward.type === "crit" ? "Crit Multiplier" : rewardStatLabel(reward), color: REWARD_DATA[reward.type].color },
       ], "top"),
+      dps: createLabelBitmap([{ text: dps != -1 ? `DPS ${formatCompactNumber(dps)}` : `???`, color: "#ffffff" }], "top"),
     };
     enemyLabelCache.set(cacheKey, labels);
     return labels;
@@ -530,6 +542,10 @@ export function createActorRenderer(options: {
         drawArrow(x, y, shot.angle);
         continue;
       }
+      if (projectileKind === "BOLT") {
+        drawBolt(ctx, x, y, shot.angle, staffBoltColor(shot.weaponItem));
+        continue;
+      }
       if (projectileKind === "ROCK" && drawRock(shot.weaponItem, x, y, shot.angle)) continue;
       ctx.fillStyle = shot.color;
       options.pixelCircle(x, y, 6);
@@ -608,8 +624,9 @@ export function createActorRenderer(options: {
     const y = screenY(renderY);
     if (x < -65 || y < -70 || x > width + 65 || y > height + 70) return;
 
-    const equipment = options.equipmentForIdentity(other.id);
-    if (death && drawDeadPlayer({ ...other, ...equipment }, death, 1)) return;
+    // A drawn player carries its own gear: looking it up rebuilt every player on the map, once per player drawn.
+    const equipment = other;
+    if (death && drawDeadPlayer(other, death, 1)) return;
 
     const regularEnemyCombat = other.regularEnemyCombat;
     const attack = regularEnemyCombat;
@@ -640,6 +657,7 @@ export function createActorRenderer(options: {
           ctx.restore();
         }
         if (projectileKind === "ARROW") drawArrow(projectileX, projectileY, Math.atan2(dy, dx), offset);
+        else if (projectileKind === "BOLT") drawBolt(ctx, projectileX, projectileY + offset, Math.atan2(dy, dx), staffBoltColor(weaponItem));
         else if (projectileKind !== "ROCK" || !drawRock(weaponItem, projectileX, projectileY, Math.atan2(dy, dx), offset)) {
           ctx.save(); ctx.translate(projectileX, projectileY);
           ctx.fillStyle = "#ffe76a";
@@ -654,7 +672,7 @@ export function createActorRenderer(options: {
       ? Math.atan2(attack.targetY - other.y, attack.targetX - other.x)
       : weaponItem ? clientCombatFacing(other) : null;
     options.drawShadow(x, y + 29, 34, .16);
-    drawPlayerSprite({ ...other, ...equipment, x, y, facing: combatFacing ?? other.facing, combatFacing }, 1);
+    drawPlayerSprite({ ...other, x, y, facing: combatFacing ?? other.facing, combatFacing }, 1);
     if (regularEnemyCombat) {
       options.drawStatus({
         x,
@@ -711,19 +729,20 @@ export function createActorRenderer(options: {
     const height = viewport.height / camera.zoom;
     const x = screenX(enemy.x);
     const y = screenY(enemy.y);
-    if (x < -80 || y < -80 || x > width + 80 || y > height + 80) return;
-
     const base = enemy.definition ?? ENEMY_TYPES[enemy.type];
     const sourceSprite = options.enemySprites[enemy.type];
-    const spriteScale = enemy.generatedBoss ? 2.4 : enemy.spriteScale ?? 1;
+    // An Endless boss borrows a map enemy's art: drawn to fit its own body, as a campaign boss's art does.
+    const spriteScale = enemy.generatedBoss && sourceSprite ? 2 * enemy.r / BOSS_HITBOX_ART_SHARE / sourceSprite.size : enemy.spriteScale ?? 1;
     const sprite = spriteScale !== 1 && sourceSprite ? { ...sourceSprite, size: sourceSprite.size * spriteScale } : sourceSprite;
+    const margin = Math.max(80, sprite?.size ?? 0);
+    if (x < -margin || y < -margin || x > width + margin || y > height + margin) return;
     const layers = sprite?.layers;
     const image = sprite?.image;
     const imageReady = Boolean(image?.complete && image.naturalWidth > 0);
     const spriteBounds = enemySpriteVerticalBounds(sprite, enemy.r);
     const spriteHeight = spriteBounds.height;
     if (!sprite?.animation?.hasBakedShadow) {
-      const shadowWidth = Math.max(34, Math.min(76, (sprite?.size ?? enemy.r * 2) * .9));
+      const shadowWidth = enemy.generatedBoss ? (sprite?.size ?? enemy.r * 2) * .6 : Math.max(34, Math.min(76, (sprite?.size ?? enemy.r * 2) * .9));
       const shadowY = y + enemyShadowOffsetY(sprite, enemy.r);
       options.drawShadow(x, shadowY, shadowWidth, .36 * visibility);
     }
@@ -742,7 +761,7 @@ export function createActorRenderer(options: {
       y: enemy.combatTargetY ?? options.player.y,
     };
     if (layers && sprite) {
-      ctx.globalAlpha = (enemy.hurt > 0 ? .7 : 1) * visibility;
+      ctx.globalAlpha = visibility;
       if (sprite.animation) {
         const animation = sprite.animation;
         const frame = sampleEnemyAnimation(enemy, animation, options.gameTime(), base.attackSpeed);
@@ -803,7 +822,7 @@ export function createActorRenderer(options: {
         }
       }
     } else if (imageReady && image && sprite) {
-      ctx.globalAlpha = (enemy.hurt > 0 ? .7 : 1) * visibility;
+      ctx.globalAlpha = visibility;
       ctx.drawImage(
         residentDrawable(image),
         -sprite.size / 2,
@@ -817,6 +836,18 @@ export function createActorRenderer(options: {
       options.pixelCircle(0, 0, enemy.r + 3);
       ctx.fillStyle = enemy.hurt > 0 ? "#fff3d0" : base.color;
       options.pixelCircle(0, 0, enemy.r);
+    }
+    // Slowed (Frost Nova, or a chill card): a pale blue glaze over the body and a frost ring at its feet.
+    if (enemy.cardStatus?.slow && deathProgress <= 0) {
+      const glaze = (sprite?.size ?? enemy.r * 2) * .42;
+      // Plain blending: an additive glaze per slowed enemy, every frame, was slow to draw in Firefox.
+      ctx.globalAlpha = .22 * visibility;
+      ctx.fillStyle = "#bfeaff";
+      ctx.beginPath(); ctx.ellipse(0, (spriteBounds.top + spriteBounds.bottom) / 2, glaze, (spriteBounds.bottom - spriteBounds.top) * .5, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = .7 * visibility;
+      ctx.strokeStyle = "#bdeeff";
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(0, spriteBounds.bottom - 2, glaze, glaze * .32, 0, 0, Math.PI * 2); ctx.stroke();
     }
     ctx.restore();
 
@@ -877,6 +908,8 @@ export function createActorRenderer(options: {
       if (!enemy.remoteCombatGhost && !enemy.generatedBoss) {
         const label = labels.reward;
         drawAtlasImage(ctx, label, -label.width / 2, rewardY - label.anchorY, label.width, label.height);
+        const dpsLabel = labels.dps;
+        drawAtlasImage(ctx, dpsLabel, -dpsLabel.width / 2, rewardY - label.anchorY + 15 - dpsLabel.anchorY, dpsLabel.width, dpsLabel.height);
       }
     });
   }
@@ -890,6 +923,10 @@ export function createActorRenderer(options: {
       : undefined;
     if (projectileKind === "ARROW") {
       drawArrow(x, y, Math.atan2(projectile.vy, projectile.vx));
+      return;
+    }
+    if (projectileKind === "BOLT") {
+      drawBolt(ctx, x, y, Math.atan2(projectile.vy, projectile.vx), staffBoltColor(weaponItem));
       return;
     }
     if (projectileKind === "ROCK" && drawRock(weaponItem, x, y, Math.atan2(projectile.vy, projectile.vx))) return;

@@ -28,6 +28,7 @@ import { itemUpgradeDurationMs, type UpgradeSlot } from "../../../shared/items";
 import { slotUpgradeDurationWithResearch } from "../../../shared/utility-research";
 import { normalizeSlotTier, upgradeSlotForItem } from "../../../shared/slot-upgrades";
 import { createEmptyResearchRanks, RESEARCH_DEFINITIONS, isResearchId, type ResearchId } from "../../../shared/research";
+import { emptyLuckRanks, luckRanksOf, type LuckRanks } from "../../../shared/luck-research";
 import type {
   ActiveItemUpgrade,
   ActiveResearch,
@@ -141,7 +142,7 @@ export const PROGRESS_STORE_WRITE_DELAY_MS = 2_000;
 /**
  * The periodic flush timer fires every REGULAR_ENEMY_LOOT_DELAY_MS, but no timer
  * lands on the millisecond. Without this slack a tick a hair early would find
- * the last report not quite thirty seconds old and skip a whole period.
+ * the last report not quite sixty seconds old and skip a whole period.
  */
 export const KILL_REPORT_CADENCE_SLACK_MS = 1_000;
 
@@ -176,6 +177,8 @@ export function createProgressionService(dependencies: ProgressionServiceDepende
   });
   const progressByIdentity = new Map<string, PlayerProgress>();
   const researchByIdentity = new Map<string, PlayerResearch>();
+  // Luck ranks arrive in player_luck_research and are merged into the research above.
+  const luckByIdentity = new Map<string, LuckRanks>();
   const upgradeLevelsByIdentity = new Map<string, Map<string, number>>();
   const heartsByIdentity = new Map<string, number>();
   const lifetimeByIdentity = new Map<string, PlayerLifetime>();
@@ -188,12 +191,18 @@ export function createProgressionService(dependencies: ProgressionServiceDepende
   let localPrestige: PlayerPrestige | null = null;
   let localPrestigePerks: PlayerPrestigePerks | null = null;
   let expansionPerks = { bossSlayer: 0, secondWind: 0, longShot: 0, fleetFoot: 0, quickDraw: 0 };
+  let cardPerks = { weaponCards: 0, helmetCards: 0, armorCards: 0 };
   /** The bonuses switched off (shared/bonus-toggles.ts). Kept through a disconnect: only this player's own reducer changes them. */
   let bonusOff: ReadonlySet<string> = new Set();
   let prestigeChallenge: PrestigeChallenge = { active: false, completed: 0 };
   let challengeParked = false;
   let aggroChallenge: AggroChallenge = { active: false, completed: 0 };
   let aggroParked = false;
+  // Combat reads these many times a frame; each is rebuilt only when what it is made from is replaced.
+  let keptResearch: { from: PlayerResearch | null; off: ReadonlySet<string> | null; value: PlayerResearch } = { from: null, off: null, value: createEmptyResearchRanks() };
+  let keptBonusOff: { from: ReadonlySet<string> | null; value: string[] } = { from: null, value: [] };
+  let keptAggro: { from: AggroChallenge | null; value: AggroChallenge & { parked: boolean } } = { from: null, value: { active: false, completed: 0, parked: false } };
+  let keptPerks: { aggro: AggroChallenge; perks: PlayerPrestigePerks | null; expansion: typeof expansionPerks; cards: typeof cardPerks; off: ReadonlySet<string>; value: PlayerPrestigePerks } | null = null;
   let freeRespecUsed = false;
   let dailyQuest: DailyQuestState | null = null;
   const guildQuestWeeks = new Map<string, { week: number; guildId: string; guildName: string; points: number }>();
@@ -210,7 +219,7 @@ export function createProgressionService(dependencies: ProgressionServiceDepende
   let deferredStoreWrite: { identity: string; progress: ProgressSave; timer: ReturnType<typeof setTimeout> } | null = null;
   let saveInFlightUntil = 0;
   let nextPeriodicSaveAt = monotonicNowMs() + PROGRESS_SAVE_INTERVAL_MS;
-  // When the last kill report was sent. Ordinary reports go every thirty seconds
+  // When the last kill report was sent. Ordinary reports go every sixty seconds
   // and no sooner; see flushEnemyLoot.
   let lastKillReportAt = monotonicNowMs();
   let savePromise: Promise<boolean> | null = null;
@@ -341,9 +350,9 @@ export function createProgressionService(dependencies: ProgressionServiceDepende
   /**
    * Sends queued kills. A forced flush (portal drain, boss kill, page hide,
    * update drain, immediate save) goes at once. Anything else waits until the
-   * last report is thirty seconds old. Every acknowledgement updates the
+   * last report is sixty seconds old. Every acknowledgement updates the
    * progress row, and the row's handler flushes again; nextPeriodicSaveAt only
-   * moves when progress itself is saved, so after the first thirty seconds that
+   * moves when progress itself is saved, so after the first sixty seconds that
    * chain used to send a fresh report on every acknowledgement.
    */
   function flushEnemyLoot(force: boolean) {
@@ -357,7 +366,7 @@ export function createProgressionService(dependencies: ProgressionServiceDepende
   async function sendCombatBatch(request: EnemyLootRequest): Promise<boolean | "discard" | "throttled"> {
     if (!dependencies.worldEntryReady() || !dependencies.hydrationReady() || dependencies.reducers.worldEntryBlocked() || resetPending) return false;
     // The cadence runs from reports that go out, so a flush that could not send
-    // (a reconnect still hydrating) does not hold the kills back another thirty seconds.
+    // (a reconnect still hydrating) does not hold the kills back another sixty seconds.
     lastKillReportAt = monotonicNowMs();
     // simulatedMillis is how much game time this tab ran since its previous
     // report; the server holds kills to what that much play could produce.
@@ -490,7 +499,26 @@ export function createProgressionService(dependencies: ProgressionServiceDepende
       utilityAttackRange: row.utilityAttackRange ?? 0,
       critCap: row.critCap ?? 0,
       inventorySlots: row.inventorySlots ?? 0,
+      ...(luckByIdentity.get(identity) ?? emptyLuckRanks()),
     };
+    storeResearch(identity, research);
+  }
+
+  function upsertLuckResearch(row: { identity: Identity } & Partial<LuckRanks>) {
+    const identity = row.identity.toHexString();
+    const luck = luckRanksOf(row);
+    luckByIdentity.set(identity, luck);
+    storeResearch(identity, { ...(researchByIdentity.get(identity) ?? createEmptyResearchRanks()), ...luck });
+  }
+
+  function removeLuckResearch(row: { identity: Identity }) {
+    const identity = row.identity.toHexString();
+    luckByIdentity.delete(identity);
+    const research = researchByIdentity.get(identity);
+    if (research) storeResearch(identity, { ...research, ...emptyLuckRanks() });
+  }
+
+  function storeResearch(identity: string, research: PlayerResearch) {
     researchByIdentity.set(identity, research);
     if (identity !== dependencies.localIdentity()) {
       if (identity === dependencies.activeProfileIdentity()) dependencies.notify();
@@ -504,7 +532,7 @@ export function createProgressionService(dependencies: ProgressionServiceDepende
     const identity = row.identity.toHexString();
     researchByIdentity.delete(identity);
     if (identity !== dependencies.localIdentity()) return;
-    localResearch = createEmptyResearchRanks();
+    localResearch = { ...createEmptyResearchRanks(), ...luckByIdentity.get(identity) };
     dependencies.notify();
   }
 
@@ -678,6 +706,16 @@ export function createProgressionService(dependencies: ProgressionServiceDepende
     dependencies.notify();
   }
 
+  function upsertPrestigeCardPerk(row: { identity: Identity; weaponCards: number; helmetCards: number; armorCards: number }) {
+    if (row.identity.toHexString() === dependencies.localIdentity()) cardPerks = { weaponCards: row.weaponCards, helmetCards: row.helmetCards, armorCards: row.armorCards };
+    dependencies.notify();
+  }
+
+  function removePrestigeCardPerk(row: { identity: Identity }) {
+    if (row.identity.toHexString() === dependencies.localIdentity()) cardPerks = { weaponCards: 0, helmetCards: 0, armorCards: 0 };
+    dependencies.notify();
+  }
+
   function removePrestigeExpansionPerk(row: { identity: Identity }) {
     if (row.identity.toHexString() === dependencies.localIdentity()) expansionPerks = { bossSlayer: 0, secondWind: 0, longShot: 0, fleetFoot: 0, quickDraw: 0 };
     dependencies.notify();
@@ -818,6 +856,8 @@ export function createProgressionService(dependencies: ProgressionServiceDepende
       upsertProgress,
       upsertResearch,
       removeResearch,
+      upsertLuckResearch,
+      removeLuckResearch,
       upsertActiveResearch,
       removeActiveResearch,
       upsertPausedResearch,
@@ -831,7 +871,7 @@ export function createProgressionService(dependencies: ProgressionServiceDepende
       upsertAggroChallengeParked, removeAggroChallengeParked,
       upsertFreeRespec, removeFreeRespec,
       upsertDailyQuest, removeDailyQuest, upsertGuildQuestWeek, removeGuildQuestWeek,
-      upsertPrestigeExpansionPerk, removePrestigeExpansionPerk,
+      upsertPrestigeExpansionPerk, removePrestigeExpansionPerk, upsertPrestigeCardPerk, removePrestigeCardPerk,
       upsertBonusToggle, removeBonusToggle,
       removePrestigePerk,
       upsertItemUpgrade,
@@ -994,9 +1034,17 @@ export function createProgressionService(dependencies: ProgressionServiceDepende
       },
       research: () => ({ ...localResearch }),
       /** The research combat and farming read: each switched-off research at rank zero (bonus-toggles.ts). */
-      researchInPlay: () => researchInPlayFor({ ...localResearch }, bonusOff) ?? createEmptyResearchRanks(),
+      researchInPlay: () => {
+        if (keptResearch.from !== localResearch || keptResearch.off !== bonusOff) {
+          keptResearch = { from: localResearch, off: bonusOff, value: researchInPlayFor({ ...localResearch }, bonusOff) ?? createEmptyResearchRanks() };
+        }
+        return keptResearch.value;
+      },
       /** The bonus item ids switched off. */
-      bonusOff: (): string[] => [...bonusOff],
+      bonusOff: (): string[] => {
+        if (keptBonusOff.from !== bonusOff) keptBonusOff = { from: bonusOff, value: [...bonusOff] };
+        return keptBonusOff.value;
+      },
       /** The Reflect Only row whose wins count now: none during an Aggro run, or with Reflect Only switched off. */
       reflectRewardsInPlay: () => aggroChallenge.active || !reflectRewardsOn(bonusOff) ? null : { ...prestigeChallenge },
       /**
@@ -1005,7 +1053,7 @@ export function createProgressionService(dependencies: ProgressionServiceDepende
        */
       attackCapInPlay: (): AttackCap => {
         const cap = playerAttackCap(reflectRewardsOn(bonusOff) ? { ...prestigeChallenge } : null,
-          perksInPlayFor({ keenEdge: 0, doubleStrike: 0, splitShot: 0, riposte: 0, ...localPrestigePerks, ...expansionPerks }, bonusOff));
+          perksInPlayFor({ keenEdge: 0, doubleStrike: 0, splitShot: 0, riposte: 0, ...localPrestigePerks, ...expansionPerks, ...cardPerks }, bonusOff));
         const cards = dependencies.cardAttackCapRaise?.() ?? 0;
         return cards > 0 ? { ...cap, raise: cap.raise + cards } : cap;
       },
@@ -1016,7 +1064,10 @@ export function createProgressionService(dependencies: ProgressionServiceDepende
       prestige: () => localPrestige ? { ...localPrestige } : null,
       prestigeLevelFor: (identity: string) => prestigeLevelByIdentity.get(identity) ?? 0,
       prestigeChallenge: () => ({ ...prestigeChallenge, parked: challengeParked }),
-      aggroChallenge: () => ({ ...aggroChallenge, parked: aggroParked }),
+      aggroChallenge: () => {
+        if (keptAggro.from !== aggroChallenge || keptAggro.value.parked !== aggroParked) keptAggro = { from: aggroChallenge, value: { ...aggroChallenge, parked: aggroParked } };
+        return keptAggro.value;
+      },
       /** Every account has one respec that keeps its stats; false once it is spent. */
       freeRespecAvailable: () => !freeRespecUsed,
       /** Today's quests and the guild's standing; null until the server has drawn them. */
@@ -1027,11 +1078,17 @@ export function createProgressionService(dependencies: ProgressionServiceDepende
         return reducerResult("daily quests", (active) => active.reducers.refreshDailyQuests({}))();
       },
       /** The ranks in play: none during an Aggro run, which plays without prestige bonuses, and each switched-off perk zero. */
-      prestigePerks: (): PlayerPrestigePerks => prestigeBonusesOff(aggroChallenge)
-        ? { keenEdge: 0, doubleStrike: 0, splitShot: 0, riposte: 0, bossSlayer: 0, secondWind: 0, longShot: 0, fleetFoot: 0, quickDraw: 0 }
-        : perksInPlayFor({ keenEdge: 0, doubleStrike: 0, splitShot: 0, riposte: 0, ...localPrestigePerks, ...expansionPerks }, bonusOff),
+      prestigePerks: (): PlayerPrestigePerks => {
+        const kept = keptPerks;
+        if (kept && kept.aggro === aggroChallenge && kept.perks === localPrestigePerks && kept.expansion === expansionPerks && kept.cards === cardPerks && kept.off === bonusOff) return kept.value;
+        const value = prestigeBonusesOff(aggroChallenge)
+          ? { keenEdge: 0, doubleStrike: 0, splitShot: 0, riposte: 0, bossSlayer: 0, secondWind: 0, longShot: 0, fleetFoot: 0, quickDraw: 0, weaponCards: 0, helmetCards: 0, armorCards: 0 }
+          : perksInPlayFor({ keenEdge: 0, doubleStrike: 0, splitShot: 0, riposte: 0, ...localPrestigePerks, ...expansionPerks, ...cardPerks }, bonusOff);
+        keptPerks = { aggro: aggroChallenge, perks: localPrestigePerks, expansion: expansionPerks, cards: cardPerks, off: bonusOff, value };
+        return value;
+      },
       /** The ranks the player owns, for the Prestige window. */
-      storedPrestigePerks: (): PlayerPrestigePerks => ({ keenEdge: 0, doubleStrike: 0, splitShot: 0, riposte: 0, ...localPrestigePerks, ...expansionPerks }),
+      storedPrestigePerks: (): PlayerPrestigePerks => ({ keenEdge: 0, doubleStrike: 0, splitShot: 0, riposte: 0, ...localPrestigePerks, ...expansionPerks, ...cardPerks }),
       /** The tier that applies to an item: whatever its slot has earned. */
       itemUpgradeLevel(itemId: string, identity = dependencies.localIdentity()) {
         const slot = upgradeSlotForItem(itemId);
@@ -1380,6 +1437,7 @@ export function createProgressionService(dependencies: ProgressionServiceDepende
       prestigeLevelByIdentity.clear();
       localPrestigePerks = null;
       expansionPerks = { bossSlayer: 0, secondWind: 0, longShot: 0, fleetFoot: 0, quickDraw: 0 };
+      cardPerks = { weaponCards: 0, helmetCards: 0, armorCards: 0 };
       bonusOff = new Set();
       activeItemUpgrades.clear();
       balanceApologyGiftAmount = 0n;
@@ -1393,6 +1451,7 @@ export function createProgressionService(dependencies: ProgressionServiceDepende
     clearProfile(identity: string) {
       progressByIdentity.delete(identity);
       researchByIdentity.delete(identity);
+      luckByIdentity.delete(identity);
       upgradeLevelsByIdentity.delete(identity);
       lifetimeByIdentity.delete(identity); heartsByIdentity.delete(identity);
     },
@@ -1411,6 +1470,7 @@ export function createProgressionService(dependencies: ProgressionServiceDepende
       inventorySlotsUnlocked = 0;
       progressByIdentity.clear();
       researchByIdentity.clear();
+      luckByIdentity.clear();
       upgradeLevelsByIdentity.clear();
       activeItemUpgrades.clear();
       lifetimeByIdentity.clear(); heartsByIdentity.clear();
@@ -1430,6 +1490,7 @@ export function createProgressionService(dependencies: ProgressionServiceDepende
       prestigeLevelByIdentity.clear();
       localPrestigePerks = null;
       expansionPerks = { bossSlayer: 0, secondWind: 0, longShot: 0, fleetFoot: 0, quickDraw: 0 };
+      cardPerks = { weaponCards: 0, helmetCards: 0, armorCards: 0 };
       activeItemUpgrades.clear();
       balanceApologyGiftAmount = 0n;
       itemGifts.clear();

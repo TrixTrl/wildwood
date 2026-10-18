@@ -9,7 +9,7 @@ import { cleanSoulStats } from "../../../shared/soul-dimension";
 import { normalizePlayerGender } from "../../../shared/player-gender";
 import { resolvePlayerPresenceMap } from "./profile-presence";
 import { withWideProgress } from "./wide-progress";
-import { gearSlotsOf } from "./card-service";
+import { activeCardsOfRow } from "../../../shared/active-cards";
 import type { LeaderboardEntry, PlayerProfileData } from "../contracts";
 import type { ProfileDirectory } from "./profile-directory";
 import type { ProgressionService } from "./progression-service";
@@ -106,9 +106,10 @@ export function createPlayerProfileService(dependencies: PlayerProfileServiceDep
       prestigePerks: (() => {
         const row = [...(dependencies.connection()?.db.playerPrestigePerk.iter() ?? [])].find(row => row.identity.toHexString() === identity);
         const expansion = [...(dependencies.connection()?.db.playerPrestigeExpansionPerk.iter() ?? [])].find(row => row.identity.toHexString() === identity);
+        const cards = [...(dependencies.connection()?.db.playerPrestigeCardPerk?.iter() ?? [])].find(row => row.identity.toHexString() === identity);
         return { keenEdge: row?.keenEdge ?? 0, doubleStrike: row?.doubleStrike ?? 0, splitShot: row?.splitShot ?? 0, riposte: row?.riposte ?? 0,
           bossSlayer: expansion?.bossSlayer ?? 0, secondWind: expansion?.secondWind ?? 0, longShot: expansion?.longShot ?? 0, fleetFoot: expansion?.fleetFoot ?? 0,
-          quickDraw: expansion?.quickDraw ?? 0 };
+          quickDraw: expansion?.quickDraw ?? 0, weaponCards: cards?.weaponCards ?? 0, helmetCards: cards?.helmetCards ?? 0, armorCards: cards?.armorCards ?? 0 };
       })(),
       soulStats: (() => { const row = [...(dependencies.connection()?.db.profileSoulStats?.iter() ?? [])].find(row => row.identity.toHexString() === identity); return row ? cleanSoulStats(row) : null; })(),
       name: dependencies.directory.nameFor(identity) ?? "PLAYER",
@@ -123,22 +124,27 @@ export function createPlayerProfileService(dependencies: PlayerProfileServiceDep
           : [...(db?.playerItemRefine?.iter() ?? [])].filter(row => row.identity.toHexString() === identity);
         return Object.fromEntries(rows.map(row => [row.itemId, row.level]));
       })(),
-      // Each first copy's card slots, from my_gear_slots or the profile's player_gear_slots subscription.
-      itemCardSlots: (() => {
+      // Their active cards, from my_active_cards or the profile's player_active_card subscription.
+      activeCards: (() => {
         const db = dependencies.connection()?.db;
-        const rows = identity === dependencies.localIdentity() ? [...(db?.myGearSlots?.iter() ?? [])]
-          : [...(db?.playerGearSlots?.iter() ?? [])].filter(row => row.identity.toHexString() === identity);
-        return Object.fromEntries(rows.map(row => [row.itemId, gearSlotsOf(row)]));
+        const rows = identity === dependencies.localIdentity() ? [...(db?.myActiveCards?.iter() ?? [])]
+          : [...(db?.playerActiveCard?.iter() ?? [])].filter(row => row.identity.toHexString() === identity);
+        return activeCardsOfRow(rows[0]);
       })(),
-      wornSkill: (() => {
+      wornSkill: ((): { itemId: string; roll: Record<string, number> } | null => {
         const db = dependencies.connection()?.db;
-        // Your own weapon reads its roll from my_bow_skills / my_sword_skills; another player's from player_worn_skill.
+        // Your own weapon reads its roll from my_bow_skills / my_sword_skills / my_staff_skills; another player's
+        // from player_worn_skill, or player_worn_staff_skill for a staff.
         if (identity === dependencies.localIdentity()) {
           const weapon = progress.equippedRightHand || progress.equippedLeftHand || "";
+          const staff = [...(db?.myStaffSkills?.iter() ?? [])].find(row => row.itemId === weapon && !row.copyId && !row.offerId);
+          if (staff) return { itemId: weapon, roll: { meteor: staff.meteor, chain: staff.chain, frostNova: staff.frostNova } };
           const own = [...(db?.myBowSkills?.iter() ?? []), ...(db?.mySwordSkills?.iter() ?? [])].find(row => row.itemId === weapon) as Record<string, any> | undefined;
           return own ? { itemId: weapon, roll: { arrowStorm: own.arrowStorm ?? 0, ricochet: own.ricochet ?? 0, piercingShot: own.piercingShot ?? 0,
             whirlwind: own.whirlwind ?? 0, deflect: own.deflect ?? 0, shockwave: own.shockwave ?? 0 } } : null;
         }
+        const staff = [...(db?.playerWornStaffSkill?.iter() ?? [])].find(row => row.identity.toHexString() === identity);
+        if (staff) return { itemId: staff.itemId, roll: { meteor: staff.meteor, chain: staff.chain, frostNova: staff.frostNova } };
         const row = [...(db?.playerWornSkill?.iter() ?? [])].find(row => row.identity.toHexString() === identity);
         return row ? { itemId: row.itemId, roll: { arrowStorm: row.arrowStorm, ricochet: row.ricochet, piercingShot: row.piercingShot,
           whirlwind: row.whirlwind, deflect: row.deflect, shockwave: row.shockwave } } : null;
@@ -255,6 +261,9 @@ export function createPlayerProfileService(dependencies: PlayerProfileServiceDep
           for (const row of connection.db.playerResearch.iter()) {
             if (row.identity.toHexString() === identity) dependencies.progression.tables.upsertResearch(row);
           }
+          for (const row of connection.db.playerLuckResearch.iter()) {
+            if (row.identity.toHexString() === identity) dependencies.progression.tables.upsertLuckResearch(row);
+          }
           for (const row of connection.db.playerItemUpgrade.iter()) {
             if (row.identity.toHexString() === identity) dependencies.progression.tables.upsertItemUpgrade(row);
           }
@@ -288,6 +297,7 @@ export function createPlayerProfileService(dependencies: PlayerProfileServiceDep
           tables.playerChatHearts.where(row => row.identity.eq(dbIdentity)),
           tables.playerLifetime.where((lifetime) => lifetime.identity.eq(dbIdentity)),
           tables.playerResearch.where((research) => research.identity.eq(dbIdentity)),
+          tables.playerLuckResearch.where((research) => research.identity.eq(dbIdentity)),
           tables.playerPrestige.where(row => row.identity.eq(dbIdentity)),
           tables.playerPrestigePerk.where(row => row.identity.eq(dbIdentity)),
           tables.playerPrestigeChallenge.where(row => row.identity.eq(dbIdentity)),
@@ -296,8 +306,10 @@ export function createPlayerProfileService(dependencies: PlayerProfileServiceDep
           tables.profileSoulStats.where(row => row.identity.eq(dbIdentity)),
           tables.playerItemUpgrade.where((upgrade) => upgrade.identity.eq(dbIdentity)),
           tables.playerItemRefine.where(row => row.identity.eq(dbIdentity)),
-          tables.playerGearSlots.where(row => row.identity.eq(dbIdentity)),
+          tables.playerActiveCard.where(row => row.identity.eq(dbIdentity)),
+          tables.playerPrestigeCardPerk.where(row => row.identity.eq(dbIdentity)),
           tables.playerWornSkill.where(row => row.identity.eq(dbIdentity)),
+          tables.playerWornStaffSkill.where(row => row.identity.eq(dbIdentity)),
           tables.playerMiningLevel.where(row => row.identity.eq(dbIdentity)),
           tables.player.where((player) => player.identity.eq(dbIdentity)),
         ]);
@@ -387,7 +399,7 @@ export function createPlayerProfileService(dependencies: PlayerProfileServiceDep
       playerProfile(identity = dependencies.localIdentity()) {
         const profile = cachedPlayerProfile(identity);
         return profile
-          ? { ...profile, progress: { ...profile.progress }, itemUpgradeLevels: { ...profile.itemUpgradeLevels }, itemRefines: { ...profile.itemRefines }, itemCardSlots: { ...profile.itemCardSlots }, lifetime: { ...profile.lifetime } }
+          ? { ...profile, progress: { ...profile.progress }, itemUpgradeLevels: { ...profile.itemUpgradeLevels }, itemRefines: { ...profile.itemRefines }, ...(profile.activeCards ? { activeCards: { ...profile.activeCards } } : {}), lifetime: { ...profile.lifetime } }
           : null;
       },
       activePlayerMap(identity = dependencies.localIdentity()) {

@@ -6,6 +6,7 @@ import { ION_SWEEP, ION_BURSTS, ionSweepHits, ionBurstHits, ionBurstSites } from
 import { NEON_LASER, NEON_EMP, neonLaserHits, neonEmpHits } from "../../../../shared/neon-attacks";
 import {
   BOSS_AGGRO_RANGE,
+  SPIDER_AGGRO_RANGE,
   BOSS_CONE_HALF_ANGLE,
   BOSS_CONE_RANGE,
   BOSS_RAIN_RANGE,
@@ -48,6 +49,9 @@ import type { PlayerGender } from "../../../../shared/player-gender";
 import type { BossCone, PlayerState, SpiderWeb } from "../types";
 import { BOSSES, BOSS_KINDS, bossForMap, clearBossAttack, perBoss, type BossHazards, type BossKind, type BossStates } from "./boss-registry";
 
+/** How far past a boss's edge still counts as touching it, as a share of the edge distance. */
+const BOSS_CONTACT_SLACK = 1.02;
+
 export const BOSS_HP_LOSS_FLASH_DURATION = .18;
 export const SPIDER_WEB_RANGE = 720;
 export const BOSS_AREA_KNOCKBACK_DURATION = .32;
@@ -61,7 +65,6 @@ export function bossAreaKnockbackDistance(attackRange: number, bossRadius: numbe
 
 const DRAGON_CONE_WINDUP = .75;
 const DRAGON_CONE_DURATION = 1.2;
-const SPIDER_AGGRO_RANGE = 575;
 const DRAGON_CONTACT_DAMAGE_COOLDOWN = .75;
 const FROSTCLAW_ROAR_WINDUP = .85;
 const FROSTCLAW_ROAR_DURATION = .95;
@@ -1282,8 +1285,11 @@ export function createBossController(options: {
     // Expand the tuned ellipse by the player's radius for body contact.
     // The old circle pushed players away from empty air above short bosses.
     const scaledDistance = Math.hypot(dx / horizontal, dy / vertical);
-    if (scaledDistance >= 1) return;
+    // Touching anywhere around the body is contact: the push below leaves the player right on the edge, and
+    // rounding put that a hair inside at some angles and outside at others, so Reflect worked at a few spots only.
+    if (scaledDistance > BOSS_CONTACT_SLACK) return;
     if (target.contactDamageClock <= 0) { damagePlayer(damage); target.contactDamageClock = cooldown; }
+    if (scaledDistance >= 1) return;
     player.x = target.x + (scaledDistance > .001 ? dx / scaledDistance : horizontal);
     player.y = centreY + (scaledDistance > .001 ? dy / scaledDistance : 0);
   }

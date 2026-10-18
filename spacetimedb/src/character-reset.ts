@@ -14,6 +14,7 @@ import { SUPERIOR_GOLDEN_HELMET } from "../../shared/items";
 import { updateSnapshotRow, insertSnapshotRow, deleteSnapshotRow } from "./snapshot-row-writes";
 import { removeResearchCompletionSchedules } from "./research-runtime";
 import { removePausedResearch } from "./research-pause";
+import { deleteLuckResearch } from "./luck-research";
 import { removePlayerItemDrops, removePlayerItemUpgradeData } from "./item-upgrade-runtime";
 import { TUTORIAL_FOREST_MAP_ID, PLAYER_SPAWN } from "../../shared/rules";
 import { HOME_EXTERIOR_MAP_ID } from "../../shared/home";
@@ -66,6 +67,7 @@ export function resetProgressToDefaults(ctx: any, activePlayer: any, keep: { res
     if (!keep.research) {
       const research = ctx.db.playerResearch.identity.find(ctx.sender);
       if (research) deleteSnapshotRow(ctx, "playerResearch", ctx.sender);
+      deleteLuckResearch(ctx, ctx.sender);
       const activeResearchRow = ctx.db.activeResearch.identity.find(ctx.sender);
       if (activeResearchRow) ctx.db.activeResearch.identity.delete(ctx.sender);
       removeResearchCompletionSchedules(ctx, ctx.sender);
@@ -89,10 +91,10 @@ export function resetProgressToDefaults(ctx: any, activePlayer: any, keep: { res
  * prestige 6 and 21 with an empty save (ZeII, Yumi, 2026-10-11). Gems, purchases, cosmetics and mail stay.
  */
 const RESET_SAVE_TABLES = [
-  "playerPrestige", "playerPrestigePerk", "playerPrestigeExpansionPerk", "playerFreeRespec",
+  "playerPrestige", "playerPrestigePerk", "playerPrestigeExpansionPerk", "playerPrestigeCardPerk", "playerFreeRespec",
   "playerPrestigeChallenge", "prestigeChallengeBackup", "prestigeChallengeRun", "playerPrestigeChallengeParked",
   "playerAggroChallenge", "aggroChallengeRun", "playerAggroChallengeParked",
-  "playerSoulStats", "playerRewardKills", "playerBonusToggle",
+  "playerSoulStats", "playerSoulLevel", "playerRewardKills", "playerBonusToggle",
 ] as const;
 
 /** Reset Save: the account's progression first, so the fresh run starts with none of its bonuses, then the run. */

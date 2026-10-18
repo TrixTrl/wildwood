@@ -5,7 +5,8 @@ import type { PlayerProgress } from "../coop/services/progress";
 import { itemArtMarkup } from "../game/item-presentation";
 import { isHiddenCosmeticItem } from "../../shared/equipment-appearance";
 import { weaponKind } from "../../shared/equip-best";
-import { OWNED_GEAR_SLOTS, canHoldCards } from "../../shared/cards";
+import { cardDefinition, type CardSlot } from "../../shared/cards";
+import { CARD_TYPE_NAMES } from "../../shared/active-cards";
 import {
   itemDefinition,
   itemDisplayName,
@@ -73,13 +74,15 @@ export function profileEquipmentPresentation(
 
   const cosmeticItemId = knownItemId(selectedCosmetic);
   if (cosmeticItemId) {
+    // The look shows; the gear under it is what is inspected, with its own refine, skills and cards.
     return {
       slot,
       label: details.label,
       kind: "COSMETIC",
       displayItemId: cosmeticItemId,
-      inspectionItemId: cosmeticItemId,
-      context: `${details.label} · COSMETIC ACTIVE · VISUAL ONLY`,
+      inspectionItemId: equippedItemId || cosmeticItemId,
+      context: equippedItemId ? `${details.label} · EQUIPPED · ${itemDisplayName(cosmeticItemId).toUpperCase()} LOOK`
+        : `${details.label} · COSMETIC ACTIVE · VISUAL ONLY`,
     };
   }
   if (isHiddenCosmeticItem(selectedCosmetic)) {
@@ -112,15 +115,22 @@ export function profileEquipmentPresentation(
   };
 }
 
-/** The worn item's refine, from the profile's first-copy refines; a cosmetic only changes the look, so it has none. */
+/** The worn item's refine, from the profile's first-copy refines, under a look too; a look alone has none. */
 export function profileEquipmentRefine(presentation: ProfileEquipmentPresentation, itemRefines: Readonly<Record<string, number>> | undefined) {
-  return presentation.kind === "COSMETIC" ? 0 : itemRefines?.[presentation.inspectionItemId] ?? 0;
+  return wearsGear(presentation) ? itemRefines?.[presentation.inspectionItemId] ?? 0 : 0;
 }
 
-/** A worn item's card slots: one empty slot with no row yet, none for a look or for gear that holds no cards. */
-export function profileEquipmentCardSlots(presentation: ProfileEquipmentPresentation, itemCardSlots: Readonly<Record<string, { slots: number; cards: readonly string[] }>> | undefined) {
-  if (presentation.kind === "COSMETIC" || !canHoldCards(presentation.inspectionItemId)) return undefined;
-  return itemCardSlots?.[presentation.inspectionItemId] ?? { slots: OWNED_GEAR_SLOTS, cards: [] };
+/** A slot with real gear in it, shown as itself or under a look. */
+const wearsGear = (presentation: ProfileEquipmentPresentation) =>
+  presentation.kind !== "COSMETIC" || presentation.inspectionItemId !== presentation.displayItemId;
+
+const CARD_TYPE_OF: Partial<Record<ProfileEquipmentSlot, CardSlot>> = { WEAPON: "HAND", HEAD: "HEAD", CHEST: "CHEST" };
+
+/** The profile's active cards of a worn weapon's, helmet's or armor's type; none for a look or boots. */
+export function profileEquipmentActiveCards(presentation: ProfileEquipmentPresentation, activeCardIds: readonly string[]) {
+  const type = CARD_TYPE_OF[presentation.slot];
+  if (!type || !wearsGear(presentation)) return undefined;
+  return { title: `Active ${CARD_TYPE_NAMES[type]} Cards`, cards: activeCardIds.filter(cardId => cardDefinition(cardId)?.slot === type) };
 }
 
 export function renderProfileEquipmentSlot(

@@ -41,6 +41,8 @@ export const BLACK_BOOTS_SPEED_BONUS = 25;
 export const BLACK_BOOTS_COMBAT_DELAY_MS = 5_000;
 export const STARTER_STONE = "starter_stone";
 export const STARTER_BOW = "starter_bow";
+/** The Smith hands it out in Town: a staff with no stats, as the stone is to bows. */
+export const STARTER_STAFF = "starter_staff";
 export const IRON_BOW = "iron_bow";
 export const SNOW_BOW = "snow_bow";
 export const FROST_BOW = "frost_bow";
@@ -103,8 +105,8 @@ export const ITEM_UPGRADE_DURATION_GROWTH = 1.2294;
 export type ItemSlot = "HEAD" | "CHEST" | "FEET" | "HAND";
 export type EquipmentSlot = "HEAD" | "CHEST" | "FEET" | "RIGHT_HAND" | "LEFT_HAND";
 /** PATREON_DIAMOND: never stored as owned; worn only while the account's Patreon Diamond membership is active (shared/patreon-cosmetics.ts). */
-export type ItemAcquisition = "STARTER" | "PROGRESSION" | "DEVELOPER" | "PATREON_DIAMOND" | "FOREST_DROP" | "DESERT_DROP" | "SNOW_DROP" | "SNOW_BOSS_DROP" | "LAVA_DROP" | "LAVA_BOSS_DROP" | "INFERNAL_DROP" | "SAMURAI_DROP" | "WATER_DROP" | "CLOUDSPIRE_DROP" | "MOONFEN_DROP" | "CAMPAIGN_DROP";
-export type ProjectileKind = "ROCK" | "ARROW";
+export type ItemAcquisition = "STARTER" | "PROGRESSION" | "DEVELOPER" | "PATREON_DIAMOND" | "FOREST_DROP" | "DESERT_DROP" | "SNOW_DROP" | "SNOW_BOSS_DROP" | "LAVA_DROP" | "LAVA_BOSS_DROP" | "INFERNAL_DROP" | "SAMURAI_DROP" | "WATER_DROP" | "CLOUDSPIRE_DROP" | "MOONFEN_DROP" | "CAMPAIGN_DROP" | "TOWN_DROP";
+export type ProjectileKind = "ROCK" | "ARROW" | "BOLT";
 
 export type ItemDefinition = {
   id: string;
@@ -124,7 +126,7 @@ export type ItemDefinition = {
     projectile?: ProjectileKind;
     range?: number;
     damageMultiplierBonus?: number;
-    /** The map tier a stat-bearing bow was authored at (1-15). */
+    /** The map tier a stat-bearing bow, sword or staff was authored at (1-15). */
     tier?: number;
   };
 };
@@ -264,6 +266,16 @@ export const ITEM_DEFINITIONS = {
     description: "Your trusty first throwing stone.",
     stats: ["STARTER WEAPON · NO STATS"],
     weapon: { mode: "RANGED", projectile: "ROCK" },
+  },
+  // Kept like a drop (TOWN_DROP), so it stays in the bag and can be thrown away and taken again.
+  [STARTER_STAFF]: {
+    id: STARTER_STAFF,
+    name: "STARTER STAFF",
+    slot: "HAND",
+    acquisition: "TOWN_DROP",
+    description: "A plain staff from the Smith. Its bolts burst on whatever they hit.",
+    stats: ["STARTER WEAPON · NO STATS"],
+    weapon: { mode: "RANGED", projectile: "BOLT" },
   },
   [STARTER_BOW]: {
     id: STARTER_BOW,
@@ -511,9 +523,8 @@ export function isUpgradeableItem(itemId: unknown) {
 /**
  * What an item's stat stands on: its slot's tier and, since refining (shared/refine.ts), its own refine. A bare
  * number is the slot tier alone, as every caller passed before refining, so those keep working unchanged.
- * A worn copy's level also carries the cards slotted in it, which power reads (card-effects.ts cardStatFactors).
  */
-export type ItemLevel = number | { tier?: number; refine?: number; cards?: readonly string[] } | null | undefined;
+export type ItemLevel = number | { tier?: number; refine?: number } | null | undefined;
 export function itemLevelParts(level: ItemLevel) {
   if (level === null || level === undefined) return { tier: 0, refine: 0 };
   if (typeof level === "object") return { tier: normalizeItemUpgradeLevel(level.tier ?? 0), refine: level.refine ?? 0 };

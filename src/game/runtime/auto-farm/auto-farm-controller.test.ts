@@ -546,6 +546,32 @@ describe("autofarm against a ranged enemy with researched attack range", () => {
     expect(Math.hypot(brood.x - s.player.x, brood.y - s.player.y) - brood.r).toBeLessThan(75);
   });
 
+  it("never walks the player out of the portal it arrived in on its own", () => {
+    // A portal's keep-clear circle around the player, as a crossing leaves it; the camp is right beside it.
+    const portal: Circle = { x: 500, y: 490, r: 160 };
+    const s = setup([portal]);
+    s.add("Brood", 540, 470);
+    s.farm.setPullAll(true);
+    s.farm.start("Brood");
+    s.tick();
+    expect(s.farm.state().status).not.toBe("Leaving the portal");
+  });
+
+  it("leaves a player alone at a portal on a map with nothing to farm, such as the Town's travel portal", () => {
+    const portal: Circle = { x: 500, y: 490, r: 160 };
+    const s = setup([portal]);
+    s.add("Brood", 900, 900);
+    s.farm.start("Brood");
+    // Travel to the Town: the farm waits to resume on a map with enemies.
+    s.farm.travelStarted();
+    s.enemies.length = 0; s.spawnSites.length = 0;
+    s.setMap("town");
+    for (let frame = 0; frame < 90; frame++) s.advance(1000 / 60), s.tick();
+    expect(s.farm.state().waiting).toBe(true);
+    expect(s.player).toMatchObject({ x: 500, y: 500 });
+    expect(s.farm.state().status).not.toBe("Leaving the portal");
+  });
+
   it("stops at the edge of full reach, research and Long Shot included, never further in", () => {
     const at = (range: number) => autoFarmStandoff({ weaponRange: range, playerAttackRange: range, melee: false, playerRadius: 18,
       destination: { x: 0, y: 0, r: 16, type: "Bramble" }, enemy: true });
@@ -655,6 +681,25 @@ describe('autofarm plans: sliders, the boss and the next map', () => {
       t.advance(MOVE_ON_FIGHT_MS);
       t.tick();
       expect(t.farm.state().phase).toBe('portal');
+    });
+
+    it('Move On goes straight on after beating the boss, without finishing the fight around it', () => {
+      const boss = { x: 900, y: 500, r: 60, hp: 1_000, maxHp: 1_000, dead: false };
+      const portal = { x: 200, y: 500, destination: 'beginner_desert' };
+      const s = planned({ power: () => 2_000, mapPower: () => 1_000, bossPower: () => 1_000, mapBoss: () => boss as never,
+        bossUnlocksNext: () => true, nextPortal: () => boss.dead ? portal : null });
+      s.farm.setAdvance(true);
+      s.farm.setFightBosses(true);
+      s.add('Bramble', 500, 1_500);
+      s.farm.start([health]);
+      s.advance(1_000); s.tick();
+      expect(s.farm.state().phase).toBe('boss');
+      // The boss falls with the camp beside its pit still on the player.
+      boss.dead = true;
+      s.add('Bramble', 520, 500).engaged = true;
+      s.tick();
+      expect(s.farm.state().phase).toBe('portal');
+      expect(s.farm.moveStatus()).toBe('Moving On');
     });
 
     it("Move On by readiness from the live balance: waits while it loads, says what is missing, goes once ready", () => {
