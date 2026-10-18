@@ -19,7 +19,10 @@ const CLOSE_ENEMY_RANGE = 50;
 
 let runningFromBoss = false;
 
-export function smartMove(player: PlayerState, enemies: EnemyState[], mapId: string): Position {
+const filtering = false;
+const filteredEnemies = ["speed", "crit"];
+
+export function smartMove(player: PlayerState, enemies: EnemyState[]): Position {
 
     const boss = { x: 4000, y: 4000 };
     const bossCornerDist = Math.hypot(player.x - boss.x, player.y - boss.y);
@@ -34,7 +37,7 @@ export function smartMove(player: PlayerState, enemies: EnemyState[], mapId: str
     }
 
 
-    const usableEnemies = enemies.filter(e => validEnemy(e) && (e.engaged || (e.reward.type !== "speed" && e.reward.type !== "crit")));
+    const usableEnemies = enemies.filter(e => validEnemy(e));
 
     const followingEnemies = usableEnemies.filter(e => e.engaged);
 
@@ -94,7 +97,7 @@ export function smartMove(player: PlayerState, enemies: EnemyState[], mapId: str
                 closestEnemy = enemy;
             }
         }*/
-        const closestEnemy = usableEnemies.filter(e => !e.engaged).map(e => { return { data: e, distance: Math.hypot(player.x - e.x, player.y - e.y) * (distanceBoost(e, player) + 1) * closenessBoost(e, enemies, player) }; }).sort((a, b) => a.distance - b.distance)[0].data;
+        const closestEnemy = usableEnemies.filter(e => !e.engaged && (!filtering || !filteredEnemies.includes(e.reward.type))).map(e => { return { data: e, distance: Math.hypot(player.x - e.x, player.y - e.y) * (distanceBoost(e, player) + 1) * closenessBoost(e, enemies, player) }; }).sort((a, b) => a.distance - b.distance)[0]?.data;
         if (closestEnemy) {
             return moveAroundCentre({ x: closestEnemy.x, y: closestEnemy.y }, player);
         }
@@ -140,7 +143,7 @@ function norm(v: Position): Position {
 
 function distanceBoost(enemy: EnemyState, player: PlayerState): number {
     const priorities: Array<RewardType> = ["regen", "health", "armor", "damage", "speed", "crit"];
-    return Math.log((priorities.indexOf(enemy.reward.type) * 3)) * (enemy.reward.type === "health" ? (player.maxHp / (player.regen * 5)) ** 1 : 1) * (enemy.reward.type === "regen" ? ((player.regen * 5) / player.maxHp) ** 1 : 1) + (enemy.reward.type === "speed" || enemy.reward.type === "crit" ? 1000000 : 0);
+    return Math.log((priorities.indexOf(enemy.reward.type)) ** 2) * (enemy.reward.type === "health" ? (player.maxHp / (player.regen * 5)) ** 1 : 1) * (enemy.reward.type === "regen" ? ((player.regen * 5) / player.maxHp) ** 1 : 1) + (enemy.reward.type === "speed" || enemy.reward.type === "crit" ? 1000000 : 0);
 }
 
 function closenessBoost(enemy: EnemyState, enemies: EnemyState[], player: PlayerState) {
