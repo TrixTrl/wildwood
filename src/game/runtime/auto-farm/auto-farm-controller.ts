@@ -510,14 +510,28 @@ export function createAutoFarmController(options: {
   // ---- The boss's range ----
   /** Where each map's boss stands, as last seen: its range is kept out of while it is not being fought. */
   const pits = new Map<string, Position>();
-  function bossZone(): Circle | null {
-    if (phase === 'boss') return null;
+  function bossRange(): Circle | null {
     const boss = options.mapBoss?.(), mapId = options.mapId();
     if (boss && !boss.dead) pits.set(mapId, { x: boss.x, y: boss.y });
     const pit = pits.get(mapId), range = bossAggroRange(mapId);
     return pit && range ? { x: pit.x, y: pit.y, r: range + BOSS_ZONE_PAD } : null;
   }
+  const bossZone = () => phase === 'boss' ? null : bossRange();
   const inZone = (zone: Circle | null, point: Position) => Boolean(zone && Math.hypot(point.x - zone.x, point.y - zone.y) < zone.r);
+
+  /**
+   * The map whose living boss the player walked into the range of by hand: their fight. Auto Farm moves them neither in
+   * nor out until they leave its range, or the boss or the player is down. Its own boss fights (Fight Bosses) are not this.
+   */
+  let playerBossFightOn: string | null = null;
+  function notePlayerBossFight() {
+    const boss = options.mapBoss?.(), mapId = options.mapId();
+    if (!boss || boss.dead || phase === 'boss') { playerBossFightOn = null; return; }
+    const inside = inZone(bossRange(), player);
+    if (manualControl && inside) playerBossFightOn = mapId;
+    else if (playerBossFightOn !== mapId || !inside) playerBossFightOn = null;
+  }
+  const playerBossFight = () => active && playerBossFightOn === options.mapId();
   /** A camp it is not fighting would wake if it stood here. */
   const wakesCamp = (point: Position) => enemies.some(enemy => !enemy.dead && !enemy.engaged && !enemy.remoteCombatGhost && !enemy.generatedBoss
     && !pulledEnemy(enemy) && Math.hypot(enemy.x - point.x, enemy.y - point.y) < regularEnemyAggroRadius(enemy) + enemy.r + player.r + 20);
@@ -556,6 +570,7 @@ export function createAutoFarmController(options: {
     if (!active && !pendingResume) return;
     const report = deathReport();
     if (report) options.reportDeath?.(report);
+    playerBossFightOn = null;
     if (phase === 'boss') {
       // Killed by the boss, or on the way to it: not again on this map until the build has grown.
       bossRetryPower.set(options.mapId(), currentPower() * BOSS_RETRY_GROWTH);
@@ -567,6 +582,7 @@ export function createAutoFarmController(options: {
     pendingResume = null;
     travellingTo = null;
     phase = 'farm';
+    playerBossFightOn = null;
     options.resumeStore?.clear();
     active = false;
     manualControl = false;
@@ -740,6 +756,7 @@ export function createAutoFarmController(options: {
     selected = null;
     planClock = 0;
     phase = 'farm';
+    playerBossFightOn = null;
     travellingTo = null;
     active = true;
     manualControl = false;
@@ -790,6 +807,7 @@ export function createAutoFarmController(options: {
     const mining = mine?.movement(manual, dt);
     if (mining) return mining;
     manualControl = Boolean(manual.x || manual.y);
+    if (active) notePlayerBossFight();
     if (recovering) return idle();
     // Waiting to resume on another map, the player can still walk (a town has nothing to farm).
     if (pendingResume && !manual.x && !manual.y) return idle();
@@ -799,6 +817,10 @@ export function createAutoFarmController(options: {
     }
     if (!active || options.paused()) return manual;
     choosePhase(dt);
+    if (phase !== 'boss' && playerBossFight()) {
+      status = 'Your boss fight'; route = []; lastGoal = null; routeClock = 0; holding = true; target = null;
+      return idle();
+    }
     if (player.maxHp > 0 && player.hp >= player.maxHp * .9) lastHealthyAt = now();
     if (phase === 'farm') takePullTurns(dt);
     const boss = phase === 'boss' ? options.mapBoss?.() ?? null : null;
@@ -988,9 +1010,9 @@ export function createAutoFarmController(options: {
       status: active && !recovering && options.paused() ? 'Paused' : status
     }),
     /** The camp being farmed; null at the boss or on the way out, so the boss and anything in the way are fair game. */
-    targetType: () => active && !manualControl && phase === 'farm' ? selectedType : null,
+    targetType: () => active && !manualControl && phase === 'farm' && !playerBossFight() ? selectedType : null,
     /** What combat aims at: the farmed camp, or, with every farmed group pulled, whatever is nearest. */
-    attackType: () => active && !manualControl && phase === 'farm' && !pullCoversFarm() ? selectedType : null,
+    attackType: () => active && !manualControl && phase === 'farm' && !playerBossFight() && !pullCoversFarm() ? selectedType : null,
     targetCamp: () => null,
     /** Pull brings everything it farms, so it stands where it is: other players see it standing, not walking camp to camp. */
     holdsGround: () => pullCoversFarm(),
@@ -1019,7 +1041,7 @@ export function createAutoFarmController(options: {
      * The Target rule combat aims by: while farming (a pulled crowd too) and all
      * through an Aggro run. Steering by hand otherwise aims at the nearest.
      */
-    attackPriority: (): AutoFarmPriority => (active && !manualControl && phase === 'farm') || forcedGroups().size ? priority : 'closest',
+    attackPriority: (): AutoFarmPriority => (active && !manualControl && phase === 'farm' && !playerBossFight()) || forcedGroups().size ? priority : 'closest',
     pullAll: () => pullAll,
     /** False during an Aggro run, when Pull is off. */
     pullAvailable: () => (options.pullCamps?.() ?? 1) > 0,
