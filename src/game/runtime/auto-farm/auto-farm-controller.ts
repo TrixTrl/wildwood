@@ -537,45 +537,6 @@ export function createAutoFarmController(options: {
     return goal;
   }
 
-  // ---- The boss's range ----
-  /** Where each map's boss stands, as last seen: its range is kept out of while it is not being fought. */
-  const pits = new Map<string, Position>();
-  function bossZone(): Circle | null {
-    if (phase === 'boss') return null;
-    const boss = options.mapBoss?.(), mapId = options.mapId();
-    if (boss && !boss.dead) pits.set(mapId, { x: boss.x, y: boss.y });
-    const pit = pits.get(mapId), range = bossAggroRange(mapId);
-    return pit && range ? { x: pit.x, y: pit.y, r: range + BOSS_ZONE_PAD } : null;
-  }
-  const inZone = (zone: Circle | null, point: Position) => Boolean(zone && Math.hypot(point.x - zone.x, point.y - zone.y) < zone.r);
-  /** A camp it is not fighting would wake if it stood here. */
-  const wakesCamp = (point: Position) => enemies.some(enemy => !enemy.dead && !enemy.engaged && !enemy.remoteCombatGhost && !enemy.generatedBoss
-    && !pulledEnemy(enemy) && Math.hypot(enemy.x - point.x, enemy.y - point.y) < regularEnemyAggroRadius(enemy) + enemy.r + player.r + 20);
-  /**
-   * Pull brings everything to where it stands. Inside the boss's range, or where an Aggro-free camp wakes, it walks to the
-   * nearest spot clear of both first, leaning towards the pulled camps; null when where it stands will do.
-   */
-  let spot: { goal: Position | null; at: number } | null = null;
-  function pullSpot(zone: Circle | null): Position | null {
-    const bad = (point: Position) => inZone(zone, point) || wakesCamp(point);
-    if (spot && now() - spot.at < 1_000 && now() >= spot.at) return spot.goal && Math.hypot(spot.goal.x - player.x, spot.goal.y - player.y) > WAYPOINT_REACHED ? spot.goal : null;
-    let goal: Position | null = null;
-    if (bad(player)) {
-      const sites = spawnSites.filter(site => pulledGroups().has(choiceKey(site)));
-      const centre = sites.length ? { x: sites.reduce((sum, site) => sum + site.x, 0) / sites.length, y: sites.reduce((sum, site) => sum + site.y, 0) / sites.length } : player;
-      const edge = player.r + 40;
-      let best = Infinity;
-      for (let ring = 1; ring <= 8; ring++) for (let turn = 0; turn < 12; turn++) {
-        const angle = turn * Math.PI / 6, point = { x: player.x + Math.cos(angle) * ring * 120, y: player.y + Math.sin(angle) * ring * 120 };
-        if (point.x < edge || point.y < edge || point.x > WORLD.w - edge || point.y > WORLD.h - edge || bad(point)) continue;
-        const cost = Math.hypot(point.x - player.x, point.y - player.y) + Math.hypot(point.x - centre.x, point.y - centre.y) / 2;
-        if (cost < best) { best = cost; goal = point; }
-      }
-    }
-    spot = { goal, at: now() };
-    return goal;
-  }
-
   /**
    * Death does not end a farm: the session stops running while the player is
    * down, which refresh() treats as a recovery, picking it up after the
@@ -990,6 +951,8 @@ export function createAutoFarmController(options: {
       const check = readyForMap(portal.destination);
       if (!check.ready) return check.line;
       return /*fightHeldSince !== null && active ? 'Moving On After This Fight' :*/ 'Moving On';
+      if (fightHeldSince !== null && active) return 'Moving On After This Fight';
+      return waitsForHealth() && bossBeatenOn !== options.mapId() ? 'Moving On Once Healed' : 'Moving On';
     }
     // The way forward is shut until this map's boss is beaten.
     if (options.bossUnlocksNext?.() === true && !opensNothing.has(options.mapId())) return 'Boss Needed';
