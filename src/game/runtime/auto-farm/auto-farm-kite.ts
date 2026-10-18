@@ -8,7 +8,7 @@ const INFLUENCE_CONSTANT = 300000;
 const mapSize = 5000;
 const CENTER_PULL_STRENGTH = 10;
 const CENTER_PULL_RADIUS = 2000;
-const CENTER_PUSH_RADIUS = 700;
+const CENTER_PUSH_RADIUS = 400;
 
 const BOSS_CORNER_SIZE = 800;
 const BOSS_CORNER_BUFFER = 200;
@@ -94,7 +94,7 @@ export function smartMove(player: PlayerState, enemies: EnemyState[], mapId: str
                 closestEnemy = enemy;
             }
         }*/
-        const closestEnemy = usableEnemies.filter(e => !e.engaged).map(e => { return { data: e, distance: Math.hypot(player.x - e.x, player.y - e.y) * (distanceBoost(e, player) + 1) }; }).sort((a, b) => a.distance - b.distance)[0].data;
+        const closestEnemy = usableEnemies.filter(e => !e.engaged).map(e => { return { data: e, distance: Math.hypot(player.x - e.x, player.y - e.y) * (distanceBoost(e, player) + 1) * closenessBoost(e, enemies, player) }; }).sort((a, b) => a.distance - b.distance)[0].data;
         if (closestEnemy) {
             return moveAroundCentre({ x: closestEnemy.x, y: closestEnemy.y }, player);
         }
@@ -140,7 +140,13 @@ function norm(v: Position): Position {
 
 function distanceBoost(enemy: EnemyState, player: PlayerState): number {
     const priorities: Array<RewardType> = ["regen", "health", "armor", "damage", "speed", "crit"];
-    return Math.log(priorities.indexOf(enemy.reward.type) ** 1.5 + 1) * (enemy.reward.type === "health" ? (player.maxHp / (player.regen * 5)) ** 2 : 1);
+    return Math.log((priorities.indexOf(enemy.reward.type) * 3) ** 2 + 1) * (enemy.reward.type === "health" ? (player.maxHp / (player.regen * 5)) ** 4 : 1) * (enemy.reward.type === "regen" ? ((player.regen * 5) / player.maxHp) ** 2 : 1);
+}
+
+function closenessBoost(enemy: EnemyState, enemies: EnemyState[], player: PlayerState) {
+    let sum = 0;
+    enemies.forEach(e => { if (!e.engaged) sum += 1 / ((Math.hypot(enemy.x - e.x, enemy.y - e.y) * 0.1) ** 2) * distanceBoost(e, player); });
+    return 1 / (Math.log(sum + 1) + 3);
 }
 
 function pushOutOfCentre(position: Position): Position {
