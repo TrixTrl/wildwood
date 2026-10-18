@@ -3548,6 +3548,7 @@ const RELEASE_DATES: Record<string, string> = {
 };
 
 export const RELEASE_DAYS: Record<string, string> = {
+  "0.913.6 ~ Hallowed's Version": "2026-10-18",
   "0.913.6": "2026-10-17",
   "0.913.5": "2026-10-17",
   "0.913.4": "2026-10-17",
