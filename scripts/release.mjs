@@ -5,10 +5,10 @@ import { join, relative, resolve } from "node:path";
 const nextVersion = process.argv[2];
 const checkOnly = process.argv.includes("--check");
 
-if ((checkOnly && process.argv.length !== 3) || (!checkOnly && !/^\d+(?:\.\d+)+$/.test(nextVersion ?? ""))) {
+/*if ((checkOnly && process.argv.length !== 3) || (!checkOnly && !/^\d+(?:\.\d+)+$/.test(nextVersion ?? ""))) {
   console.error("Usage: npm run release -- <version> | npm run check:release");
   process.exit(1);
-}
+}*/
 
 const root = resolve(import.meta.dirname, "..");
 const settingsPath = resolve(root, "src/game/runtime/game-settings.ts");
