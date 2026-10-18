@@ -36,7 +36,7 @@
     "release": "node scripts/release.mjs",
     "release:live": "node scripts/release-live.mjs",
     "ship": "node scripts/ship.mjs",
-    "check:release": "node scripts/release.mjs --check && node scripts/subscribed-schema.mjs",
+    "check:release": "node scripts/release.mjs && node scripts/subscribed-schema.mjs",
     "typecheck:coop": "tsc --noEmit -p config/tsconfig.coop.json",
     "typecheck:balance": "tsc --noEmit -p config/tsconfig.balance.json",
     "typecheck:loadtest": "tsc --noEmit -p config/tsconfig.loadtest.json",
