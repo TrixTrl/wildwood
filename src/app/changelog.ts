@@ -1,4 +1,9 @@
 export const RELEASE_NOTES: Record<string, string[]> = {
+  "0.913.6": [
+    "Firefox: the minimap, Town water and range ring no longer slow down after the window is made smaller",
+    "Standing in a portal after an update, walking into it takes you through instead of doing nothing",
+    "Auto Farm no longer gets stuck in a portal after an update reloads the game mid Move On",
+  ],
   "0.913.5": [
     "Smoother play in Firefox: the screen's dark edges, your range ring, portals and the Town's buildings are cheaper to draw",
     "Less memory churn every frame, for fewer stutters",
@@ -3543,6 +3548,7 @@ const RELEASE_DATES: Record<string, string> = {
 };
 
 export const RELEASE_DAYS: Record<string, string> = {
+  "0.913.6": "2026-10-17",
   "0.913.5": "2026-10-17",
   "0.913.4": "2026-10-17",
   "0.913.3": "2026-10-17",
