@@ -16,7 +16,7 @@ import { isValidProfileIcon } from "../../shared/profile-icons";
 import { releaseNotice, releaseAcknowledgement, writeReleaseWindow, acknowledgeReleaseWindow, announceClientUpdate as announceClientUpdateWindow } from "./release-control";
 import { recordBossGateClear } from "./boss-gates";
 import { playerMultiplayerPreference, writeMultiplayerPreference } from "./multiplayer-preference";
-import { enemyDefeatBudget, playerDefeatClock, acceptEnemyDefeats, permittedDefeatMaps, pruneIdleDefeatBudgets, throttleKillReports, type DefeatClocks, type EnemyDefeatBatch } from "./enemy-defeats";
+import { enemyDefeatBudget, playerDefeatClock, playerMapDeparture, acceptEnemyDefeats, permittedDefeatMaps, pruneIdleDefeatBudgets, throttleKillReports, type DefeatClocks, type EnemyDefeatBatch } from "./enemy-defeats";
 import { grantVirtualPlayerConsent, revokeVirtualPlayerConsent } from "./virtual-player-consent";
 import { offlineProgressTables, beginOfflineWindow, grantOfflineProgress, acknowledgeOfflineProgress, setSimulatedTimeAway } from "./offline-progress";
 import { playerOfflinePreference, writeOfflinePreference } from "./offline-preference";
@@ -1412,7 +1412,7 @@ const spacetimedb = schema({
   playerEquipmentLock, playerItemGift, playerBowSkill, playerSwordSkill, playerStaffSkill, playerWornStaffSkill, playerEquipmentCopy, pendingEquipmentOffer, playerIgnoredDrop, playerLootSetting, playerItemRefine, playerCopyRefine, playerOre, playerRefineResult, playerCard, playerGearSlots, playerCopySlots, playerCardDrop, playerCardAttackCap, playerBossCardRoll, playerBuild, playerCardMeter, playerCardShopPurchase, playerItemCollection, playerWornSkill, playerMining, playerMinedNode, playerMiningLevel, gemKillDaily, gemLedgerTrim,
   mailboxLetter, mailboxReceipt, playerJoinDate, mailboxEquipment, accountDeletionRequest,
   playerOnboarding,
-  regularEnemyLootCursor, regularEnemyStream, enemyDefeatBudget, playerDefeatClock,
+  regularEnemyLootCursor, regularEnemyStream, enemyDefeatBudget, playerDefeatClock, playerMapDeparture,
   playerMultiplayerPreference,
   chatReaction, chatHeartAllowance, chatReactionCooldown, chatReactionSummary, chatReactionUnlock, chatModerator, playerChatHearts,
   playerUpgradeBench,
@@ -1828,7 +1828,7 @@ function enterWorldPresence(ctx: any, tabId: string, forceTakeover = false, supp
     existingProfile = repairModeratedDisplayName(ctx, existingProfile);
   }
   ensureGemWallet(ctx, ctx.sender);
-  if (hasSpacetimeAuthAccount(ctx)) ensureDailyGemBonusState(ctx, ctx.sender);
+  ensureDailyGemBonusState(ctx, ctx.sender);
 
   const lifetime = ensurePlayerLifetime(ctx);
 
@@ -2945,7 +2945,6 @@ export const speedUpResearchWithGems = spacetimedb.reducer((ctx) => {
 
 export const claimDailyGemBonus = spacetimedb.reducer((ctx) => {
   requireControllingPlayer(ctx);
-  if (!hasSpacetimeAuthAccount(ctx)) throw new SenderError("Register an account to claim daily Gems.");
   const dayKey = currentUtcDayKey(ctx);
   const state = ensureDailyGemBonusState(ctx, ctx.sender);
   if (state.claimableDayKey !== dayKey) throw new SenderError("Today's daily Gems are already claimed.");
@@ -2954,7 +2953,7 @@ export const claimDailyGemBonus = spacetimedb.reducer((ctx) => {
     identity: ctx.sender,
     delta: DAILY_LOGIN_GEM_BONUS,
     kind: "daily_login_bonus",
-    note: "Registered-account daily login bonus claimed.",
+    note: "Daily login bonus claimed.",
     externalReference: dailyGemBonusClaimReference(ctx.sender, dayKey, state.claimCycle),
   });
   ctx.db.dailyGemBonus.identity.update({

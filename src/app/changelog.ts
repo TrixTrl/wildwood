@@ -1,4 +1,22 @@
 export const RELEASE_NOTES: Record<string, string[]> = {
+  "0.914.8": [
+    "Guests get the daily gems too, not only registered accounts",
+    "A card shield now takes all of the hit that breaks it, so it can stop a blow that would one-shot you",
+  ],
+  "0.914.7": [
+    "Portals and teleports no longer wait for your last kills to count, so they stop pulling you back or freezing you",
+  ],
+  "0.914.6": [
+    "Prism's reflected hit strikes up to 4 enemies near the attacker, dropped from 6 to 4, and each once a second at most",
+    "Auto Farm keeps Aggro pulling while it fights a boss, so builds that heal from kills keep healing",
+    "The Town's bridges keep you on the deck: no more walking along the rails",
+    "The Android app restarts into an update it finds as it opens, and later ones get a Restart button, instead of asking you to close and reopen",
+  ],
+  "0.914.5": [
+    "A Card Found moment is only for a card new to you, and never stops you moving; another copy is a small line in its rarity's colour",
+    "Reflect throws back up to half your max health instead of all of it; still no cap in Reflect Only",
+    "Coming through a portal puts you a step in front of the next map's portal again, not inside it",
+  ],
   "0.914.4": [
     "Auto Farm with only Aggro on stands where you left it, by a boss too, instead of walking off to a clear spot first",
     "Cards tab: tighter at the top, no drop note, and zone counts without the word Owned",
@@ -3568,6 +3586,10 @@ const RELEASE_DATES: Record<string, string> = {
 };
 
 export const RELEASE_DAYS: Record<string, string> = {
+  "0.914.8": "2026-10-18",
+  "0.914.7": "2026-10-18",
+  "0.914.6": "2026-10-18",
+  "0.914.5": "2026-10-18",
   "0.914.4": "2026-10-18",
   "0.914.3": "2026-10-18",
   "0.914.2": "2026-10-18",
