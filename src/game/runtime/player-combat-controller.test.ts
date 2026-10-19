@@ -737,6 +737,12 @@ it('passes Endless critical damage and the critical flag to its hit display', ()
   expect(hit).toHaveBeenCalledWith(state.enemies[0], 20, true, false);   // a swing, not a reflect
 });
 
+it("tells Auto Farm whether the build feeds on adds: Reflect or Second Wind", () => {
+  expect(createCombatHarness().controller.feedsOnAdds()).toBe(false);
+  expect(createCombatHarness({ prestigeReflect: () => .1 }).controller.feedsOnAdds()).toBe(true);
+  expect(createCombatHarness({ prestigeSecondWind: () => .05 }).controller.feedsOnAdds()).toBe(true);
+});
+
 describe("autofarm target priority", () => {
   // Three of one type in range: nearest at full health, a wounded one further
   // out, and a tougher one furthest away.
@@ -826,6 +832,19 @@ describe("autofarm target priority", () => {
     };
     expect(aim("strongest")).toBe("boss");
     expect(aim("closest")).toBe("group");
+  });
+
+  it("leaves whatever Strongest was shooting for the boss as soon as the boss is in range", () => {
+    let now = 0;
+    const h = harness({ nowSeconds: () => now });
+    h.state.controller.attackNearest(h.near.type, null, "strongest");
+    expect(aimedAt(h.state, h.tough)).toBe(true);
+    const boss = h.state.bosses.dragon;
+    Object.assign(boss, { dead: false, x: h.state.player.x, y: h.state.player.y + 20, hp: 10, maxHp: 5_000 });
+    now += 1;
+    h.state.controller.attackNearest(h.near.type, null, "strongest");
+    // By max health, not what it has left.
+    expect(aimedAt(h.state, { x: boss.x, y: boss.y + (boss.hitboxOffsetY ?? 0) })).toBe(true);
   });
 });
 

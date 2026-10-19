@@ -1,4 +1,13 @@
 export const RELEASE_NOTES: Record<string, string[]> = {
+  "0.914.11": [
+    "World chat shows power past 300ud instead of stopping there",
+    "Auto Farm keeps Aggro pulling at a boss only for a Reflect or Second Wind build; any other fights the boss alone",
+    "Keys 1, 2 and 3 equip Build 1, 2 and 3; change them in Settings > Controls",
+    "Small balancing",
+  ],
+  "0.914.10": [
+    "Target Strongest goes for the boss as soon as it is in range, by its max health, including while Auto Farm fights it",
+  ],
   "0.914.9": [
     "Boss cards at the Card Seller cost 1 Starshard and half the ore, down from 5 Starshards and 120 ore",
     "Start Research is the same grey button as Pause, not a plain one",
@@ -3590,6 +3599,8 @@ const RELEASE_DATES: Record<string, string> = {
 };
 
 export const RELEASE_DAYS: Record<string, string> = {
+  "0.914.11": "2026-10-18",
+  "0.914.10": "2026-10-18",
   "0.914.9": "2026-10-18",
   "0.914.8": "2026-10-18",
   "0.914.7": "2026-10-18",
