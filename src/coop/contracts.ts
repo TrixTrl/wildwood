@@ -165,8 +165,14 @@ export type PlayerProfileData = {
   activeCards?: import("../../shared/active-cards").ActiveCards;
   /** The equipped weapon's skill roll (player_worn_skill), for showing it on the profile. */
   wornSkill?: { itemId: string; roll: Record<string, number> } | null;
-  /** The Mining stat (my_mining for your own, player_mining_level for anyone else's); null before the Smith's pickaxe. */
+  /** The Mining stat (my_mining for your own, player_mining_level for anyone else's); null before their first rock. */
   mining?: number | null;
+  /** The Woodcutting stat (my_woodcutting for your own, player_woodcutting_level for anyone else's); null before their first tree. */
+  woodcutting?: number | null;
+  /** Weapon Mastery levels by school (my_weapon_mastery for your own, player_mastery_level for anyone else's); a missing school is level 0. */
+  mastery?: Partial<Record<import("../../shared/weapon-mastery").WeaponSchool, number>> | null;
+  /** Craft levels (my_craft_skills for your own, player_craft_level for anyone else's); a craft never practised is missing. */
+  crafts?: Partial<Record<import("../../shared/crafting").CraftSkill, number>> | null;
   lifetime: PlayerLifetime;
   mapId?: string;
 };

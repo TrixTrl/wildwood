@@ -44,6 +44,15 @@ import { ensureWeaponSkillRoll } from "./weapon-skills";
 import { playerEquipmentCopy, pendingEquipmentOffer, createEquipmentCopies, publishItemDrop, offerDuplicateEquipment, expireEquipmentOffers, playerItemCollection, registerItemCollection } from "./equipment-copies";
 import { playerItemRefine, playerCopyRefine, playerOre, playerRefineResult, registerItemRefine } from "./item-refine";
 import { playerMining, playerMinedNode, playerMiningLevel, registerMining } from "./mining";
+import { playerWoodcutting, playerChoppedTree, playerWoodcuttingLevel, registerWoodcutting } from "./woodcutting";
+import { awardWeaponMastery, playerMasteryLevel, playerWeaponMastery, registerWeaponMastery } from "./weapon-mastery";
+import { awardKillGold, playerGold, registerGold } from "./gold";
+import { registerGradeShop } from "./grade-shop";
+import { registerGradeSale } from "./grade-sale";
+import { playerStarterWeapon, registerStarterChest } from "./starter-chest";
+import { playerCraftSkill, playerCraftLevel, registerCrafting } from "./crafting";
+import { playerTool, registerTools } from "./tools";
+import { mergeOldGearPayout, oldGearPayout, payOutOldGear } from "./old-gear-payout";
 import { playerCard, playerGearSlots, playerCopySlots, playerCardDrop, registerGearCards } from "./gear-cards"; import { playerActiveCard, registerActiveCards } from "./active-cards"; import { playerCardAttackCap, syncCardAttackCap } from "./card-attack-cap"; import { playerBuild, playerBuildName, registerBuilds } from "./builds"; import { playerWornSkill, syncWornSkill } from "./worn-skill";
 import { awardCardDrops, playerBossCardRoll, playerCardMeter } from "./card-drops"; import { playerCardShopPurchase, registerCardShop } from "./card-shop";
 import { awardRegularEnemyLoot } from "./enemy-loot-award";
@@ -70,7 +79,6 @@ import { beginPatreonLink as beginSupporterLink, refreshPatreon, sweepPatreonLin
 import { requestPatreonSupport } from "./patreon-support";
 import { allowedAvatarFrame, isAvatarFrame } from "../../shared/avatar-frames";
 import { createGemPurchaseService } from "./gem-purchase-service";
-import { equipmentMapRequirement } from "../../shared/equipment-access";
 import { HOME_EXTERIOR_MAP_ID } from "../../shared/home";
 import { registerTown, TOWN_ARRIVAL, TOWN_MAP_ID } from "./town";
 import { guildHallMember, memberEnteredWorld, guildHallMemberLeft, guildHallTables, isGuildHallMap, registerGuildHall } from "./guild-hall";
@@ -1409,7 +1417,7 @@ const spacetimedb = schema({
   dailyGemBonus,
   playerAdReward, playerChatMute,
   balanceApologyNotice,
-  playerEquipmentLock, playerItemGift, playerBowSkill, playerSwordSkill, playerStaffSkill, playerWornStaffSkill, playerEquipmentCopy, pendingEquipmentOffer, playerIgnoredDrop, playerLootSetting, playerItemRefine, playerCopyRefine, playerOre, playerRefineResult, playerCard, playerGearSlots, playerCopySlots, playerCardDrop, playerCardAttackCap, playerBossCardRoll, playerBuild, playerBuildName, playerCardMeter, playerCardShopPurchase, playerItemCollection, playerWornSkill, playerMining, playerMinedNode, playerMiningLevel, gemKillDaily, gemLedgerTrim,
+  playerEquipmentLock, playerItemGift, playerBowSkill, playerSwordSkill, playerStaffSkill, playerWornStaffSkill, playerEquipmentCopy, pendingEquipmentOffer, playerIgnoredDrop, playerLootSetting, playerItemRefine, playerCopyRefine, playerOre, playerRefineResult, playerCard, playerGearSlots, playerCopySlots, playerCardDrop, playerCardAttackCap, playerBossCardRoll, playerBuild, playerBuildName, playerWeaponMastery, playerMasteryLevel, playerGold, playerCardMeter, playerCardShopPurchase, playerItemCollection, playerWornSkill, playerMining, playerMinedNode, playerMiningLevel, playerWoodcutting, playerChoppedTree, playerWoodcuttingLevel, playerCraftSkill, playerCraftLevel, playerTool, oldGearPayout, playerStarterWeapon, gemKillDaily, gemLedgerTrim,
   mailboxLetter, mailboxReceipt, playerJoinDate, mailboxEquipment, accountDeletionRequest,
   playerOnboarding,
   regularEnemyLootCursor, regularEnemyStream, enemyDefeatBudget, playerDefeatClock, playerMapDeparture,
@@ -2979,8 +2987,7 @@ export const devGrantEquipment = spacetimedb.reducer(
     if (!item || !progress) throw new SenderError("Player or equipment unavailable.");
     const alreadyOwned = playerOwnsItem(ctx, identity, itemId);
     let next = restoreItemToProgress(progress, itemId);
-    // Only gear the player's maps unlock: a locked weapon in hand reads as no weapon.
-    if (equip && item.slot === "HAND" && !equipmentMapRequirement(itemId, next)) next ={ ...next, equippedRightHand: itemId, equippedLeftHand: "", cosmeticRightHand: "", cosmeticLeftHand: "" };
+    if (equip && item.slot === "HAND") next ={ ...next, equippedRightHand: itemId, equippedLeftHand: "", cosmeticRightHand: "", cosmeticLeftHand: "" };
     writeProgressAndPresentation(ctx, next);
     publishItemDrop(ctx, identity, itemId, alreadyOwned);
   },
@@ -3146,6 +3153,7 @@ export const destroyEquipmentCopy = spacetimedb.reducer(
 );
 export const selectEquipmentCopy = spacetimedb.reducer({ copyId: t.u64() }, (ctx, { copyId }) => equipmentCopies.select(ctx, copyId));
 export const resolveEquipmentOffer = spacetimedb.reducer({ id: t.u64(), keep: t.bool() }, (ctx, args) => equipmentCopies.resolveOffer(ctx, args));
+export const { sellGradedItem } = registerGradeSale(spacetimedb, { requireControllingPlayer, activeDuelFor, inventoryForProgress, removeCopy: equipmentCopies.removeCopy });
 
 export const convertItemToCosmetic = spacetimedb.reducer(
   { itemId: t.string() }, (ctx, { itemId }) => cosmeticConversion.convertItemToCosmetic(ctx, itemId),
@@ -3242,7 +3250,7 @@ function recordEnemyDefeatsFor(ctx: any, batch: EnemyDefeatBatch, clocks?: Defea
     const base = accepted.count ? combat.savedProgress() : null;
     if (accepted.count) {
       const next = combat.rewardedProgress()!;
-      const rewarded = awardRegularEnemyLoot(ctx, batch.mapId, accepted.lootCount, accepted.balance, { progress: next, cards: worn });
+      const rewarded = awardRegularEnemyLoot(ctx, batch.mapId, accepted.lootCount, accepted.balance, { progress: next });
       updateSnapshotRow(ctx, "playerProgress", rewarded);
       const power = combat.powerFields(rewarded);
       // Both rows below are broadcast to everyone on the map, and kills move
@@ -3257,7 +3265,8 @@ function recordEnemyDefeatsFor(ctx: any, batch: EnemyDefeatBatch, clocks?: Defea
     }
     const gate = accepted.bossCleared ? recordBossGateClear(ctx, batch.mapId) : null;
     awardCardDrops(ctx, ctx.sender, batch.mapId, accepted.kills, accepted.bossCleared ? 1 : 0, 1, worn);
-    // New regular loot, or equipment made usable by a newly opened gate.
+    awardWeaponMastery(ctx, ctx.sender, (base ?? gate?.previousProgress ?? combat.savedProgress())?.equippedRightHand, accepted.count, Boolean(gate));
+    // New regular loot goes on when it beats the slot.
     autoEquip.equipNewUpgrades(ctx, ctx.sender, base ?? gate?.previousProgress);
     if (accepted.count) {
       const lifetime = ensurePlayerLifetime(ctx);
@@ -3267,6 +3276,7 @@ function recordEnemyDefeatsFor(ctx: any, batch: EnemyDefeatBatch, clocks?: Defea
       killGems.grantKillGems(ctx, ctx.sender, accepted.count, enemyKills);
       recordDailyQuestKills(ctx, ctx.sender, batch.mapId, accepted.kills); noteEnemyDefeats(ctx, batch.mapId, accepted.rewards);
     }
+    awardKillGold(ctx, ctx.sender, accepted.count, Boolean(gate), worn);
     enforce();
     if (!accepted.restrict && gate) {
       recordAnalyticsMilestone(ctx, "boss");
@@ -3797,7 +3807,7 @@ const {
   removePlayerIdentityData,
 } = createAccountLifecycle({
   LEGACY_CLIENT_ERRORS, UPGRADE_BENCH_SLOT_ONE, UPGRADE_BENCH_SLOT_TWO, UPGRADE_BENCH_SLOT_THREE, guildService, activeDuelFor,
-  activeItemUpgradeForSlot, adjustVirtualPlayerCount, applyGemBalanceChange, earlierTimestamp,
+  activeItemUpgradeForSlot, mergeOldGearPayout, payOutOldGear, adjustVirtualPlayerCount, applyGemBalanceChange, earlierTimestamp,
   effectiveMovementSpeedForProgress, ensureCutsceneHistory, ensureGemWallet,
   ensureItemUpgradeCompletionSchedule, ensureResearchCompletionSchedule,
   equipmentPresentationForProgress, finishDuel, generatedDisplayName, hasFreshProgress,
@@ -3825,14 +3835,22 @@ export const { createGuild, joinGuild, leaveGuild, transferGuildLeadership, setG
 // Refining (item-refine.ts, shared/refine.ts).
 export const { refineItem, destroyOre, myItemRefines, myCopyRefines, myOres, myRefineResult } = registerItemRefine(spacetimedb, { requireControllingPlayer, activeDuelFor, inventoryForProgress, writeProgressAndPresentation });
 // Mining in the Copper Hills (mining.ts, shared/mining.ts).
-export const { claimPickaxe, mineNode, myMining, myMinedNodes } = registerMining(spacetimedb, { requireControllingPlayer, activeDuelFor, inventoryForProgress });
+export const { claimPickaxe, mineNode, reportMining, myMining, myMinedNodes } = registerMining(spacetimedb, { requireControllingPlayer, activeDuelFor, inventoryForProgress });
+export const { claimHatchet, chopTree, reportChopping, myWoodcutting, myChoppedTrees } = registerWoodcutting(spacetimedb, { requireControllingPlayer, activeDuelFor, inventoryForProgress });
 export const { claimStarterStaff, myStaffSkills } = registerStaffs(spacetimedb, { requireControllingPlayer, activeDuelFor, inventoryForProgress, restoreItemToProgress, writeProgressAndPresentation });
 export const { slotCard, removeCard, myCards, myGearSlots, myCopySlots, myCardDrop } = registerGearCards(spacetimedb); export const myItemCollection = registerItemCollection(spacetimedb);
 // Stats, power and the attack speed cap follow the active cards.
 const afterCardsChanged = (ctx: any, identity: any) => { syncCardAttackCap(ctx, identity); const progress = readPlayerProgress(ctx, identity); if (progress) writeProgressAndPresentation(ctx, progress); };
 export const { activateCard, deactivateCard, myActiveCards } = registerActiveCards(spacetimedb, { requireControllingPlayer, activeDuelFor, afterCardsChanged });
 export const { saveBuild, applyBuildCards, renameBuild, myBuilds, myBuildNames } = registerBuilds(spacetimedb, { requireControllingPlayer, activeDuelFor, afterCardsChanged });
+export const { myWeaponMastery } = registerWeaponMastery(spacetimedb);
+export const { myGold } = registerGold(spacetimedb);
 export const { buyShopCard, myCardShopPurchases } = registerCardShop(spacetimedb, { requireControllingPlayer, activeDuelFor });
+export const { buyGradeGear } = registerGradeShop(spacetimedb, { requireControllingPlayer, activeDuelFor, inventoryForProgress, restoreItemToProgress, writeProgressAndPresentation });
+// The Starter Chest by the forest spawn (starter-chest.ts).
+export const { claimStarterWeapon, myStarterWeapon } = registerStarterChest(spacetimedb, { requireControllingPlayer, activeDuelFor });
+export const { craftGradeGear, myCraftSkills } = registerCrafting(spacetimedb, { requireControllingPlayer, activeDuelFor, inventoryForProgress, restoreItemToProgress, writeProgressAndPresentation });
+export const { upgradeTool, myTools } = registerTools(spacetimedb, { requireControllingPlayer, activeDuelFor });
 export const { myGuildHall, upgradeGuildHall, useGuildHallDoor } = registerGuildHall(spacetimedb, { requireGuildPlayer, requireControllingPlayer, playerWithMotion, transitionPlayerMap, persistWorldLocation });
 export const getGuildHub = spacetimedb.procedure({ afterId: t.u64() }, t.string(), (ctx, { afterId }) => ctx.withTx(tx => {
   requireGuildConnection(tx);

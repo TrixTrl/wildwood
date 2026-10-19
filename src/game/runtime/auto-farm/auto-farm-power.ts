@@ -13,23 +13,23 @@ import { proceduralMapNumber } from '../../../../shared/procedural-maps';
  * enemies are sized to the player, so it has none. After a rebalance, regenerate it with
  * AUTOFARM_POWER_TABLE=1 npx vitest run src/game/runtime/auto-farm/auto-farm-power.test.ts
  */
-export const MAP_POWER_BALANCE = 'curve-2.2-2.2-1.8-5';
+export const MAP_POWER_BALANCE = 'curve-2.15-2.15-1.8-5-1.15-1.7';
 export const MAP_ENTRY_POWER: Readonly<Record<string, number>> = {
   tutorial_forest: 105,
-  beginner_desert: 5509,
-  intermediate_snowlands: 11445,
-  advanced_lava_wastes: 18785,
-  infernal_depths: 33084,
-  water_reach: 136324,
-  samurai_garden: 487317,
-  cloudspire: 581038,
-  moonfen: 927685,
-  crystal_hollows: 1666359,
-  clockwork_ruins: 3665990,
-  duskfall_orchard: 8065178,
-  neon_bastion: 17743391,
-  verdant_catacombs: 39035459,
-  ion_citadel: 85878011,
+  beginner_desert: 3662,
+  intermediate_snowlands: 7727,
+  advanced_lava_wastes: 14314,
+  infernal_depths: 57337,
+  water_reach: 165475,
+  samurai_garden: 245558,
+  cloudspire: 604364,
+  moonfen: 1778071,
+  crystal_hollows: 3822853,
+  clockwork_ruins: 8219133,
+  duskfall_orchard: 17671136,
+  neon_bastion: 37992943,
+  verdant_catacombs: 81684828,
+  ion_citadel: 175622380,
 };
 
 /**

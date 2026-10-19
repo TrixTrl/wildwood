@@ -184,6 +184,18 @@ describe("profile stat display", () => {
     expect(aggro.find(row => row.kind === "speed")).toMatchObject({ total: "200", sources: [] });
   });
 
+  it("shows Warrior Boots on Armor and Ranger Boots on Move Speed, at the pair's refine", () => {
+    const profile = (feet: string) => ({
+      progress: { ...progress(), speed: 200, equippedFeet: feet, inventoryJson: JSON.stringify([feet]) },
+      research: createEmptyResearchRanks(), itemUpgradeLevels: {}, itemRefines: { [feet]: 10 },
+    }) as Parameters<typeof profileStatDisplayRows>[0];
+    const rows = (feet: string) => profileStatDisplayRows(profile(feet), () => "0%", MIN_ATTACK_INTERVAL);
+    // Rare: Warrior +36% armor, Ranger +8% move speed, both half as much again at ★10.
+    expect(rows("rare_warrior_boots").find(row => row.kind === "armor")).toMatchObject({ total: "15", sources: [{ label: "Boots", value: "+54%" }] });
+    expect(rows("rare_ranger_boots").find(row => row.kind === "speed")).toMatchObject({ total: "224", sources: [{ label: "Boots", value: "+12%" }] });
+    expect(rows("rare_ranger_boots").find(row => row.kind === "armor")).toMatchObject({ total: "10", sources: [] });
+  });
+
   it("clamps a legacy saved attack rate and places the short max marker beside it", () => {
     const profile = {
       progress: { ...progress(FROST_BOW), attackRate: .32 },
@@ -457,4 +469,10 @@ it("counts another player's active Quick Draw cards in their attack speed cap, a
   // One slot in play during an Aggro run: the second card waits.
   expect(profileAttackCap({ ...profile, aggroChallenge: { active: true, completed: 0 } }).raise - bare.raise).toBeCloseTo(.1, 9);
   expect(profileActiveCardIds({ ...profile, prestigePerks: {} })).toEqual(["ion_needle_card"]);
+});
+
+it("leaves Mining, Woodcutting and the crafts to the Skills tab", () => {
+  const base = { progress: progress(), research: createEmptyResearchRanks(), itemUpgradeLevels: {} } as Parameters<typeof profileStatDisplayRows>[0];
+  const kinds = profileStatDisplayRows({ ...base, mining: 40, woodcutting: 500, crafts: { smithing: 3, fletching: 12, enchanting: 1 } }, () => "0%", MIN_ATTACK_INTERVAL).map(row => row.kind);
+  for (const kind of ["mining", "woodcutting", "smithing", "fletching", "enchanting"]) expect(kinds).not.toContain(kind);
 });

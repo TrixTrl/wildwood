@@ -23,6 +23,7 @@ import { type WeaponSkillRoll } from "../../shared/weapon-skills";
 import { createInventoryDeleteMode } from "./inventory-delete-mode";
 import { withRefineStars } from "./refine-badge";
 import { REFINE_ORES, salvageOre, type OreId } from "../../shared/refine";
+import { gradeShopSalePrice } from "../../shared/grade-shop";
 import { cardDetailRequest, createCardsTab, type CardsPort } from "./cards-tab";
 import { cardDefinition } from "../../shared/cards";
 import { cardName } from "../../shared/card-text";
@@ -31,7 +32,8 @@ import { createBuildsTab } from "./builds-tab";
 import { installBuildHotkeys } from "./build-hotkeys";
 import { itemInspectionButtonLabel } from "./item-inspection-controller";
 import { oreKindsHeld } from "../../shared/ore-bag";
-import { createPickaxeSprite } from "../game/runtime/town/pickaxe-sprite";
+import { toolArtSource } from "../game/runtime/town/tool-sprites";
+import type { ToolId } from "../../shared/tools";
 
 type InventoryLocation = EquipmentSlot | "BAG" | "";
 type SelectableInventory = InventoryState & { selectedItemId: string; selectedItemLocation?: InventoryLocation };
@@ -66,13 +68,12 @@ type InventoryDependencies = {
   equipBest?: () => boolean;
   equipmentLocked?: (itemId: string, copyId?: bigint) => boolean;
   setEquipmentLocked?: (itemId: string, locked: boolean, copyId?: bigint) => Promise<Result>;
-  equipmentRequirement?: (itemId: string) => string | null;
   itemInspection: ItemInspectionController;
   inventorySlotsUnlocked: () => number;
   /** Bag Slots research ranks: a slot each, on top of the ones bought. */
   researchBagSlots?: () => number;
-  /** The mining pickaxe, kept from the Smith: shown in the loadout's Tool slot. */
-  hasPickaxe?: () => boolean;
+  /** Each tool's level (shared/tools.ts): the pickaxe and hatchet every player holds show at theirs in the Tool slot. */
+  toolLevels?: () => Readonly<Partial<Record<ToolId, number>>>;
   gemBalance: () => bigint;
   destroyEquipment: (itemId: string) => Promise<{ ok: boolean; error?: string } | undefined>;
   convertItemToCosmetic?: (itemId: string) => Promise<{ ok: boolean; error?: string } | undefined>;
@@ -86,6 +87,8 @@ type InventoryDependencies = {
   destroyEquipmentCopy?: (itemId: string, copyId: bigint) => Promise<Result>;
   /** Makes a kept copy the one its slot equips. */
   selectEquipmentCopy?: (copyId: bigint) => Promise<Result>;
+  /** Sells one copy of a graded piece to the Smith for gold (shared/grade-shop.ts gradeShopSalePrice). */
+  sellGradedItem?: (itemId: string, copyId: bigint) => Promise<Result>;
 };
 
 export function clearInventorySelection(inventory: Pick<SelectableInventory, "selectedItemId" | "selectedItemLocation">) {
@@ -108,31 +111,27 @@ export function createInventoryController(dependencies: InventoryDependencies) {
   const buildsTab = document.getElementById("inventoryBuildsTab") as HTMLButtonElement | null;
   const content = requiredElement("inventoryContent");
   const loadout = panel.querySelector<HTMLElement>(".inventory-loadout");
-  // The pickaxe works from the bag, never equipped: its slot only shows it is there and what it does.
+  // The pickaxe and hatchet every player holds work from the bag, never equipped: their slot only shows them and what they do.
   const toolSlot = document.createElement("button");
   toolSlot.type = "button";
-  toolSlot.className = "equipment-slot slot-tool";
+  toolSlot.className = "equipment-slot slot-tool is-equipped";
+  toolSlot.setAttribute("aria-label", "Tool: Pickaxe and Hatchet, always ready");
   loadout?.append(toolSlot);
-  let pickaxeArt = "";
-  toolSlot.addEventListener("click", () => dependencies.showMessage(dependencies.hasPickaxe?.()
-    ? "Pickaxe · Mines ore in the Copper Hills. Always ready, no need to equip." : "Get a pickaxe from the Smith in Town.", "#ffd75e"));
+  toolSlot.addEventListener("click", () => {
+    dependencies.showMessage("Pickaxe and Hatchet · Mine ore and fell trees. Always ready, no need to equip.", "#ffd75e");
+  });
   function renderToolSlot() {
-    const owned = Boolean(dependencies.hasPickaxe?.());
     toolSlot.hidden = mode === "COSMETICS";
-    toolSlot.classList.toggle("is-equipped", owned);
-    toolSlot.setAttribute("aria-label", owned ? "Tool: Pickaxe, always ready" : "Tool slot, empty");
-    if (owned) {
-      pickaxeArt ||= createPickaxeSprite()?.src ?? "";
+    const levels = dependencies.toolLevels?.() ?? {};
+    const art = (source: string, className: string) => {
       const image = document.createElement("span");
-      image.className = "inventory-item-art slot-tool-art";
+      image.className = `inventory-item-art slot-tool-art${className}`;
       image.setAttribute("aria-hidden", "true");
-      if (pickaxeArt) image.style.backgroundImage = `url(${pickaxeArt})`;
-      toolSlot.replaceChildren(image);
-    } else {
-      const label = document.createElement("span");
-      label.textContent = "TOOL";
-      toolSlot.replaceChildren(label);
-    }
+      if (source) image.style.backgroundImage = `url(${source})`;
+      return image;
+    };
+    // Crossed, as a pair of tools, each at its level.
+    toolSlot.replaceChildren(art(toolArtSource("pickaxe", levels.pickaxe ?? 0), ""), art(toolArtSource("hatchet", levels.hatchet ?? 0), " slot-tool-crossed"));
   }
   const bagSection = items.closest<HTMLElement>(".bag-section");
   const tabs = equipmentTab.closest(".inventory-tabs");
@@ -323,11 +322,10 @@ export function createInventoryController(dependencies: InventoryDependencies) {
     const kept = mode === "EQUIPMENT" ? keptCopiesOf(itemId) : [];
     const copy = copyId ? kept.find(candidate => candidate.id === copyId) : undefined;
     if (copyId && !copy) return;
-    const requiredMap = mode === "EQUIPMENT" ? dependencies.equipmentRequirement?.(itemId) : null;
     const moves = inventoryMoveActions(dependencies.inventory, itemId, location, mode).map((action) => ({
       label: action.label,
       kind: action.destination === "BAG" ? "SECONDARY" as const : "PRIMARY" as const,
-      disabled: action.disabled || Boolean(requiredMap && action.destination !== "BAG"),
+      disabled: action.disabled,
       onActivate: () => {
         if (move(itemId, action.destination)) dependencies.itemInspection.close();
       },
@@ -337,12 +335,12 @@ export function createInventoryController(dependencies: InventoryDependencies) {
       upgradeLevel: dependencies.upgradeLevel(itemId),
       ...(mode === "EQUIPMENT" ? { refine: dependencies.refineLevel?.(itemId, copyId) ?? 0 } : {}),
       ownItem: mode === "EQUIPMENT",
+      ...(mode === "EQUIPMENT" ? { worn: dependencies.inventory } : {}),
       ...(kept.length ? { context: `Copy ${copy ? kept.indexOf(copy) + 2 : 1} of ${kept.length + 1}` } : {}),
       ...(mode === "COSMETICS" ? { context: `Cosmetic · ${cosmeticReach(itemId)}` } : {}),
-      ...(requiredMap ? { context: `Reach ${requiredMap} to equip` } : {}),
       ...(copy ? { skills: copy.roll } : {}),
-      actions: [...(copy ? copyEquipActions(copy, Boolean(requiredMap)) : moves),
-        ...conversionActions(itemId), ...destructionActions(itemId, copyId)],
+      actions: [...(copy ? copyEquipActions(copy) : moves),
+        ...conversionActions(itemId), ...saleActions(itemId, copyId), ...destructionActions(itemId, copyId)],
     });
   }
 
@@ -350,14 +348,14 @@ export function createInventoryController(dependencies: InventoryDependencies) {
    * Equipping a kept copy. A weapon's copies differ, so the server first makes
    * this copy the one its slot holds. Locks follow the selected copy too.
    */
-  function copyEquipActions(copy: KeptEquipmentCopy, locked: boolean) {
+  function copyEquipActions(copy: KeptEquipmentCopy) {
     const [action] = inventoryMoveActions(dependencies.inventory, copy.itemId, "BAG", "EQUIPMENT");
     if (!action) return [];
     const equipped = action.disabled === true;
     return [{
       label: "EQUIP",
       kind: "PRIMARY" as const,
-      disabled: locked || !dependencies.selectEquipmentCopy,
+      disabled: !dependencies.selectEquipmentCopy,
       onActivate: async () => {
         {
           const result = await dependencies.selectEquipmentCopy?.(copy.id);
@@ -411,6 +409,33 @@ export function createInventoryController(dependencies: InventoryDependencies) {
     }];
   }
 
+  /** Graded gear in the bag sells to the Smith for gold; worn or locked gear does not. */
+  function saleActions(itemId: string, copyId = 0n) {
+    const sell = dependencies.sellGradedItem, price = gradeShopSalePrice(itemId), inventory = dependencies.inventory;
+    const worn = copyId === 0n && [inventory.equippedHead, inventory.equippedChest, inventory.equippedFeet, inventory.equippedRightHand, inventory.equippedLeftHand].includes(itemId);
+    if (mode !== "EQUIPMENT" || !sell || price === undefined || worn || !inventory.itemIds.includes(itemId) ||
+        dependencies.equipmentLocked?.(itemId, copyId)) return [];
+    return [{
+      label: `Sell for ${price} Gold`,
+      kind: "SECONDARY" as const,
+      onActivate: async () => {
+        const refine = dependencies.refineLevel?.(itemId, copyId) ?? 0;
+        if (!await ask(confirmDestroy, {
+          message: `Sell ${withRefineStars(itemDisplayName(itemId), refine)} for ${price} Gold?`,
+          details: [{ label: "The Smith pays", value: `${price} Gold` }, ...(refine ? [{ label: "Refines", value: "Lost with the item" }] : [])],
+          confirmLabel: "Sell",
+        })) return;
+        dependencies.itemInspection.close();
+        const result = await sell(itemId, copyId);
+        if (result?.ok) {
+          clearInventorySelection(inventory);
+          render();
+          dependencies.showMessage(`Sold · +${price} Gold`, "#ffd75e");
+        } else dependencies.showMessage(result?.error ?? "Not Connected", "#ff9b91");
+      },
+    }];
+  }
+
   /**
    * Destroys one copy. With other copies kept, the server keeps the item and
    * only a copy goes (the oldest kept one takes the first copy's place), so
@@ -426,7 +451,7 @@ export function createInventoryController(dependencies: InventoryDependencies) {
       kind: "DESTROY" as const,
       onActivate: async () => {
         if (!await ask(confirmDestroy, {
-          message: `Destroy ${oneOfSeveral ? "this copy of " : ""}${withRefineStars(itemDisplayName(itemId, dependencies.upgradeLevel(itemId)), dependencies.refineLevel?.(itemId, copyId) ?? 0)} permanently?`,
+          message: `Destroy ${oneOfSeveral ? "this copy of " : ""}${withRefineStars(itemDisplayName(itemId), dependencies.refineLevel?.(itemId, copyId) ?? 0)} permanently?`,
           details: [{ label: "This cannot be undone", value: ore ? `Gives back 1 ${REFINE_ORES[ore].name}` : "No refund" }],
           confirmLabel: "Salvage", danger: true,
         })) return;
@@ -447,7 +472,7 @@ export function createInventoryController(dependencies: InventoryDependencies) {
     const inventory = dependencies.inventory;
     const copies = dependencies.equipmentCopies?.() ?? [];
     const held = dependencies.ores?.() ?? {};
-    const nextState = JSON.stringify([cardsShown, buildsShown, mode, filter, inventory, held, inventory.itemIds.map(id => dependencies.equipmentLocked?.(id)), dependencies.inventorySlotsUnlocked(), dependencies.researchBagSlots?.() ?? 0, dependencies.hasPickaxe?.() ?? false, unlockingSlot,
+    const nextState = JSON.stringify([cardsShown, buildsShown, mode, filter, inventory, held, inventory.itemIds.map(id => dependencies.equipmentLocked?.(id)), dependencies.inventorySlotsUnlocked(), dependencies.researchBagSlots?.() ?? 0, dependencies.toolLevels?.() ?? {}, unlockingSlot,
       ["HEAD", "CHEST", "HAND"].map(slot => dependencies.slotTier?.(slot as "HEAD" | "CHEST" | "HAND")), inventory.itemIds.map(itemId => `${dependencies.upgradeLevel(itemId)}:${dependencies.refineLevel?.(itemId, 0n)}`),
       copies.map(copy => `${copy.id}:${copy.itemId}:${dependencies.equipmentLocked?.(copy.itemId, copy.id)}:${dependencies.refineLevel?.(copy.itemId, copy.id)}`)]);
     if (nextState === renderedState) return;
@@ -590,5 +615,11 @@ export function createInventoryController(dependencies: InventoryDependencies) {
       clearInventorySelection(dependencies.inventory);
     },
     mode: () => mode,
+    /** Puts an owned item on as the bag's Equip does, whichever view the bag shows (the Smith's Upgrade All). */
+    equip: (itemId: string, destination: EquipmentSlot) => {
+      if (!dependencies.move(itemId, destination)) return false;
+      render();
+      return true;
+    },
   };
 }

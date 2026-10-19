@@ -339,6 +339,12 @@
       "lastMuteAtMicros:u64",
       "muteCount:u32"
     ],
+    "my_chopped_trees": [
+      "key:string",
+      "identity:identity",
+      "treeId:u32",
+      "choppedAt:timestamp"
+    ],
     "my_copy_refines": [
       "copyId:u64",
       "identity:identity",
@@ -351,6 +357,12 @@
       "itemId:string",
       "slots:u8",
       "cards:array(string)"
+    ],
+    "my_craft_skills": [
+      "key:string",
+      "identity:identity",
+      "skill:string",
+      "experience:u64"
     ],
     "my_cutscene_history": [
       "identity:identity",
@@ -427,6 +439,10 @@
       "balance:u64",
       "revision:u64",
       "updatedAt:timestamp"
+    ],
+    "my_gold": [
+      "identity:identity",
+      "gold:u64"
     ],
     "my_guild_hall": [
       "guildId:u64",
@@ -632,6 +648,11 @@
       "chain:f32",
       "frostNova:f32"
     ],
+    "my_starter_weapon": [
+      "identity:identity",
+      "kind:string",
+      "at:timestamp"
+    ],
     "my_sword_skills": [
       "key:string",
       "identity:identity",
@@ -639,6 +660,12 @@
       "whirlwind:f32",
       "deflect:f32",
       "shockwave:f32"
+    ],
+    "my_tools": [
+      "key:string",
+      "identity:identity",
+      "tool:string",
+      "level:u8"
     ],
     "my_upgrade_bench": [
       "identity:identity",
@@ -648,6 +675,20 @@
     "my_upgrade_bench_third_slot": [
       "identity:identity",
       "updatedAt:timestamp"
+    ],
+    "my_weapon_mastery": [
+      "key:string",
+      "identity:identity",
+      "school:string",
+      "points:u64"
+    ],
+    "my_woodcutting": [
+      "identity:identity",
+      "woodcutting:u32",
+      "treesChopped:u32",
+      "hatchetAt:timestamp",
+      "lastChopAt:timestamp",
+      "lastTreeId:u32"
     ],
     "patreon_ticker_supporters": [
       "identity:identity",
@@ -701,6 +742,12 @@
     "player_combat_rating": [
       "identity:identity",
       "critDamage:f64"
+    ],
+    "player_craft_level": [
+      "key:string",
+      "identity:identity",
+      "skill:string",
+      "level:u8"
     ],
     "player_daily_quest": [
       "identity:identity",
@@ -791,6 +838,12 @@
       "mapId:string",
       "isVisible:bool",
       "updatedAt:timestamp"
+    ],
+    "player_mastery_level": [
+      "key:string",
+      "identity:identity",
+      "school:string",
+      "level:u8"
     ],
     "player_mining_level": [
       "identity:identity",
@@ -995,6 +1048,10 @@
       "damage:f64",
       "armor:f64",
       "regen:f64"
+    ],
+    "player_woodcutting_level": [
+      "identity:identity",
+      "woodcutting:u32"
     ],
     "player_worn_skill": [
       "identity:identity",

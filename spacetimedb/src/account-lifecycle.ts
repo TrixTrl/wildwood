@@ -33,6 +33,12 @@ import { mergeRefineData } from "./item-refine";
 import { mergeCardData } from "./gear-cards";
 import { mergeCardShopPurchases } from "./card-shop";
 import { mergeMiningData } from "./mining";
+import { mergeWoodcuttingData } from "./woodcutting";
+import { mergeWeaponMastery } from "./weapon-mastery";
+import { mergeGold } from "./gold";
+import { mergeStarterWeapon } from "./starter-chest";
+import { mergeCraftSkills } from "./crafting";
+import { mergeTools } from "./tools";
 import { mergeMailboxReceipts, removeMailboxReceipts } from "./mailbox";
 import { mergeOnboarding } from "./onboarding";
 import { mergeAudioSettings, removeAudioSettings } from "./audio-settings";
@@ -92,6 +98,8 @@ export type AccountLifecycleDeps = {
   };
   activeDuelFor: (ctx: any, identity: any) => any;
   activeItemUpgradeForSlot: (ctx: any, identity: any, slot: number) => any;
+  mergeOldGearPayout: (ctx: any, guest: any, account: any) => void;
+  payOutOldGear: (ctx: any, identity: any) => { gold: number; changed: boolean };
   adjustVirtualPlayerCount: (ctx: any, owner: any, change: number) => void;
   applyGemBalanceChange: (ctx: any, input: any) => any;
   earlierTimestamp: (first: any, second: any) => any;
@@ -152,7 +160,7 @@ const PLAYER_STATE_TABLES: ReadonlySet<string> = new Set([
   "gemKillDaily", "gemKillProgress", "gemTransaction", "guildMemberQuestWeek", "guildRejoin",
   "homeReturnLocation", "leaderboardDirty", "leaderboardPosition", "leaderboardPrestigePosition", "leaderboardStanding", "loginMove",
   "offlineProgress", "patreonPreview", "playerAggroChallenge", "playerAggroChallengeParked", "playerBonusToggle", "playerNameColor",
-  "playerMining", "playerMinedNode", "playerMiningLevel", "playerLuckResearch", "playerCardShopPurchase",
+  "playerMining", "playerMinedNode", "playerMiningLevel", "playerWoodcutting", "playerChoppedTree", "playerWoodcuttingLevel", "playerLuckResearch", "playerCardShopPurchase", "playerWeaponMastery", "playerMasteryLevel", "playerGold", "oldGearPayout", "playerStarterWeapon", "playerCraftSkill", "playerCraftLevel", "playerTool",
   "playerDailyQuest", "playerEndlessRebaseBackup", "playerFreeRespec",
   "playerOfflinePreference", "playerPrestige", "playerPrestigeChallenge",
   "playerPrestigeChallengeParked", "playerPrestigeExpansionPerk", "playerPrestigeCardPerk", "playerPrestigePerk", "playerQuestWeekTotal",
@@ -165,7 +173,7 @@ const removePlayerStateRows = (ctx: any, identity: any) => eraseIdentityRows(ctx
 export function createAccountLifecycle(deps: AccountLifecycleDeps) {
   const {
     LEGACY_CLIENT_ERRORS, UPGRADE_BENCH_SLOT_ONE, UPGRADE_BENCH_SLOT_TWO, UPGRADE_BENCH_SLOT_THREE, guildService,
-    activeDuelFor, activeItemUpgradeForSlot, adjustVirtualPlayerCount, applyGemBalanceChange,
+    activeDuelFor, activeItemUpgradeForSlot, mergeOldGearPayout, payOutOldGear, adjustVirtualPlayerCount, applyGemBalanceChange,
     earlierTimestamp, effectiveMovementSpeedForProgress, ensureCutsceneHistory, ensureGemWallet,
     ensureItemUpgradeCompletionSchedule, ensureResearchCompletionSchedule,
     equipmentPresentationForProgress, finishDuel, generatedDisplayName, hasFreshProgress,
@@ -265,6 +273,13 @@ export function createAccountLifecycle(deps: AccountLifecycleDeps) {
     mergeCardData(ctx, link.guest, ctx.sender);
     mergeCardShopPurchases(ctx, link.guest, ctx.sender);
     mergeMiningData(ctx, link.guest, ctx.sender);
+    mergeWoodcuttingData(ctx, link.guest, ctx.sender);
+    mergeWeaponMastery(ctx, link.guest, ctx.sender);
+    mergeGold(ctx, link.guest, ctx.sender);
+    mergeOldGearPayout(ctx, link.guest, ctx.sender);
+    mergeStarterWeapon(ctx, link.guest, ctx.sender);
+    mergeCraftSkills(ctx, link.guest, ctx.sender);
+    mergeTools(ctx, link.guest, ctx.sender);
     mergeMailboxReceipts(ctx, link.guest, ctx.sender);
     mergeOnboarding(ctx, link.guest, ctx.sender);
     mergeAudioSettings(ctx, link.guest, ctx.sender);
@@ -276,7 +291,7 @@ export function createAccountLifecycle(deps: AccountLifecycleDeps) {
     mergeOfflinePreference(ctx, link.guest, ctx.sender);
     // Every save is at the current balance version (player_balance_version, 2026-10-15), so the guest's is too.
     const guestAttackRate = guestProgress.attackRate;
-    const nextProgress = {
+    let nextProgress = {
       ...guestProgress,
       identity: ctx.sender,
       attackRate: Math.max(CHALLENGE_ABSOLUTE_MIN_INTERVAL, Math.min(DEFAULT_ATTACK_INTERVAL, guestAttackRate)),
@@ -363,6 +378,9 @@ export function createAccountLifecycle(deps: AccountLifecycleDeps) {
         removeItemUpgradeCompletionSchedules(ctx, link.guest, slot);
       }
     }
+
+    // A guest save still holding old map gear is paid out for it as migration 62 paid everyone.
+    if (payOutOldGear(ctx, ctx.sender).changed) nextProgress = readPlayerProgress(ctx, ctx.sender) ?? nextProgress;
 
     const guestUpgradeBench = ctx.db.playerUpgradeBench.identity.find(link.guest);
     const accountUpgradeBench = ctx.db.playerUpgradeBench.identity.find(ctx.sender);

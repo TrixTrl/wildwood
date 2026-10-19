@@ -13,6 +13,8 @@ import { ENEMY_HEALTH_BAR_HEIGHT, ENEMY_HEALTH_FILL, createEnemyStatusPlates, fi
 import { createCanvasAtlas, drawAtlasImage, type AtlasImage } from "./canvas-atlas";
 import { liveRewardText, soulRewardCapped, type RewardLabelContext } from "../reward-labels";
 import { enemyHpNumbersEnabled } from "../../../ui/enemy-hp-setting";
+import { ownNamePlateEnabled } from "../../../ui/name-plate-setting";
+import { headArtTopOffsetY } from "./overhead-plate";
 import { formatCompactNumber } from "../../../../shared/compact-number";
 import { healthBarTextY } from "./health-bar-layout";
 
@@ -21,6 +23,7 @@ const ENEMY_HP_FONT = '900 10px "Arial Rounded MT Bold", "Arial Rounded MT", Ari
 const ENEMY_HP_BAR_HEIGHT = 11;
 import type { BossTarget, DuelCombatant, DuelScene, EnemyShot, EnemyState, PlayerState, Projectile } from "../types";
 import { itemPresentation, projectileKindForWeapon } from "../../item-presentation";
+import { localItemRefine } from "../../local-item-refines";
 import { playerDeathPose, type PlayerDeathAnimationState } from "../player-death-animation";
 import { finishedEquipmentSprite } from "../../player-appearance";
 import type { StaticWorldSpriteFrame } from "./webgl-static-world-layer";
@@ -182,6 +185,8 @@ export function enemyShadowOffsetY(sprite: LoadedEnemySprite | undefined, enemyR
 export type ActorStatus = {
   x: number;
   y: number;
+  /** The top of the head or worn helmet in world space; the plate sits above it. */
+  headTop?: number;
   identity?: string;
   name: string;
   gender?: PlayerGender;
@@ -202,14 +207,15 @@ export function createActorRenderer(options: {
   localDeath: () => PlayerDeathAnimationState | null;
   remoteDeath: (identity: string) => PlayerDeathAnimationState | null;
   /** `gameTime`, when given, holds the idle pose at that moment instead of the frame clock's. */
-  drawPlayerAppearance: (actor: { skinTone?: number; x: number; y: number; facing: number; combatFacing?: number | null; moving?: boolean; gameTime?: number; throwClock?: number; swordSpinClock?: number; identity?: string; id?: string; headItem?: string; chestItem?: string; feetItem?: string; rightHandItem?: string; leftHandItem?: string }, alpha: number) => void;
+  drawPlayerAppearance: (actor: { skinTone?: number; x: number; y: number; facing: number; combatFacing?: number | null; moving?: boolean; gameTime?: number; throwClock?: number; swordSpinClock?: number; identity?: string; id?: string; headItem?: string; chestItem?: string; feetItem?: string; rightHandItem?: string; leftHandItem?: string; itemRefine?: (itemId: string) => number }, alpha: number) => void;
   localHeadItem: () => string;
   localChestItem: () => string;
   localFeetItem: () => string;
   localRightHandItem: () => string;
   localLeftHandItem: () => string;
   equipmentForIdentity: (identity: string | undefined) => { headItem?: string; chestItem?: string; feetItem?: string; rightHandItem?: string; leftHandItem?: string };
-  itemSprite: (itemId: string | undefined) => HTMLImageElement | undefined;
+  /** A piece's sprite, in its refine look when `refineLevel` is given (player-appearance.ts equipmentSprite). */
+  itemSprite: (itemId: string | undefined, refineLevel?: number) => HTMLImageElement | undefined;
   enemySprites: Record<string, LoadedEnemySprite>;
   enemies: EnemyState[];
   activeBossTarget: () => BossTarget | null;
@@ -225,8 +231,8 @@ export function createActorRenderer(options: {
   outlinedText: OutlinedText;
   drawShadow: DrawShadow;
   drawStatus: (status: ActorStatus) => void;
-  drawIdentity: (identity: string | undefined, name: string, power: number | null, centerX: number, bottom: number, color: string, gender?: PlayerGender) => void;
-  drawSpeechBubble: (identity: string | undefined, x: number, y: number) => void;
+  drawIdentity: (identity: string | undefined, name: string, power: number | null, centerX: number, headTop: number, color: string, gender?: PlayerGender) => void;
+  drawSpeechBubble: (identity: string | undefined, x: number, headTop: number) => void;
   publicName: (identity: string | undefined, name: string | undefined) => string;
   worldHealthBarHeight: number;
 }) {
@@ -419,8 +425,14 @@ export function createActorRenderer(options: {
     return labels;
   }
 
+  /** Where an actor's plate starts: the top of its head, or of the helmet drawn on it. */
+  function headTopY(actor: { y: number; headItem?: string; itemRefine?: (itemId: string) => number }) {
+    const headItem = actor.headItem || undefined;
+    return actor.y + headArtTopOffsetY(headItem, options.itemSprite(headItem, headItem ? actor.itemRefine?.(headItem) : 0));
+  }
+
   function drawPlayerSprite(
-    actor: { skinTone?: number; x: number; y: number; facing: number; combatFacing?: number | null; moving?: boolean; gameTime?: number; throwClock?: number; swordSpinClock?: number; identity?: string; id?: string; headItem?: string; chestItem?: string; feetItem?: string; rightHandItem?: string; leftHandItem?: string },
+    actor: { skinTone?: number; x: number; y: number; facing: number; combatFacing?: number | null; moving?: boolean; gameTime?: number; throwClock?: number; swordSpinClock?: number; identity?: string; id?: string; headItem?: string; chestItem?: string; feetItem?: string; rightHandItem?: string; leftHandItem?: string; itemRefine?: (itemId: string) => number },
     alpha = 1,
   ) {
     options.drawPlayerAppearance(actor, alpha);
@@ -432,8 +444,9 @@ export function createActorRenderer(options: {
     y: number,
     rotation: number,
     facing: number,
+    refineLevel = 0,
   ) {
-    const image = options.itemSprite(itemId);
+    const image = options.itemSprite(itemId, refineLevel);
     const presentation = itemPresentation(itemId)?.world;
     if (!image?.complete || image.naturalWidth <= 0 || presentation?.kind !== "SPRITE") return;
     const width = (presentation.width ?? image.naturalWidth) * .6;
@@ -447,7 +460,7 @@ export function createActorRenderer(options: {
   }
 
   function drawDeadPlayer(
-    actor: { skinTone?: number; identity?: string; id?: string; headItem?: string; chestItem?: string; feetItem?: string; rightHandItem?: string; leftHandItem?: string },
+    actor: { skinTone?: number; identity?: string; id?: string; headItem?: string; chestItem?: string; feetItem?: string; rightHandItem?: string; leftHandItem?: string; itemRefine?: (itemId: string) => number },
     death: PlayerDeathAnimationState,
     alpha: number,
     persistFinalPose = false,
@@ -482,19 +495,22 @@ export function createActorRenderer(options: {
 
     const groundX = x;
     const groundY = y + 29;
+    const weapon = actor.rightHandItem || actor.leftHandItem;
     drawDetachedEquipment(
       actor.headItem,
       groundX + pose.helmetOffsetX,
       groundY - 49 + pose.helmetOffsetY,
       pose.helmetRotation,
       death.facing,
+      actor.headItem ? actor.itemRefine?.(actor.headItem) : 0,
     );
     drawDetachedEquipment(
-      actor.rightHandItem || actor.leftHandItem,
+      weapon,
       groundX + pose.weaponOffsetX,
       groundY - 16 + pose.weaponOffsetY,
       pose.weaponRotation,
       death.facing,
+      weapon ? actor.itemRefine?.(weapon) : 0,
     );
     return true;
   }
@@ -558,7 +574,8 @@ export function createActorRenderer(options: {
   function drawDuelCombatant(actor: DuelCombatant) {
     const x = screenX(actor.x);
     const y = screenY(actor.y);
-    const appearance = { ...options.equipmentForIdentity(actor.identity), ...actor };
+    // Our own gear shows its refine looks; another player's refines are not known here, so theirs show the base look.
+    const appearance = { ...options.equipmentForIdentity(actor.identity), ...actor, ...(actor.isLocal ? { itemRefine: localItemRefine } : {}) };
     const death = actor.deathStartedAtMs === undefined ? null : {
       id: actor.identity ?? actor.name,
       x: actor.x,
@@ -570,9 +587,11 @@ export function createActorRenderer(options: {
       options.drawShadow(x, y + 29, 34, actor.isLocal ? .21 : .17);
       drawPlayerSprite({ ...appearance, x, y }, 1);
     }
+    // Duels always show both plates, whatever Show My Name Plate says.
     options.drawStatus({
       x,
       y,
+      headTop: headTopY({ ...appearance, y }),
       identity: actor.identity,
       name: options.publicName(actor.identity, actor.name),
       gender: actor.gender,
@@ -592,6 +611,7 @@ export function createActorRenderer(options: {
       feetItem: options.localFeetItem(),
       rightHandItem: options.localRightHandItem(),
       leftHandItem: options.localLeftHandItem(),
+      itemRefine: localItemRefine,
     };
     const death = options.localDeath();
     if (death && drawDeadPlayer({ ...equipment, identity }, death, 1)) return;
@@ -599,9 +619,11 @@ export function createActorRenderer(options: {
     const y = screenY(player.y);
     options.drawShadow(x, y + 29, 34, .21);
     drawPlayerSprite({ ...player, ...equipment, x, y, identity });
-    options.drawStatus({
+    const headTop = headTopY({ ...equipment, y });
+    if (ownNamePlateEnabled()) options.drawStatus({
       x,
       y,
+      headTop,
       identity,
       name,
       nameColor: "#ffffff",
@@ -610,7 +632,7 @@ export function createActorRenderer(options: {
       power,
       fillColor: "#46cf5a",
     });
-    options.drawSpeechBubble(identity, x, y);
+    options.drawSpeechBubble(identity, x, headTop);
   }
 
   function drawRemotePlayer(other: RemotePlayer) {
@@ -674,10 +696,12 @@ export function createActorRenderer(options: {
       : weaponItem ? clientCombatFacing(other) : null;
     options.drawShadow(x, y + 29, 34, .16);
     drawPlayerSprite({ ...other, x, y, facing: combatFacing ?? other.facing, combatFacing }, 1);
+    const headTop = headTopY({ ...other, y });
     if (regularEnemyCombat) {
       options.drawStatus({
         x,
         y,
+        headTop,
         identity: other.id,
         name: options.publicName(other.id, other.name),
         nameColor: "#9eeeff",
@@ -692,11 +716,11 @@ export function createActorRenderer(options: {
         options.publicName(other.id, other.name),
         Number.isFinite(other.power) ? other.power : 0,
         x,
-        y - 49,
+        headTop,
         "#9eeeff",
       );
     }
-    options.drawSpeechBubble(other.id, x, y);
+    options.drawSpeechBubble(other.id, x, headTop);
   }
 
   function drawRemotePlayers(players: RemotePlayer[]) {

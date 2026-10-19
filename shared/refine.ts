@@ -1,5 +1,7 @@
-import { canonicalItemId, isUpgradeableItem, itemDefinition } from "./items";
+import { canonicalItemId, hasBootStat, isUpgradeableItem, itemDefinition } from "./items";
 import { itemTier } from "./item-tier";
+import { gradeOf } from "./grade-equipment";
+import { GRADE_ITEM_TIER } from "./gear-grades";
 import { REFINE_MAX, normalizeRefineLevel } from "./refine-multiplier";
 import { chanceWithLuck } from "./luck-research";
 export { REFINE_MAX, REFINE_STEP_PAST_TEN, REFINE_STEP_TO_TEN, normalizeRefineLevel, refineMultiplier } from "./refine-multiplier";
@@ -15,16 +17,26 @@ export { REFINE_MAX, REFINE_STEP_PAST_TEN, REFINE_STEP_TO_TEN, normalizeRefineLe
 /** Ragnarok's weapon levels: an item's grade follows its Tier, four tiers to a grade (the last one three). */
 export type RefineGrade = 1 | 2 | 3 | 4;
 
-/** The ore a try costs: one grade ore, plus a Starshard from +11 on. */
+/**
+ * Every material the bag stacks, one slot a kind: the ore a try costs (one grade ore, plus a Starshard from +11 on),
+ * and the crafting wood and crystal, which refining never takes.
+ */
 export const REFINE_ORES = {
   copper_ore: { name: "Copper Ore", grade: 1 },
   iron_ore: { name: "Iron Ore", grade: 2 },
   mithril_ore: { name: "Mithril Ore", grade: 3 },
   adamant_ore: { name: "Adamant Ore", grade: 4 },
   starshard: { name: "Starshard", grade: null },
+  pine_log: { name: "Pine Log", grade: null },
+  oak_log: { name: "Oak Log", grade: null },
+  yew_log: { name: "Yew Log", grade: null },
+  elder_log: { name: "Elder Log", grade: null },
+  arcane_crystal: { name: "Arcane Crystal", grade: null },
 } as const;
 export type OreId = keyof typeof REFINE_ORES;
-export const GRADE_ORES: Readonly<Record<RefineGrade, OreId>> = { 1: "copper_ore", 2: "iron_ore", 3: "mithril_ore", 4: "adamant_ore" };
+/** The four ores a grade refines with. */
+export type GradeOreId = "copper_ore" | "iron_ore" | "mithril_ore" | "adamant_ore";
+export const GRADE_ORES: Readonly<Record<RefineGrade, GradeOreId>> = { 1: "copper_ore", 2: "iron_ore", 3: "mithril_ore", 4: "adamant_ore" };
 /** From this level on, a try also takes a Starshard. */
 export const STARSHARD_FROM_LEVEL = 11;
 
@@ -53,21 +65,23 @@ const HIGH_ODDS: Readonly<Record<number, number>> = {
   21: .0015, 22: .0012, 23: .001, 24: .0008, 25: .0007, 26: .0006, 27: .0005, 28: .0004, 29: .00035, 30: .0003,
 };
 
-/** Equipment with a stat to refine: every bow, sword, helmet and armor with a bonus. Cosmetics and the starter stone have none. */
 /** The ore a piece of gear gives back when destroyed: one of its refine grade's ore. Null for anything else. */
 export function salvageOre(itemId: unknown): OreId | null {
   const grade = refineGrade(itemId);
   return grade ? GRADE_ORES[grade] : null;
 }
 
+/** Equipment with a stat to refine: every bow, sword, helmet and armor with a bonus, and graded boots. */
 export function isRefinableItem(itemId: unknown) {
-  return isUpgradeableItem(itemId);
+  return isUpgradeableItem(itemId) || hasBootStat(itemId);
 }
 
 export function refineGrade(itemId: unknown): RefineGrade | null {
   const id = canonicalItemId(itemId);
   if (!id || !isRefinableItem(id)) return null;
-  return tierGrade(itemTier(id) ?? itemDefinition(id)?.weapon?.tier ?? 1);
+  const grade = gradeOf(id);
+  // Graded gear refines at its grade's stand-in tier, helmets and armor too.
+  return tierGrade(itemTier(id) ?? (grade ? GRADE_ITEM_TIER[grade] : itemDefinition(id)?.weapon?.tier) ?? 1);
 }
 
 /** A map tier's grade: four tiers to a grade, the last one three. */

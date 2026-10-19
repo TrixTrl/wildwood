@@ -1,11 +1,11 @@
 import type { PlayerProfileData, PlayerResearch } from "../wildstat-coop";
-import { miningSpeed } from "../../shared/mining";
 import { createEmptyResearchRanks, researchStatRewardMultiplier, utilityMovementSpeedBonus } from "../../shared/research";
 import { prestigeStatMultiplier } from "../../shared/prestige";
 import { PRESTIGE_PERKS, playerAttackCap, prestigePerkValue, type PrestigePerkRanks } from "../../shared/prestige-perks";
 import { CRITICAL_DAMAGE_BASE, criticalDamage, criticalDamageMultiplier } from "../../shared/critical-damage";
 import { effectivePlayerPower, effectivePlayerPowerStats } from "../../shared/player-power";
-import { equipmentDamageMultiplierBonus, equipmentMaxHealthMultiplierBonus, equipmentRegenerationMultiplierBonus } from "../../shared/items";
+import { armorMoveSpeedFactor } from "../../shared/armor-class-perks";
+import { bootArmorFactor, bootMoveSpeedFactor, classSetDamageMultiplier, equipmentDamageMultiplierBonus, equipmentMaxHealthMultiplierBonus, equipmentRegenerationMultiplierBonus } from "../../shared/items";
 import { formatCompactNumber, formatRate } from "./number-format";
 import { attackCapInterval, attackSpeedLabel, attackSpeedRatingForInterval, critDamageLabel, type AttackCapArg } from "../../shared/stat-rating";
 import { formatRating } from "./rating-text";
@@ -16,7 +16,6 @@ import { weaponAttackRange } from "../game/weapon-combat";
 import { cardChance, cardStatFactors, cardTotals, cardValue } from "../../shared/card-effects";
 import { BASE_CARD_SLOTS, NO_ACTIVE_CARDS, activeCardSlots, activeCardsInPlay } from "../../shared/active-cards";
 import { STAT_NAMES } from "../../shared/card-text";
-
 
 export function formatPlayedTime(seconds: number) {
   const wholeMinutes = Math.max(0, Math.floor(seconds / 60));
@@ -77,6 +76,7 @@ export function effectiveProfileStats(
   const baseSpeed = progress.speedOverride > 0 ? progress.speedOverride : progress.speed;
   const utilitySpeed = utilityMovementSpeedBonus(research.utilityMoveSpeed);
   const powerStats = effectivePlayerPowerStats({ ...progress, activeCards }, research, itemLevel);
+  const feet = progress.equippedFeet ?? "";
   const cards = cardStatFactors(cardTotals(activeCards));
   return {
     ...powerStats,
@@ -84,6 +84,10 @@ export function effectiveProfileStats(
     cards,
     speed: baseSpeed * speedMultiplier + utilitySpeed,
     equipment: { health: healthEquipmentBonus, damage: damageEquipmentBonus, regen: regenEquipmentBonus },
+    /** Warrior Boots' armor and Ranger Boots' move speed factors at the pair's refine, 1 without. */
+    boots: { armor: bootArmorFactor(feet, itemLevel(feet)), speed: bootMoveSpeedFactor(feet, itemLevel(feet)) },
+    /** The class set's damage factor (items.ts classSetDamageMultiplier), 1 when it is off. */
+    classSet: classSetDamageMultiplier(weaponItem, progress.equippedHead, progress.equippedChest),
     gear: { health: bareHealthBonus, damage: bareDamageBonus, regen: bareRegenBonus },
     slotTiers: {
       health: Math.max(0, tieredHealthBonus - bareHealthBonus),
@@ -153,7 +157,7 @@ export function profilePower(profile: PlayerProfileData, soul: Partial<SoulStats
 }
 
 export type ProfileStatDisplaySource = {
-  label: "Tech" | "Equipment" | "Slot Upgrade" | "Refine" | "Cards" | "Prestige" | "Guild" | "Soul";
+  label: "Tech" | "Equipment" | "Slot Upgrade" | "Refine" | "Cards" | "Prestige" | "Guild" | "Soul" | "Class Set" | "Armor" | "Boots";
   value: string;
 };
 
@@ -241,6 +245,9 @@ export function profileStatDisplayRows(
   // A sword reaches its own range, with the same Tech and Long Shot on top (weaponAttackRange).
   const reach = weaponAttackRange(progress.equippedRightHand || progress.equippedLeftHand, progress.attackRange);
   const baseRange = Math.max(1, reach - rangeResearchBonus - rangePerkBonus);
+  // Light armor walks faster and Heavy slower, a piece at a time (armor-class-perks.ts).
+  const armorSpeed = armorMoveSpeedFactor(progress.equippedHead, progress.equippedChest), bootSpeed = effective.boots.speed;
+  const bootsSource = (factor: number) => factor !== 1 ? [{ label: "Boots" as const, value: `+${Math.round((factor - 1) * 1000) / 10}%` }] : [];
   const stats: ProfileStatDisplayRow[] = [
     {
       kind: "health", label: "Max Hp:",
@@ -255,17 +262,17 @@ export function profileStatDisplayRows(
     {
       kind: "damage", label: "Damage:", base: statValue(progress.damage),
       equationOperator: "×",
-      multiplier: multiplierValue(effective.multipliers.damageResearch * (1 + effective.equipment.damage) * effective.cards.damage), total: statValue(effective.damage),
+      multiplier: multiplierValue(effective.multipliers.damageResearch * (1 + effective.equipment.damage) * effective.classSet * effective.cards.damage), total: statValue(effective.damage),
       sources: [...soulSource(soul.damage, statValue), ...multiplierSources(damageResearchBonus, effective.gear.damage, effective.slotTiers.damage, effective.refines.damage),
-        ...cardSource(effective.cards.damage)],
+        ...(effective.classSet > 1 ? [{ label: "Class Set" as const, value: `+${Math.round((effective.classSet - 1) * 100)}%` }] : []), ...cardSource(effective.cards.damage)],
     },
     {
       kind: "armor", label: "Armor:", base: statValue(progress.armor),
       equationOperator: "×",
-      multiplier: multiplierValue(effective.multipliers.armor * effective.cards.armor),
+      multiplier: multiplierValue(effective.multipliers.armor * effective.boots.armor * effective.cards.armor),
       expandedDetail: `(${armorReduction(effective.armor)} Block)`,
       total: statValue(effective.armor),
-      sources: [...soulSource(soul.armor, statValue), ...multiplierSources(armorResearchBonus), ...cardSource(effective.cards.armor)],
+      sources: [...soulSource(soul.armor, statValue), ...multiplierSources(armorResearchBonus), ...bootsSource(effective.boots.armor), ...cardSource(effective.cards.armor)],
     },
     {
       kind: "attack", label: "Attack Speed:", base: baseAttackSpeed,
@@ -295,11 +302,12 @@ export function profileStatDisplayRows(
     {
       kind: "speed", label: "Move Speed:", base: statValue(progress.speedOverride > 0 ? progress.speedOverride : progress.speed),
       equationOperator: "×",
-      multiplier: multiplierValue(effective.multipliers.speed * (1 + speedPerkBonus + effective.cards.moveSpeed)),
-      total: statValue(effective.speed * (1 + speedPerkBonus + effective.cards.moveSpeed)),
+      multiplier: multiplierValue(effective.multipliers.speed * (1 + speedPerkBonus + effective.cards.moveSpeed) * armorSpeed * bootSpeed),
+      total: statValue(effective.speed * (1 + speedPerkBonus + effective.cards.moveSpeed) * armorSpeed * bootSpeed),
       sources: [...multiplierSources(speedResearchBonus), ...(ranks.utilityMoveSpeed > 0 ? [{ label: "Tech" as const, value: `+${utilityMovementSpeedBonus(ranks.utilityMoveSpeed)} speed` }] : []),
         ...(speedPerkBonus ? [{ label: "Prestige" as const, value: `+${Math.round(speedPerkBonus * 1000) / 10}%` }] : []),
-        ...(effective.cards.moveSpeed ? [{ label: "Cards" as const, value: `+${Math.round(effective.cards.moveSpeed * 1000) / 10}%` }] : [])],
+        ...(effective.cards.moveSpeed ? [{ label: "Cards" as const, value: `+${Math.round(effective.cards.moveSpeed * 1000) / 10}%` }] : []),
+        ...(armorSpeed !== 1 ? [{ label: "Armor" as const, value: `${armorSpeed > 1 ? "+" : ""}${Math.round((armorSpeed - 1) * 1000) / 10}%` }] : []), ...bootsSource(bootSpeed)],
     },
   ];
   // Tech and prestige multiply each other, exactly as the server pays them, so
@@ -376,13 +384,6 @@ export function profileStatDisplayRows(
   perkRow("doubleStrike", "double-strike", "(Chance a hit lands twice)", "doubleStrike");
   perkRow("splitShot", "split-shot", "(Chance to strike a second enemy)", "splitShot");
   perkRow("riposte", "riposte", "(Reflects 100% of each hit before armor, up to half your max health; no cap in Reflect Only; half in duels)", "reflect");
-  // Mining, once the Smith has handed over a pickaxe: every rock raises it, and it breaks rocks faster.
-  if (profile.mining != null) {
-    stats.push({
-      kind: "mining", label: "Mining:", base: profile.mining.toLocaleString(), multiplier: "", hideEquation: true,
-      total: profile.mining.toLocaleString(), expandedDetail: `(Breaks rocks ${miningSpeed(profile.mining).toFixed(2)}× as fast)`, sources: [],
-    });
-  }
   return stats;
 }
 

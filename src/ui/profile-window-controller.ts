@@ -6,6 +6,10 @@ import { applyAvatarFrame } from "../app/avatar-frames";
 import type { PlayerProfileData } from "../wildstat-coop";
 import type { PlayerGender } from "../../shared/player-gender";
 import { PRESTIGE_STAT_GAIN_PER_LEVEL } from "../../shared/prestige";
+import type { WeaponSchool } from "../../shared/weapon-mastery";
+import type { CraftSkill } from "../../shared/crafting";
+import type { RewardKillCounts } from "../../shared/soul-dimension";
+import { profileSkillRows, renderProfileSkills, renderProfileSoulTier } from "./profile-skills";
 import type { ItemInspectionController, ItemInspectionAction } from "./item-inspection-controller";
 import { profileActiveCardIds, slotUpgradeLevelFor } from "./profile";
 import { setText } from "./settings";
@@ -19,7 +23,7 @@ import {
   type ProfileEquipmentSlot,
 } from "./profile-equipment";
 
-export type ProfileTab = "overview" | "stats" | "bonuses";
+export type ProfileTab = "overview" | "stats" | "skills" | "bonuses";
 const DUEL_BUTTON_TITLE = "Automatic duel using earned stats and equipped gear. Hits grow stronger after 10 seconds. Knockout wins; at 30 seconds, the higher percentage of health remaining wins.";
 type Profile = PlayerProfileData;
 
@@ -35,13 +39,21 @@ export function createProfileWindowController(elements: {
   duel: HTMLButtonElement;
   settings?: HTMLElement; safetyActions: HTMLElement; report: HTMLButtonElement; block: HTMLButtonElement;
   prestigeRow: HTMLElement; prestige: HTMLElement;
+  /** Every skill's level (profile-skills.ts), and your own soul tier kills under Info. */
+  skillsTab?: HTMLElement; skillsPanel?: HTMLElement; soulTier?: HTMLElement;
 }, api: {
   /** Own-profile actions live outside this controller; prestige is the first. */
   onOwnProfile?: (own: boolean) => void;
   prestigeLevel?: () => number;
+  /** Your own Weapon Mastery points, live (my_weapon_mastery). */
+  weaponMastery?: () => Readonly<Record<WeaponSchool, bigint>> | undefined;
+  /** Your own craft experience (my_craft_skills) and soul tier kills, live. */
+  craftExperience?: () => Readonly<Record<CraftSkill, bigint>> | undefined;
+  rewardKills?: () => RewardKillCounts | undefined;
   localIdentity: () => string | undefined; localDisplayName: () => string | undefined; profileIcon: (identity?: string) => number; paintIcon: (element: HTMLElement, index: number, identity?: string) => void;
   renderName: (element: HTMLElement, identity: string, name: string, gender?: PlayerGender) => void; isGuest: (identity: string) => boolean; isOnline: (identity: string) => boolean; presenceText: (profile: Profile, online: boolean) => string;
-  renderCharacter: (identity: string, progress: Profile["progress"] | null, visible: boolean) => void; skinTone: (identity?: string) => number; setSkinTone: (value: number) => Promise<{ ok?: boolean; error?: string } | undefined>;
+  /** `progress` carries the profile's refines too, so the preview draws worn graded gear in its refine look. */
+  renderCharacter: (identity: string, progress: (Profile["progress"] & { itemRefines?: Readonly<Record<string, number>> }) | null, visible: boolean) => void; skinTone: (identity?: string) => number; setSkinTone: (value: number) => Promise<{ ok?: boolean; error?: string } | undefined>;
   playerGender: (identity?: string) => PlayerGender; setGender: (value: PlayerGender) => Promise<{ ok?: boolean; error?: string } | undefined>;
   nameColor: (identity?: string) => number; setNameColor: (value: number) => Promise<{ ok?: boolean; error?: string } | undefined>; openIconPicker: () => void;
   renderStats: (profile: Profile, element: HTMLElement) => void; formatPower: (profile: Profile) => string; formatPlayedTime: (seconds: number) => string;
@@ -73,7 +85,7 @@ export function createProfileWindowController(elements: {
   } });
 
   const tabs = () => ([["overview", elements.overviewTab, elements.overviewPanel], ["stats", elements.statsTab, elements.statsPanel],
-    ["bonuses", elements.bonusesTab, elements.bonusesPanel]] as const).filter((entry): entry is readonly [ProfileTab, HTMLElement, HTMLElement] => Boolean(entry[1] && entry[2]));
+    ["skills", elements.skillsTab, elements.skillsPanel], ["bonuses", elements.bonusesTab, elements.bonusesPanel]] as const).filter((entry): entry is readonly [ProfileTab, HTMLElement, HTMLElement] => Boolean(entry[1] && entry[2]));
   function selectTab(tab: ProfileTab) {
     for (const [name, button, panel] of tabs()) {
       const active = name === tab;
@@ -98,7 +110,7 @@ export function createProfileWindowController(elements: {
 
   function drawPreview() {
     const profile = profileData;
-    const progress = profile && profile.identity === elements.preview.dataset.identity ? profile.progress : null;
+    const progress = profile && profile.identity === elements.preview.dataset.identity ? { ...profile.progress, itemRefines: profile.itemRefines } : null;
     api.renderCharacter(elements.preview.dataset.identity || "", progress, !elements.window.hidden);
   }
 
@@ -126,6 +138,7 @@ export function createProfileWindowController(elements: {
       skills: profileData.wornSkill?.itemId === presentation.inspectionItemId ? profileData.wornSkill.roll : undefined,
       context: presentation.context,
       ownItem: identity === api.localIdentity(),
+      worn: profileData.progress,
       actions: identity === api.localIdentity() ? api.destructionActions?.(presentation.inspectionItemId) : undefined,
     });
   }
@@ -189,6 +202,8 @@ export function createProfileWindowController(elements: {
     const prestigeLevel = own ? api.prestigeLevel?.() ?? profile.prestigeLevel ?? 0 : profile.prestigeLevel ?? 0;
     elements.prestigeRow.hidden = prestigeLevel <= 0;
     elements.prestige.textContent = `${prestigeLevel} (+${Math.round(prestigeLevel * PRESTIGE_STAT_GAIN_PER_LEVEL * 100)}% stat gain)`;
+    if (elements.skillsPanel) renderProfileSkills(elements.skillsPanel, profileSkillRows(profile, own ? { mastery: api.weaponMastery?.(), crafts: api.craftExperience?.() } : undefined));
+    if (elements.soulTier) renderProfileSoulTier(elements.soulTier, own ? api.rewardKills?.() ?? {} : undefined);
     api.renderStats(profile, elements.statGrid);
     loading.hide();
     showBonusesTab(own);
@@ -226,6 +241,7 @@ export function createProfileWindowController(elements: {
   function closeNameEditor() { editor.close(); }
 
   elements.overviewTab.addEventListener("click", () => selectTab("overview")); elements.statsTab.addEventListener("click", () => selectTab("stats"));
+  elements.skillsTab?.addEventListener("click", () => selectTab("skills"));
   elements.bonusesTab?.addEventListener("click", () => selectTab("bonuses"));
   elements.report.addEventListener("click", () => api.openSafety(identity, profileData?.name || elements.name.textContent || "PLAYER", "report"));
   elements.block.addEventListener("click", () => api.openSafety(identity, profileData?.name || elements.name.textContent || "PLAYER", "block"));

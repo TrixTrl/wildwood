@@ -131,6 +131,7 @@ const afterUpdateGateShell = String.raw`
     <div class="profile-tabs profile-tabs-with-action">
       <div class="profile-tab-list" role="tablist" aria-label="Player profile sections">
         <button id="profileStatsTab" class="profile-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="profileStatsPanel">Stats</button>
+        <button id="profileSkillsTab" class="profile-tab" type="button" role="tab" aria-selected="false" aria-controls="profileSkillsPanel">Skills</button>
         <button id="profileOverviewTab" class="profile-tab" type="button" role="tab" aria-selected="false" aria-controls="profileOverviewPanel">Info</button>
         <button id="profileBonusesTab" class="profile-tab" type="button" role="tab" aria-selected="false" aria-controls="profileBonusesPanel" hidden>Bonuses</button>
       </div>
@@ -148,6 +149,7 @@ const afterUpdateGateShell = String.raw`
           <div id="profilePrestigeRow" hidden><dt>PRESTIGE</dt><dd id="profilePrestige">—</dd></div>
           <div><dt>STATUS</dt><dd id="profileOnline">—</dd></div>
         </dl>
+        <section id="profileSoulTier" class="profile-soul-tier" hidden></section>
         <div id="profileSafetyActions" class="profile-safety-actions" hidden>
           <button id="profileReportBtn" type="button">Report</button>
           <button id="profileBlockBtn" type="button">Block</button>
@@ -156,6 +158,7 @@ const afterUpdateGateShell = String.raw`
       <section id="profileStatsPanel" class="profile-panel" role="tabpanel" aria-labelledby="profileStatsTab">
         <div id="profileStatGrid" class="profile-stat-grid"></div>
       </section>
+      <section id="profileSkillsPanel" class="profile-panel profile-skills-panel" role="tabpanel" aria-labelledby="profileSkillsTab" hidden></section>
       <section id="profileBonusesPanel" class="profile-panel profile-bonuses-panel" role="tabpanel" aria-labelledby="profileBonusesTab" hidden></section>
     </div>
     </div>
@@ -480,6 +483,10 @@ export function installGameShell(doc: Document = document) {
   }
   if (!doc.getElementById("mailboxToggle")) {
     doc.getElementById("playerVisibilityToggle")?.insertAdjacentHTML("afterend", `<button id="mailboxToggle" class="mailbox-toggle" type="button" aria-label="Mailbox" hidden></button>`);
+  }
+  // Gold sits right of the gems, in the same chip; the coin is drawn here rather than shipped as art.
+  if (!doc.getElementById("hudGoldWallet")) {
+    doc.getElementById("hudGemWallet")?.insertAdjacentHTML("afterend", `<div id="hudGoldWallet" class="hud-gem-wallet hud-gold-wallet" aria-label="0 Gold"><svg class="hud-gem-icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8.5" fill="#e3b23c" stroke="#7a4f12" stroke-width="1.5"/><circle cx="10" cy="10" r="5.5" fill="none" stroke="#a8741d" stroke-width="1.2"/><path d="M6.5 7.5a4.5 4.5 0 0 1 3-2.5" fill="none" stroke="#fff3c4" stroke-width="1.2" stroke-linecap="round"/></svg><strong id="hudGoldBalance" class="hud-gem-balance">0</strong></div>`);
   }
   const toolbar = doc.getElementById("toolbar");
   for (const [id, label, icon] of [

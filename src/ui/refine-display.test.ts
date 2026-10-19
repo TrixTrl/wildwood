@@ -19,7 +19,7 @@ afterEach(() => vi.unstubAllGlobals());
 const ROLL = { arrowStorm: 0, ricochet: 3, piercingShot: 0 };
 const REFINES: Record<string, number> = { [`${IRON_BOW}:0`]: 5, [`${IRON_BOW}:5`]: 2 };
 
-function bag(copies: KeptEquipmentCopy[] = [{ id: 5n, itemId: IRON_BOW, roll: ROLL }], ores: Partial<Record<OreId, number>> = {}) {
+function bag(copies: KeptEquipmentCopy[] = [{ id: 5n, itemId: IRON_BOW, roll: ROLL }], ores: Partial<Record<OreId, number>> = {}, slotLevel = 0) {
   const ids = ["inventoryPanel", "inventoryItems", "inventoryCount", "equippedHeadSlot", "equippedChestSlot", "equippedFeetSlot", "equippedRightHandSlot", "inventoryEquipmentTab", "inventoryCosmeticsTab", "inventoryContent"];
   const { document, window } = parseHTML(`<html><body>${ids.map(id => `<div id="${id}"></div>`).join("")}</body></html>`);
   vi.stubGlobal("document", document); vi.stubGlobal("window", window); vi.stubGlobal("navigator", {});
@@ -28,7 +28,7 @@ function bag(copies: KeptEquipmentCopy[] = [{ id: 5n, itemId: IRON_BOW, roll: RO
   const oreOpened: { oreId: string; count: number }[] = [];
   const asked: ConfirmRequest[] = [];
   const controller = createInventoryController({ inventory, toggleCosmeticVisibility: () => false,
-    move: () => true, moveCosmetic: () => false, upgradeLevel: () => 0, inventorySlotsUnlocked: () => 0, gemBalance: () => 0n,
+    move: () => true, moveCosmetic: () => false, upgradeLevel: () => slotLevel, inventorySlotsUnlocked: () => 0, gemBalance: () => 0n,
     refineLevel: (itemId, copyId = 0n) => REFINES[`${itemId}:${copyId}`] ?? 0, ores: () => ores,
     itemInspection: { close() {}, open(request: ItemInspectionRequest) { opened.push(request); return true; }, openOre(request: { oreId: string; count: number }) { oreOpened.push(request); return true; } } as any,
     destroyEquipment: async () => ({ ok: true }), destroyEquipmentCopy: async () => ({ ok: true }),
@@ -67,6 +67,21 @@ describe("refines in the inventory", () => {
     expect(view.opened.at(-1)!.refine).toBe(5);
   });
 
+  it("shows the slot's +N on the worn slot only, never on a bag item or its confirm", async () => {
+    const view = bag(undefined, {}, 37);
+    const slot = view.document.getElementById("equippedRightHandSlot")!;
+    expect(slot.querySelector(".inventory-upgrade-level")!.textContent).toBe("+37");
+    expect(slot.getAttribute("aria-label")).toContain("Lvl +37");
+    const copy = view.tile(IRON_BOW, 5n);
+    expect(copy.querySelector(".inventory-upgrade-level")).toBeNull();
+    expect(copy.getAttribute("aria-label")).not.toContain("+37");
+    // The tile's stats still count the slot's tier.
+    expect(copy.querySelector('[data-stat-kind="damage"]')!.getAttribute("aria-label")).toBe(itemStats(IRON_BOW, { tier: 37, refine: 2 })[0]);
+    copy.click();
+    await view.opened.at(-1)!.actions!.find(action => action.kind === "DESTROY")!.onActivate();
+    expect(view.asked.at(-1)!.message).not.toContain("+37");
+  });
+
   it("draws the bag again when a refine changes", () => {
     const view = bag();
     REFINES[`${IRON_BOW}:5`] = 3;
@@ -93,10 +108,10 @@ describe("refines in the inventory", () => {
     expect(bag().items.querySelector(".is-ore")).toBeNull();
   });
 
-  it("shows the ores alone under the Ores filter, and no ores under a gear filter", () => {
+  it("shows the ores alone under the Materials filter, and no ores under a gear filter", () => {
     const view = bag(undefined, { iron_ore: 3 });
     const filter = (label: string) => [...view.document.querySelectorAll<HTMLElement>(".inventory-filter")].find(button => button.textContent === label)!;
-    filter("Ores").click();
+    filter("Materials").click();
     expect([...view.items.querySelectorAll<HTMLElement>(".inventory-item.is-filled")].map(tile => tile.dataset.oreId ?? tile.dataset.itemId)).toEqual(["iron_ore"]);
     filter("Helmets").click();
     expect(view.items.querySelector(".is-ore")).toBeNull();
@@ -151,11 +166,11 @@ describe("refines in the item window", () => {
   it("names the item with its ★ in gold and counts the refine in its stats", () => {
     const view = inspection();
     view.controller.open({ itemId: IRON_BOW, upgradeLevel: 3, refine: 7 });
-    expect(view.title.textContent).toBe("Stone Bow +3 ★7");
+    expect(view.title.textContent).toBe("Stone Bow ★7");
     expect(view.title.querySelector(".refine-stars")!.textContent).toBe(" ★7");
     expect(view.lines()).toEqual([formatEquipmentStat(itemInspectionButtonLabel(itemStats(IRON_BOW, { tier: 3, refine: 7 })[0]))]);
     view.controller.open({ itemId: IRON_BOW, upgradeLevel: 3 });
-    expect(view.title.textContent).toBe("Stone Bow +3");
+    expect(view.title.textContent).toBe("Stone Bow");
     expect(view.lines()).toEqual([formatEquipmentStat(itemInspectionButtonLabel(itemStats(IRON_BOW, 3)[0]))]);
   });
 });
@@ -176,6 +191,9 @@ describe("refines on a profile", () => {
     expect(slot.querySelector(".refine-badge")!.textContent).toBe("★6");
     expect(slot.querySelector(".inventory-upgrade-level")!.textContent).toBe("+2");
     expect(slot.title).toContain("★6");
+    // The +2 is the slot's: on its label, never in the bow's name.
+    expect(slot.title).not.toContain("+2");
+    expect(slot.getAttribute("aria-label")).toContain(", Lvl +2: STONE BOW ★6");
     // A cosmetic over the head only changes the look: the hat's refine is not the head's.
     const head = profileEquipmentPresentation(equipment({ cosmeticHead: SAMURAI_HAT }), "HEAD");
     expect(profileEquipmentRefine(head, refines)).toBe(0);

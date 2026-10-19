@@ -787,7 +787,7 @@
   .item-inspection-summary { display: grid; justify-items: center; gap: 8px; width: 100%; min-width: 0; }
   .item-inspection-preview { display: grid; justify-items: center; align-content: center; gap: 6px; min-width: 0; width: 100%; }
   .item-inspection-tools { position: absolute; top: 8px; left: 8px; z-index: 1; display: flex; align-items: center; }
-  .item-inspection-name { width: calc(100% - 72px); margin: 0; color: #fff; font-size: 18px; font-weight: 900; line-height: 1.2; text-align: center; overflow-wrap: anywhere; text-transform: none; }
+  .item-inspection-name { width: calc(100% - 112px); margin: 0; color: #fff; font-size: 18px; font-weight: 900; line-height: 1.2; text-align: center; overflow-wrap: anywhere; text-transform: none; }
   .item-inspection-content { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; align-content: safe center; align-items: center; text-align: center; gap: 12px; width: 100%; min-height: 0; padding: 16px 16px 6px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; color: #c9d3cb; font-size: var(--font-readable-body); line-height: var(--line-height-readable); }
   .item-inspection-content::-webkit-scrollbar { display: none; }
   .item-inspection-icon { display: grid; place-items: center; width: 150px; height: 150px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
@@ -2740,7 +2740,8 @@
   .account-choice-modal p.account-sign-in-hint[hidden] { display: none; }
 
   /* A text line, not one of the big pill buttons above it. */
-  .account-choice-modal button.account-sign-in-help {
+  .account-choice-modal button.account-sign-in-help,
+  .account-choice-modal button.account-switch-button {
     display: inline-block;
     width: auto;
     min-height: 0;
@@ -2761,6 +2762,16 @@
   }
 
   .account-choice-modal button.account-sign-in-help[aria-expanded="true"] { color: #fff; }
+
+  /* Under the character it offers, so a wrong one is never the only choice. */
+  .account-choice-modal button.account-switch-button {
+    display: block;
+    margin: 6px auto 0;
+    color: #fff;
+    font-size: 13px;
+  }
+
+  .account-choice-modal button.account-switch-button[hidden] { display: none; }
 
   .account-sign-in-hint span {
     display: block;
@@ -3318,6 +3329,26 @@
   #profileOverviewPanel .profile-grid > div { background: transparent; border-color: transparent; }
   .profile-grid dt { color: var(--muted); font-size: 8px; letter-spacing: .07em; }
   .profile-grid dd { margin: 5px 0 0; color: #fff; font-size: 12px; overflow-wrap: anywhere; }
+  /* The profile's Skills tab (profile-skills.ts): a heading a group, a card a skill, a thin bar on your own. */
+  .profile-skills-panel { display: grid; gap: 12px; padding: 8px 2px 4px; }
+  .profile-skill-group { display: grid; gap: 6px; }
+  .profile-skill-heading { margin: 0; color: #a9b0ba; font-size: 13px; font-weight: 800; }
+  .profile-skill { display: grid; gap: 5px; padding: 8px 10px; border: 1px solid rgba(255,255,255,.1); border-radius: 8px; background: rgba(0,0,0,.28); }
+  .profile-skill-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .profile-skill-name, .profile-skill-level { color: #fff; font-size: 14px; }
+  .profile-skill-name { font-weight: 700; }
+  .profile-skill-bar { display: block; height: 4px; overflow: hidden; border-radius: 2px; background: rgba(255,255,255,.14); }
+  .profile-skill-bar > span { display: block; height: 100%; background: #e6e6e6; }
+  .profile-skill-detail { display: flex; justify-content: space-between; gap: 8px; color: #a9b0ba; font-size: 13px; }
+  .profile-skill-detail > span:last-child { text-align: right; }
+  /* Your own soul tier kills under Info, as the Soul Portal lists them. */
+  .profile-soul-tier { display: grid; gap: 6px; margin-top: 12px; }
+  .profile-soul-tier[hidden] { display: none; }
+  .profile-soul-tier-note { margin: 0; color: #a9b0ba; font-size: 13px; line-height: 1.35; }
+  #profileSoulTier .profile-grid > div { padding: 6px 8px; border-color: rgba(255,255,255,.1); background: rgba(0,0,0,.28); }
+  #profileSoulTier .profile-grid dt { color: #a9b0ba; font-size: 13px; letter-spacing: 0; }
+  #profileSoulTier .profile-grid dd { margin-top: 3px; font-size: 14px; }
+  #profileSoulTier .profile-grid > .is-done dd::before { content: "\2713  "; }
   .profile-stat-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 0; overflow: hidden; border: 0; border-radius: 6px; background: transparent; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
   .profile-stat-column { display: block; min-width: 0; margin: 0; }
   .profile-stat-column:first-child { border-right: 0; }
@@ -5015,4 +5046,5 @@ html.text-outline-shadow .death-countdown { text-shadow: var(--text-outline-ring
 .inventory-loadout .equipment-slot.slot-tool { z-index: 2; grid-column: 2; grid-row: 2; align-self: end; justify-self: start; width: 44px; height: 44px; min-height: 0; margin: 0 0 4px 4px; padding: 2px; grid-template-rows: minmax(0, 1fr); }
 .inventory-loadout .equipment-slot.slot-tool[hidden] { display: none; }
 .inventory-loadout .equipment-slot.slot-tool > span:not(.slot-tool-art) { place-self: center; font-size: var(--font-readable-min); }
-.inventory-loadout .slot-tool .slot-tool-art { width: 100%; height: 100%; margin: 0; background: center / contain no-repeat; transform: rotate(-35deg); }
+.inventory-loadout .slot-tool .slot-tool-art { grid-area: 1 / 1; width: 100%; height: 100%; margin: 0; background: center / contain no-repeat; transform: rotate(-35deg); }
+.inventory-loadout .slot-tool .slot-tool-art.slot-tool-crossed { transform: rotate(35deg) scaleX(-1); }

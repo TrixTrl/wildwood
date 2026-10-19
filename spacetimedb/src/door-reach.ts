@@ -2,6 +2,7 @@ import { doorDestinationWithin } from "../../shared/door-reach";
 import { BLACK_BOOTS_SPEED_BONUS } from "../../shared/items";
 import { PLAYER_SPEED } from "../../shared/rules";
 import { effectiveMovementSpeedForProgress } from "./player-speed";
+import { bonusMoveSpeedFactor } from "./weapon-mastery";
 import { readPlayerProgress } from "./wide-stats";
 
 /** The slack a movement packet gets on top of speed × time (presence-runtime's MOVEMENT_POSITION_PACKET_TOLERANCE; a test keeps them equal). */
@@ -23,10 +24,14 @@ export function doorDestinationFor<T>(
   const motion = ctx.db.playerMotion.identity.find(moving.identity);
   if (!motion || motion.mapId !== moving.mapId || ![motion.x, motion.y].every(Number.isFinite)) return null;
   const elapsed = Math.max(0, Number(ctx.timestamp.microsSinceUnixEpoch - motion.lastInputAt.microsSinceUnixEpoch) / 1_000_000);
-  const progress = readPlayerProgress(ctx, moving.identity);
-  const speed = Math.max(PLAYER_SPEED, Number.isFinite(moving.speed) ? moving.speed! : 0,
-    progress ? effectiveMovementSpeedForProgress(ctx, progress) + BLACK_BOOTS_SPEED_BONUS : 0);
+  const speed = walkSpeedFor(ctx, moving, readPlayerProgress(ctx, moving.identity));
   return doorDestinationWithin(destinationAt, motion, speed * elapsed + DOOR_POSITION_TOLERANCE, sides);
+}
+
+/** The fastest walk the server would accept from this player in one movement packet. */
+export function walkSpeedFor(ctx: any, moving: { speed?: number; identity: any }, progress: any) {
+  return Math.max(PLAYER_SPEED, Number.isFinite(moving.speed) ? moving.speed! : 0,
+    progress ? (effectiveMovementSpeedForProgress(ctx, progress) + BLACK_BOOTS_SPEED_BONUS) * bonusMoveSpeedFactor(ctx, moving.identity, progress) : 0);
 }
 
 /**

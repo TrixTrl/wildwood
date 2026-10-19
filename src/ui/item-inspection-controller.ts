@@ -17,6 +17,10 @@ import { cardDefinition } from "../../shared/cards";
 import { CARD_SLOT_NAMES, cardEffectText, cardName, cardOrigin } from "../../shared/card-text";
 import { cardPortrait } from "./card-portrait";
 import { itemSkillDetails } from "./item-skill-details";
+import { armorClassPerkLine, armorClassSetLine } from "../../shared/armor-class-perks";
+import { bootStyleOf, gradeOf, isGradeItemId } from "../../shared/grade-equipment";
+import { BOOT_STYLE_SCHOOL, GEAR_GRADE_NAMES } from "../../shared/gear-grades";
+import { WEAPON_SCHOOL_NAMES } from "../../shared/weapon-mastery";
 
 export type ItemInspectionAction = {
   label: string;
@@ -41,7 +45,21 @@ export type ItemInspectionRequest = {
   skills?: WeaponSkillRoll | null;
   /** A player's active cards of this item's type, shown on their profile's gear: each card and what it does. */
   activeCards?: { title: string; cards: readonly string[] };
+  /** The wearer's gear: a helmet or armor they wear says whether its class set is on. */
+  worn?: WornGear;
 };
+
+export type WornGear = { equippedRightHand?: string; equippedLeftHand?: string; equippedHead?: string; equippedChest?: string };
+
+/** A graded helmet or armor's class lines: its perk, and its set, Active or Inactive when `worn` has it on. Boots name their school. */
+export function armorClassLines(itemId: string, worn?: WornGear) {
+  const style = bootStyleOf(itemId);
+  if (style) return [`Made For ${WEAPON_SCHOOL_NAMES[BOOT_STYLE_SCHOOL[style]]}`];
+  const wearing = worn && (worn.equippedHead === itemId || worn.equippedChest === itemId);
+  const set = armorClassSetLine(itemId, wearing
+    ? { weapon: worn.equippedRightHand || worn.equippedLeftHand, head: worn.equippedHead, chest: worn.equippedChest } : undefined);
+  return [armorClassPerkLine(itemId), set].filter((line): line is string => Boolean(line));
+}
 
 export type ItemInspectionController = ReturnType<typeof createItemInspectionController>;
 
@@ -58,6 +76,12 @@ type ItemInspectionElements = {
 /** A weapon's stat lines followed by its skills, title case ("Arrow Storm 2.4%"). */
 export function itemStatsWithWeaponSkills(itemId: string, level: number, roll: WeaponSkillRoll | null | undefined) {
   return [...itemStats(itemId, level), ...weaponSkillLines(itemId, roll)];
+}
+
+/** The window's title: the name without the slot's +N, and a graded piece's without its grade (the pill under it shows that). */
+export function itemInspectionTitle(itemId: string) {
+  const name = itemInspectionButtonLabel(itemDisplayName(itemId)), grade = isGradeItemId(itemId) ? GEAR_GRADE_NAMES[gradeOf(itemId)!] : "";
+  return grade && name.startsWith(`${grade} `) ? name.slice(grade.length + 1) : name;
 }
 
 export function itemInspectionButtonLabel(label: string) {
@@ -178,7 +202,7 @@ export function createItemInspectionController(elements: ItemInspectionElements)
       returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     }
 
-    elements.title.textContent = itemInspectionButtonLabel(itemDisplayName(item.id, level));
+    elements.title.textContent = itemInspectionTitle(item.id);
     // "Ion Bow ★7": the refine after the name, in gold.
     if (refine > 0) {
       const stars = document.createElement("span");
@@ -188,7 +212,8 @@ export function createItemInspectionController(elements: ItemInspectionElements)
     }
     const icon = document.createElement("div");
     icon.className = "item-inspection-icon";
-    const source = itemPresentation(item.id)?.inventory.source;
+    // A graded piece in the inspected copy's refine look.
+    const source = itemPresentation(item.id, refine)?.inventory.source;
     // A finished piece is a masked CSS layer stack, not a plain image.
     if (source && !itemHasGalaxyFinish(item.id)) {
       const image = document.createElement("img");
@@ -199,7 +224,7 @@ export function createItemInspectionController(elements: ItemInspectionElements)
       icon.append(image);
     } else {
       if (!source) icon.classList.add("has-fallback-art");
-      icon.innerHTML = itemArtMarkup(item.id, false);
+      icon.innerHTML = itemArtMarkup(item.id, false, refine);
     }
     const preview = document.createElement("div");
     preview.className = "item-inspection-preview";
@@ -207,6 +232,13 @@ export function createItemInspectionController(elements: ItemInspectionElements)
     const metadata = document.createElement("div");
     metadata.className = "item-inspection-metadata";
     appendItemTierLabel(metadata, item.id);
+    // A graded piece's grade, once, as a card shows its rarity; the title holds the rest of the name.
+    if (isGradeItemId(item.id)) {
+      const grade = document.createElement("span");
+      grade.className = "item-grade-label";
+      grade.textContent = GEAR_GRADE_NAMES[gradeOf(item.id)!];
+      metadata.append(grade);
+    }
     if (metadata.childElementCount) preview.append(metadata);
     preview.append(icon);
 
@@ -233,6 +265,20 @@ export function createItemInspectionController(elements: ItemInspectionElements)
       if (/^MAX HEALTH\b/.test(stat)) value.dataset.statKind = "health";
       if (/^REGEN\b/.test(stat)) value.dataset.statKind = "regen";
       if (/^ARMOR\b/.test(stat)) value.dataset.statKind = "armor";
+      stats.append(value);
+    }
+    // A graded helmet or armor's class: what it does a piece, and its set.
+    for (const line of armorClassLines(item.id, request.worn)) {
+      const value = document.createElement("span"), status = /· (Active|Inactive)$/.exec(line)?.[1];
+      value.textContent = status ? line.slice(0, -` · ${status}`.length) : line;
+      value.dataset.statKind = !line.startsWith("Set:") ? "class" : status === "Active" ? "set-active" : status ? "set-inactive" : "set";
+      // On or off sits under the set in a tag of its own, so it reads at a glance.
+      if (status) {
+        const word = document.createElement("strong");
+        word.className = "item-inspection-set-status";
+        word.textContent = status;
+        value.append(word);
+      }
       stats.append(value);
     }
     // A sword strikes up close and a staff's bolts burst, which their art alone does not say.

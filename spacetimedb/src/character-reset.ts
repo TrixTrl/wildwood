@@ -24,6 +24,10 @@ import { pinMapBalance } from "./map-balance";
 import { recordAnalyticsMapVisit } from "./analytics";
 import { noteMapDeparture } from "./enemy-defeats";
 import { removeMiningData } from "./mining";
+import { removeWoodcuttingData } from "./woodcutting";
+import { removeWeaponMastery } from "./weapon-mastery";
+import { removeCraftSkills } from "./crafting";
+import { removeTools } from "./tools";
 
 export function publishPlayerDeathFrame(ctx: any, activePlayer: any) {
   if (boundedMapPopulation(ctx, activePlayer.mapId) < 2) return;
@@ -95,7 +99,7 @@ const RESET_SAVE_TABLES = [
   "playerPrestige", "playerPrestigePerk", "playerPrestigeExpansionPerk", "playerPrestigeCardPerk", "playerFreeRespec",
   "playerPrestigeChallenge", "prestigeChallengeBackup", "prestigeChallengeRun", "playerPrestigeChallengeParked",
   "playerAggroChallenge", "aggroChallengeRun", "playerAggroChallengeParked",
-  "playerSoulStats", "playerSoulLevel", "playerRewardKills", "playerBonusToggle",
+  "playerSoulStats", "playerSoulLevel", "playerRewardKills", "playerBonusToggle", "playerGold", "playerStarterWeapon",
 ] as const;
 
 /** Reset Save: the account's progression first, so the fresh run starts with none of its bonuses, then the run. */
@@ -105,6 +109,10 @@ export function resetWholeSave(ctx: any, activePlayer: any) {
     if (handle?.identity.find(ctx.sender)) handle.identity.delete(ctx.sender);
   }
   removeMiningData(ctx, ctx.sender); // Mining is earned across runs too: the pickaxe goes back to the Smith.
+  removeWoodcuttingData(ctx, ctx.sender); // So is Woodcutting, and the hatchet with it.
+  removeWeaponMastery(ctx, ctx.sender);
+  removeCraftSkills(ctx, ctx.sender);
+  removeTools(ctx, ctx.sender);
   resetProgressToDefaults(ctx, activePlayer);
 }
 
@@ -116,6 +124,8 @@ export function respawnWithProgress(ctx: any, activePlayer: any, next: any, dest
     const nextPlayer = { ...activePlayer, hp: next.maxHp, maxHp: next.maxHp, ...powerFieldsForProgress(ctx, next),
       speed: effectiveMovementSpeedForProgress(ctx, next), ...equipmentPresentationForProgress(ctx, next) };
     persistWorldLocation(ctx, transitionPlayerMap(ctx, nextPlayer, destination.mapId, destination, 0));
+    // Kills still arriving for the map just left belong to the run that left it, never the one arriving.
+    ctx.db.playerMapDeparture.identity.delete(activePlayer.identity);
     // The board is built from saved stats on a timer, so without this the
     // player keeps their old rank until the next sweep, which reads to
     // everyone else as a reset player still sitting at the top. Throttled

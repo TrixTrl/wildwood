@@ -84,6 +84,7 @@ function setup(options: {
   signedIn?: boolean;
   protocolBlocked?: boolean;
   authCallback?: boolean;
+  updateResumeMode?: "account" | "guest" | null;
   validateAccountIdToken?: (token: string, expectedNonce: string) => Promise<ReturnType<typeof inspectSpacetimeIdToken>>;
 } = {}) {
   const local = new MemoryStorage();
@@ -126,7 +127,7 @@ function setup(options: {
   const clearPendingProgress = vi.fn();
   const service = createAccountService({
     keys,
-    updateResumeMode: null,
+    updateResumeMode: options.updateResumeMode ?? null,
     updateResumeStore: createUpdateResumeStore(session, "update-resume"),
     notify,
     connection: () => connection as never,
@@ -951,5 +952,210 @@ describe("moving a character to a Google sign-in", () => {
     expect(connection.disconnect).not.toHaveBeenCalled();
     expect(f.session.getItem(keys.loginMoveKey)).toBeNull();
     expect(f.service.api.accountState().notice).toBe("NOT MOVED · THAT GOOGLE ACCOUNT ALREADY HAS A CHARACTER");
+  });
+});
+
+describe("the remembered guest character", () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+  it("is only offered while its guest token is still on this browser", () => {
+    const orphaned = setup();
+    orphaned.local.setItem(keys.knownGuestCharacterKey, "Pearl");
+    expect(orphaned.service.api.knownCharacter()).toBe("");
+    expect(orphaned.service.rememberedCharacter(false)).toBe("");
+    const guest = setup({ guestToken: "guest-save" });
+    guest.local.setItem(keys.knownGuestCharacterKey, "Pearl");
+    expect(guest.service.api.knownCharacter()).toBe("Pearl");
+  });
+  it("is forgotten once the guest save is linked to an account", async () => {
+    const f = setup({ signedIn: true, guestToken: "guest-save" });
+    f.local.setItem(keys.knownGuestCharacterKey, "Pearl");
+    f.session.setItem(keys.accountLinkKey, JSON.stringify({ code: "c".repeat(40), guestIdentity: "guest-identity" }));
+    const connection = { disconnect: vi.fn(), reducers: { claimGuestAccount: vi.fn(async () => {}) } };
+    expect(await f.service.claimAccountLink(connection as never, true, () => true)).toBe(true);
+    expect(f.local.getItem(keys.knownGuestCharacterKey)).toBeNull();
+  });
+  it("is forgotten on sign-out, and nothing is remembered while signing out", async () => {
+    const f = setup({ signedIn: true, accountToken: accountToken(), knownAccount: true, guestToken: "guest-save" });
+    f.local.setItem(keys.knownGuestCharacterKey, "Pearl");
+    await f.service.api.signOut();
+    expect(f.local.getItem(keys.knownGuestCharacterKey)).toBeNull();
+    f.service.rememberConfirmedCharacter("Gehn");
+    f.service.rememberConfirmedGender(1);
+    expect(f.local.getItem(keys.knownAccountCharacterKey)).toBeNull();
+    expect(f.local.getItem(keys.knownGuestCharacterKey)).toBeNull();
+    expect(f.local.getItem(keys.knownAccountGenderKey)).toBeNull();
+  });
+});
+
+describe("using another account", () => {
+  afterEach(() => { vi.unstubAllGlobals(); vi.mocked(recordCarriedConnectionDiagnostic).mockClear(); });
+  const signInNextKey = `${keys.loginMoveKey}/sign_in_next`;
+  it.each([
+    ["a stored account", { signedIn: true, accountToken: accountToken(), knownAccount: true }],
+    ["a known account with no token", { knownAccount: true }],
+  ])("from %s: ends the provider session, then forces a login that asks which account", async (_label, options) => {
+    const f = setup(options);
+    f.local.setItem(keys.knownAccountCharacterKey, "Gehn");
+    f.session.setItem(keys.loginMoveKey, "stale-move");
+    expect(await f.service.api.switchAccount()).toEqual({ ok: true, redirecting: true });
+    expect(new URL(f.assign.mock.calls[0][0]).pathname).toMatch(/\/session\/end$/);
+    for (const key of [keys.accountTokenKey, keys.knownAccountKey, keys.knownAccountCharacterKey]) expect(f.local.getItem(key)).toBeNull();
+    expect(f.session.getItem(keys.loginMoveKey)).toBeNull();
+    expect(f.session.getItem(signInNextKey)).toBe("switch-account");
+    expect(f.service.api.accountState()).toMatchObject({ hasAccountToken: false, knownAccount: false });
+
+    // Back from SpacetimeAuth's sign-out in the same tab.
+    const back = setup();
+    back.session.setItem(signInNextKey, f.session.getItem(signInNextKey)!);
+    expect(back.service.canConnect()).toBe(false);
+    await back.service.restoreKnownAccount();
+    expect(back.assign).toHaveBeenCalledOnce();
+    const signIn = new URL(back.assign.mock.calls[0][0]);
+    expect(signIn.pathname).toMatch(/\/auth$/);
+    expect(signIn.searchParams.get("prompt")).toBe("login");
+    expect(signIn.searchParams.get("max_age")).toBe("0");
+    expect(JSON.parse(back.session.getItem(keys.authTripKey)!)).toMatchObject({ reason: "switch-account", prompt: true });
+    expect(back.session.getItem(signInNextKey)).toBeNull();
+    expect(back.connect).not.toHaveBeenCalled();
+  });
+  it("still opens a character move's sign-in left by an older page", async () => {
+    const back = setup();
+    back.session.setItem(keys.loginMoveKey, "move-code");
+    back.session.setItem(signInNextKey, "true");
+    await back.service.restoreKnownAccount();
+    expect(new URL(back.assign.mock.calls[0][0]).searchParams.get("prompt")).toBe("login");
+    expect(JSON.parse(back.session.getItem(keys.authTripKey)!)).toMatchObject({ reason: "login-move" });
+  });
+
+  async function returnAs(options: { trip?: Record<string, unknown>; tapped?: string; sub?: string }) {
+    const f = setup({ knownAccount: true, signedIn: true });
+    f.local.setItem(keys.knownAccountCharacterKey, options.tapped ?? "Pearl");
+    f.setConnection(null);
+    if (options.trip) {
+      f.session.setItem(keys.authTripKey, JSON.stringify({ at: Date.now(), ...options.trip }));
+      f.session.setItem(keys.authStateKey, "expected-state");
+      f.session.setItem(keys.authVerifierKey, "expected-verifier");
+    } else {
+      await f.service.api.signIn();
+      expect(JSON.parse(f.session.getItem(keys.authTripKey)!)).toMatchObject({ reason: "known-account", character: "Pearl", sub: "" });
+    }
+    f.session.setItem(keys.authNonceKey, "expected-nonce");
+    stubTokenRequest(new FakeTokenRequest(200, { id_token: accountToken(options.sub ? { sub: options.sub } : {}), refresh_token: "grant" }));
+    window.location.href = `https://wildstat.example/game?code=one&state=${f.session.getItem(keys.authStateKey)}`;
+    await f.service.restoreKnownAccount();
+    f.setConnection({ isActive: true, disconnect: vi.fn(), reducers: {} } as never);
+    return f;
+  }
+  it("says so when SIGN IN loads a different character from the one tapped, without blocking play", async () => {
+    const f = await returnAs({});
+    expect(f.connect).toHaveBeenCalledOnce();
+    f.service.rememberConfirmedCharacter("Gehn");
+    expect(f.service.api.accountState()).toMatchObject({ signedInAs: "Gehn", notice: "Signed In As Gehn · Not You? Use Another Account" });
+    expect(f.local.getItem(keys.knownAccountCharacterKey)).toBe("Gehn");
+    expect(recordCarriedConnectionDiagnostic).toHaveBeenCalledWith("session-blocked", { detail: "sign-in-changed-account:expected=Pearl;got=Gehn" });
+    // Checked once per trip: later profile rows change nothing.
+    f.service.rememberConfirmedCharacter("Pearl");
+    expect(f.service.api.accountState().signedInAs).toBe("Gehn");
+  });
+  it("stays quiet when the tapped character loads", async () => {
+    const f = await returnAs({});
+    f.service.rememberConfirmedCharacter("Pearl");
+    expect(f.service.api.accountState().signedInAs).toBe("");
+  });
+  it("names a new, empty character too", async () => {
+    const f = await returnAs({});
+    f.service.rememberConfirmedCharacter("Mossy Fox 123");
+    expect(f.service.api.accountState().signedInAs).toBe("A New Character");
+  });
+  it("trusts the same login over a renamed character, and a different login over the same name", async () => {
+    const same = await returnAs({ trip: { reason: "token-rejected", prompt: false, character: "Pearl", sub: "account-subject" } });
+    same.service.rememberConfirmedCharacter("Pearl Renamed");
+    expect(same.service.api.accountState().signedInAs).toBe("");
+    const other = await returnAs({ trip: { reason: "token-rejected", prompt: false, character: "Pearl", sub: "account-subject" }, sub: "someone-else" });
+    other.service.rememberConfirmedCharacter("Pearl");
+    expect(other.service.api.accountState().signedInAs).toBe("Pearl");
+  });
+  it("is cleared by Use Another Account itself", async () => {
+    const f = await returnAs({});
+    f.service.rememberConfirmedCharacter("Gehn");
+    await f.service.api.switchAccount();
+    expect(f.service.api.accountState().signedInAs).toBe("");
+  });
+});
+
+it("tells Settings an account is stored even while disconnected", () => {
+  const { service } = setup({ accountToken: accountToken(), knownAccount: true });
+  expect(service.api.accountState()).toMatchObject({ signedIn: false, hasAccountToken: true });
+  expect(setup({ guestToken: "guest" }).service.api.accountState().hasAccountToken).toBe(false);
+});
+
+describe("Sign In and Register never do nothing", () => {
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+
+  it.each([null, "account"] as const)("a signed-in account reloaded (update resume: %s) comes back to its character", async mode => {
+    const f = setup({ accountToken: accountToken(), knownAccount: true, updateResumeMode: mode });
+    f.local.setItem(keys.knownAccountCharacterKey, "Pilidria");
+    await f.service.restoreKnownAccount();
+    expect(f.service.api.accountState()).toMatchObject({ knownAccount: true });
+    expect(f.service.api.knownCharacter()).toBe("Pilidria");
+    if (mode) expect(f.connect).toHaveBeenCalledOnce();
+    else expect(f.service.api.accountState()).toMatchObject({ signInRequired: true, notice: "SIGN-IN REQUIRED" });
+  });
+
+  it("a reload after the server refused the token still offers SIGN IN to the character", async () => {
+    const f = setup({ knownAccount: true });
+    f.local.setItem(keys.knownAccountCharacterKey, "Pilidria");
+    await f.service.restoreKnownAccount();
+    expect(f.service.api.accountState()).toMatchObject({ knownAccount: true, signInRequired: true, signInReady: true });
+    expect(f.service.api.knownCharacter()).toBe("Pilidria");
+    expect(await f.service.api.signIn()).toMatchObject({ ok: true, redirecting: true });
+    expect(f.assign).toHaveBeenCalledOnce();
+  });
+
+  it("reports a sign-in that was cancelled before it left, instead of waiting forever", async () => {
+    const f = setup();
+    // Anything that drops the trip mid-start (a back-forward restore, Guest) leaves this page here.
+    f.notify.mockImplementation(() => {
+      if (f.service.api.accountState().returningFromSignIn) f.service.cancelAbandonedSignIn();
+    });
+    const result = await f.service.api.signIn();
+    expect(f.assign).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ ok: false });
+    f.notify.mockReset();
+    expect(await f.service.api.signIn()).toMatchObject({ ok: true, redirecting: true });
+    expect(f.assign).toHaveBeenCalledOnce();
+  });
+
+  it("does not keep a guest link pending when its sign-in never left", async () => {
+    const f = setup({ guestToken: "existing-guest" });
+    f.setConnection({ isActive: true, disconnect: vi.fn(), reducers: { beginAccountLink: vi.fn(async () => {}) } } as never);
+    f.notify.mockImplementation(() => {
+      if (f.service.api.accountState().returningFromSignIn) f.service.cancelAbandonedSignIn();
+    });
+    expect(await f.service.api.signIn()).toMatchObject({ ok: false });
+    expect(f.session.getItem(keys.accountLinkKey)).toBeNull();
+    expect(f.service.accountMigrationPending()).toBe(false);
+  });
+
+  it("reloads a sign-out page brought back from the back-forward cache", async () => {
+    const f = setup({ accountToken: accountToken(), knownAccount: true, signedIn: true });
+    const listeners: Record<string, ((event: { persisted?: boolean }) => void)[]> = {};
+    Object.assign(window, { addEventListener: (type: string, listener: (event: { persisted?: boolean }) => void) => { (listeners[type] ??= []).push(listener); } });
+    await f.service.api.signOut();
+    expect(await f.service.api.signIn()).toMatchObject({ ok: false, error: "SIGNING OUT" });
+    for (const listener of listeners.pageshow ?? []) listener({ persisted: false });
+    expect(window.location.reload).not.toHaveBeenCalled();
+    for (const listener of listeners.pageshow ?? []) listener({ persisted: true });
+    expect(window.location.reload).toHaveBeenCalledOnce();
+  });
+
+  it("reloads a sign-out whose page never left", async () => {
+    vi.useFakeTimers();
+    const f = setup({ accountToken: accountToken(), knownAccount: true, signedIn: true });
+    await f.service.api.signOut();
+    vi.advanceTimersByTime(14_000);
+    expect(window.location.reload).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1_000);
+    expect(window.location.reload).toHaveBeenCalledOnce();
   });
 });
