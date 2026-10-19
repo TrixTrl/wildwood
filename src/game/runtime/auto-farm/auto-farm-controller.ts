@@ -498,7 +498,7 @@ export function createAutoFarmController(options: {
    */
   function readyForBoss(): { ready: boolean; line: string } {
     const boss = options.bossDefinition?.();
-    const bossPower = options.bossPower?.() ?? 1;
+    const bossPower = movePower;
     //console.log(boss);
     if (!boss) return { ready: false, line: `Boss definition missing` };
     if (!boss?.bossKind && !boss.damage) {
