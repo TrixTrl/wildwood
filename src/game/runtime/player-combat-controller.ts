@@ -89,6 +89,8 @@ export function attackReadyAtWithoutTarget(nextAttackAtSeconds: number, nowSecon
 
 export type PlayerCombatController = {
   expectedDps: () => number;
+  /** Whether the build gains from enemies around it: Reflect hits them back, Second Wind heals on their deaths. */
+  feedsOnAdds: () => boolean;
   expectedBossDps: () => number;
   expectedFullDps: () => number;
   attackNearest: (enemyType?: AutoFarmGroup | null, campName?: string | null, priority?: AutoFarmPriority) => void;
@@ -538,7 +540,9 @@ export function createPlayerCombatController(options: {
     // Nearest keeps a target within a small distance margin; a ranked
     // priority keeps its target until it dies or leaves range, so two wounded
     // enemies are never alternated between.
-    if (target && retainedTarget && retainedThreat === defending && Number.isFinite(retainedDistance) &&
+    // Strongest goes by max health, which never changes: a tougher one (the boss coming into range) takes over.
+    const outranked = priority === 'strongest' && target && retainedTarget && target.maxHp > retainedTarget.maxHp;
+    if (target && retainedTarget && !outranked && retainedThreat === defending && Number.isFinite(retainedDistance) &&
         (ranked || options.keepTarget?.() || Math.sqrt(retainedDistance) <= Math.sqrt(best) + TARGET_SWITCH_DISTANCE)) target = retainedTarget;
     return target;
   }
@@ -703,7 +707,7 @@ export function createPlayerCombatController(options: {
     player.hp -= dealt;
     // Reflect throws the hit back at whoever dealt it, bosses included, as it
     // arrived (before armor, which spares only the player), but never more
-    // than the player's max health; a Reflect Only run has no cap.
+    // than half the player's max health; a Reflect Only run has no cap.
     // The server's bounds allow it. A hit the shield soaks still landed, so it reflects as well.
     const reflectChance = reflectChanceInPlay();
     if (source && !source.dead && throughArmor > 0 && reflectChance > 0 && reflectBag.draw(reflectChance)) {
@@ -948,6 +952,7 @@ export function createPlayerCombatController(options: {
 
   return {
     expectedDps,
+    feedsOnAdds: () => reflectChanceInPlay() > 0 || (options.prestigeSecondWind?.() ?? 0) + cardCombat.secondWind() > 0,
     expectedFullDps,
     /** The same against a boss, Boss Slayer included: how long a boss fight would take. */
     expectedBossDps: () => expectedDps() * (1 + bossSlayer()),

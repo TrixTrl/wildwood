@@ -337,7 +337,10 @@
 #autoFarmSheet.farm-card .farm-help-list dd { font-size: 13px; }
 /* Collapsed: the quest tracker's header size and type, a single label. */
 #autoFarmSheet.farm-card.is-collapsed { width: max-content; min-width: 0; font: 700 11px/1.25 "Wildstat Chat", sans-serif; }
-#autoFarmSheet.farm-card.is-collapsed .farm-card-handle { min-height: 30px; padding: 4px 8px; font-weight: 700; }
+/* Minimized, it stands as tall as the gem and mail row, border and all. */
+#autoFarmSheet.farm-card.is-collapsed { box-sizing: border-box; height: 30px; }
+#autoFarmSheet.farm-card.is-collapsed .farm-header { height: 100%; }
+#autoFarmSheet.farm-card.is-collapsed .farm-card-handle { box-sizing: border-box; height: 100%; min-height: 0; padding: 0 8px; font-weight: 700; }
 #autoFarmSheet.farm-card.is-collapsed .farm-badge { color: #fff; font-size: 11px; }
 #autoFarmSheet.farm-card.is-collapsed.is-farming .farm-badge { color: #98efaa; }
 #autoFarmSheet.farm-card.is-collapsed .farm-card-caret { font-size: 11px; }
@@ -860,6 +863,11 @@
 .builds-tab-list { display: flex; flex-direction: column; gap: 10px; }
 .builds-tab-card { display: flex; flex-direction: column; gap: 6px; padding: 12px; border: 1px solid rgba(255,255,255,.14); border-radius: 10px; background: rgba(255,255,255,.04); }
 .builds-tab-card strong { font-size: 15px; color: #fff; }
+.builds-tab-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; }
+.builds-tab-head strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.builds-tab-rename { flex: none; min-height: 32px; padding: 0 12px; border: 1px solid #555; border-radius: 8px; background: linear-gradient(#3a3a3a, #262626); color: #fff; font: inherit; font-size: 13px; font-weight: 700; }
+.builds-tab-rename:disabled { opacity: .5; }
+.builds-tab-name { flex: 1; min-width: 0; min-height: 32px; padding: 0 10px; border: 1px solid #8a8a8a; border-radius: 8px; background: #141414; color: #fff; font: inherit; font-size: 15px; font-weight: 700; }
 .builds-tab-detail { font-size: 13px; line-height: 1.4; color: rgba(255,255,255,.72); }
 .builds-tab-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
 .builds-tab-actions button { min-height: 44px; border: 1px solid #555; border-radius: 8px; background: linear-gradient(#3a3a3a, #262626); color: #fff; font: inherit; font-size: 13px; font-weight: 700; }
@@ -1032,7 +1040,7 @@ html.text-outline-shadow .inventory-stack-count { text-shadow: 1px 0 0 #080b08, 
 .guild-hall-sheet .guild-hall-enter[hidden] { display: none; }
 
 /* A card found: rays, a burst and sparks in its rarity's colour behind the card, until tapped. */
-.card-found { --card-found-color: #b9c3cc; position: fixed; inset: 0; z-index: 38; display: grid; place-items: center; overflow: hidden; background: radial-gradient(circle at 50% 40%, rgba(0,0,0,.3), rgba(0,0,0,.78)); cursor: pointer; animation: card-found-in .25s ease-out both; }
+.card-found { --card-found-color: #b9c3cc; position: fixed; inset: 0; z-index: 38; pointer-events: none; display: grid; place-items: center; overflow: hidden; background: radial-gradient(circle at 50% 40%, rgba(0,0,0,.3), rgba(0,0,0,.78)); cursor: pointer; animation: card-found-in .25s ease-out both; }
 .card-found[hidden] { display: none; }
 .card-found-rays, .card-found-burst, .card-found-sparks { position: absolute; top: 40%; left: 50%; pointer-events: none; }
 /* Sized to the circle the mask leaves visible (a 40vmax radius): it was 190vmax, five times the pixels to turn. */
@@ -1049,7 +1057,6 @@ html.text-outline-shadow .inventory-stack-count { text-shadow: 1px 0 0 #080b08, 
 .card-found-origin { margin: 0; color: var(--card-found-color); font: 800 13px/1.2 var(--font-rounded); animation: card-found-rise .45s ease-out .45s both; }
 .card-found-effects { display: grid; gap: 3px; margin-top: 2px; font: 900 15px/1.25 var(--font-rounded); animation: card-found-rise .45s ease-out .55s both; }
 .card-found-effects [data-stat-kind="cost"] { color: #ff9b91; }
-.card-found-hint { margin: 12px 0 0; color: rgba(255,255,255,.78); font: 800 13px/1 var(--font-rounded); letter-spacing: .04em; animation: card-found-rise .45s ease-out .9s both, card-found-blink 1.4s ease-in-out 1.4s 6 alternate; }
 @keyframes card-found-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes card-found-rays-in { to { opacity: .42; } }
 @keyframes card-found-spin { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(360deg); } }

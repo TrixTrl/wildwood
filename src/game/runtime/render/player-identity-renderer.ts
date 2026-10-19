@@ -355,7 +355,7 @@ export function createPlayerIdentityRenderer(options: {
       const playerName = displayName.slice(alteredDeveloperPrefix.length);
       const prefixWidth = ctx.measureText(alteredDeveloperPrefix).width;
       ctx.textAlign = "left";
-      options.outlinedText(alteredDeveloperPrefix, textLeft, nameBottom, "#49de1c", 4);
+      options.outlinedText(alteredDeveloperPrefix, textLeft, nameBottom, "#912cef", 4);
       options.outlinedText(playerName, textLeft + prefixWidth, nameBottom, color, 4);
     } {
       ctx.textAlign = "left";

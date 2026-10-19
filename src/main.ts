@@ -543,7 +543,7 @@ import {
     connection: () => farmConnection === 'ready' && (!coop?.isConnected?.() || !session?.isRunning()
       || mapController.isMapTransitioning() || mapController.isCutsceneActive()) ? 'recovering' : farmConnection,
     unavailable: farmUnavailable,
-    paused: () => Boolean(session?.isPaused()) || isArenaScene(),
+    paused: () => Boolean(session?.isPaused()) || isArenaScene(), feedsOnAdds: () => playerCombat.feedsOnAdds(),
     speed: () => player.speed * movementMultiplier(),
     obstacles: () => {
       const config = MAP_CONFIG[currentMapId];
@@ -1910,7 +1910,7 @@ import {
     readyToShow: () => !inTutorial() && Boolean(session?.isRunning()),
   });
   if (coop?.setOnChange) coop.setOnChange(coopSession.onChange);
-  coop?.setOnGemDrop?.(({ amount }) => runtimeHud.showGemDrop(amount)); watchCardDrops(coop);
+  coop?.setOnGemDrop?.(({ amount }) => runtimeHud.showGemDrop(amount)); watchCardDrops(coop, { duplicate: copy => runtimeHud.showCardCopy(copy) });
   // A duplicate of held equipment is not revealed here: it can only upgrade the held weapon's skills.
   createEquipmentOfferPrompt({ coop, inventory, renderInventory, showMessage, ready: () => Boolean(session?.isRunning()) });
   coop?.setOnItemDrop?.(({ itemId, alreadyOwned }) => {

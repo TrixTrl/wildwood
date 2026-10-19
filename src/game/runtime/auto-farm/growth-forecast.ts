@@ -21,14 +21,18 @@ import {
 } from '../../../balance/death-model';
 import { addAttackSpeedRating } from '../../../../shared/stat-rating';
 import { rankFarmCandidates, pickRankedCandidate, AUTO_REPLAN_SECONDS, type FarmReward } from './auto-farm-plan';
-import { AUTO_FARM_DEFEAT_LIMIT, AUTO_FARM_DEFEAT_WINDOW_MS, AUTO_FARM_REACH_MARGIN, BITE_SHARE } from './auto-farm-smart-controller';
+import { AUTO_FARM_REACH_MARGIN } from './auto-farm-controller';
+/** Deaths in a window that end a farm here: what a forecast counts a map's deaths against. */
+export const AUTO_FARM_DEFEAT_LIMIT = 5;
+export const AUTO_FARM_DEFEAT_WINDOW_MS = 180_000;
+/** An enemy hit this big a share of max health is stepped out of even at full health. */
+export const BITE_SHARE = .05;
 import { rangedEnemyHoldBand } from '../enemies/ranged-enemy-range';
 import { AUTO_FARM_EVASION, orbitRadii } from './auto-farm-dodge';
 import { contactCapacity, kitedHitInterval, perkFightLoss, tankableCount, TANK_RESERVE, type ChaserThreat, type TankPerks } from './auto-farm-kite-model';
 import { worldReflectDamage } from '../../../../shared/prestige-perks';
 import type { EnemyDefinition } from '../../enemies';
 import { ATTACK_WINDUP_SECONDS, ATTACK_ANIMATION_SECONDS } from '../../attack-timeline';
-import { curveArmorReduction } from '../../../../shared/balance-curve';
 import { unroundedPlayerPower, type PlayerPowerStats } from '../../../../shared/player-power';
 import { PLAYER_RADIUS } from '../../../../shared/rules';
 import {
@@ -58,7 +62,7 @@ export type ForecastMap = {
   arrival: Point;
   /** A regular enemy's respawn, research included. */
   respawnSeconds: number;
-  /** The map's armor rule for hits the player takes (its balance's ARMOR_CURVE, or the authored rule). */
+  /** Armor on hits the player takes (shared/combat.ts damageAfterArmor, the one rule). */
   hitAfterArmor: (damage: number, armor: number) => number;
 };
 
@@ -401,8 +405,7 @@ export function forecastOption(map: ForecastMap, build: ForecastBuild, option: F
     if (build.reflectOnly) return { primary: 0, splash: 0 };
     const near = foes.filter(foe => foe !== target && foe.hp > 0 && foe.closeAt <= at).length;
     const enemy = target.site.definition;
-    const armorFactor = enemy.armor ? 1 - curveArmorReduction(enemy.armor) : 1;
-    const perArrow = stats.damage * critAverage * (1 + Math.max(0, build.doubleStrike)) * damageCalibration * armorFactor;
+    const perArrow = stats.damage * critAverage * (1 + Math.max(0, build.doubleStrike)) * damageCalibration;
     const distance = target.closeAt <= at ? (target.melee ? contactDistance(target.site) : reachFor(target.site)) : reachFor(target.site);
     const onTarget = build.melee ? 1 : fanArrowsOnTarget(arrows, distance, enemy.r);
     // Arrow Storm's arrows land on the target and anyone within its radius: an even share each.

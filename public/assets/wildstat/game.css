@@ -71,11 +71,14 @@
   .stat-tracker-settings label:not(.stat-tracker-opacity) { display: flex; align-items: center; gap: 6px; min-height: 28px; cursor: pointer; }
   .stat-tracker-settings input[type="checkbox"] { width: 16px; height: 16px; margin: 0; accent-color: var(--green); cursor: pointer; }
   .stat-tracker-prestige-reset { margin: 0 10px; padding-top: 6px; border-top: 1px solid var(--border); }
-  @media (any-pointer: coarse) { .stat-tracker button, .stat-tracker.is-collapsed .stat-tracker-handle { min-height: 44px; } }
+  @media (any-pointer: coarse) { .stat-tracker:not(.is-collapsed) button { min-height: 44px; } }
   /* Folded, it is one row the size of the folded quest tracker, not a tall touch block. */
   .stat-tracker.is-collapsed { min-width: 0; border-radius: var(--hud-radius-small); font: 700 11px/1.25 "Wildstat Chat", sans-serif; }
   .stat-tracker.is-collapsed header { padding: 0; }
-  .stat-tracker.is-collapsed .stat-tracker-handle { min-height: 30px; padding: 4px 8px; }
+  /* Minimized, it stands as tall as the gem and mail row beside it, border and all. */
+  .stat-tracker.is-collapsed { box-sizing: border-box; height: 30px; }
+  .stat-tracker.is-collapsed header { height: 100%; }
+  .stat-tracker.is-collapsed .stat-tracker-handle { box-sizing: border-box; height: 100%; min-height: 0; padding: 0 8px; border: 0; }
   @media (max-width: 380px) { .stat-tracker { font-size: 11px; } .stat-tracker th, .stat-tracker td { padding: 3px 5px; } }
 
   @font-face {
@@ -2024,6 +2027,9 @@
   .stat-reward-toast.is-expiring { opacity: 0; }
   .progress-completion-toast { grid-template-columns: 21px minmax(0, auto) auto; max-width: calc(100vw - 20px); }
   .progress-completion-toast .stat-reward-value { color: var(--stat-reward-accent); }
+  .card-copy-toast { border-color: var(--stat-reward-accent); }
+  .card-copy-toast .stat-reward-label { color: var(--stat-reward-accent); }
+  .card-copy-toast .card-copy-art { height: 26px; border: 1px solid var(--stat-reward-accent); border-radius: 3px; background: center / cover no-repeat #0d0d0d; }
 
   @keyframes stat-reward-enter {
     from { opacity: 0; transform: translateY(10px) scale(.95); }
@@ -3152,8 +3158,13 @@
   .tech-tree-actions .tech-tree-action.is-gem-speed-up:hover:not(:disabled), .tech-tree-actions .tech-tree-action.is-gem-speed-up:focus-visible { border-color: #3a1830; background: linear-gradient(#b86c9d, #7b456b); }
   .tech-tree-actions .tech-tree-action.is-gem-speed-up span { color: #fff; font: inherit; letter-spacing: 0; }
   .tech-tree-actions .tech-tree-action.is-gem-speed-up strong { font-size: 13px; -webkit-text-stroke: var(--text-outline-width) #000; paint-order: stroke fill; }
-  .tech-tree-actions .tech-tree-pause { border-color: #1d2227; background: linear-gradient(#6d7782, #444c55); box-shadow: 0 3px 0 #1a1e22; }
-  .tech-tree-actions .tech-tree-pause:hover:not(:disabled), .tech-tree-actions .tech-tree-pause:focus-visible { border-color: #1d2227; background: linear-gradient(#7c8792, #515a64); }
+  .tech-tree-actions .tech-tree-pause, .tech-tree-actions .tech-tree-action:not(.is-gem-speed-up) { border-color: #1d2227; background: linear-gradient(#6d7782, #444c55); box-shadow: 0 3px 0 #1a1e22; }
+  .tech-tree-actions .tech-tree-pause:hover:not(:disabled), .tech-tree-actions .tech-tree-pause:focus-visible,
+  .tech-tree-actions .tech-tree-action:not(.is-gem-speed-up):hover:not(:disabled), .tech-tree-actions .tech-tree-action:not(.is-gem-speed-up):focus-visible { border-color: #1d2227; background: linear-gradient(#7c8792, #515a64); }
+  /* Can't press it yet (a requirement, every level done): the same button, dimmed and flat. */
+  .tech-tree-actions .tech-tree-action:disabled { opacity: .55; box-shadow: none; cursor: default; }
+  /* Alone (Start Research, or what it needs first): wider, and a long requirement wraps instead of spilling out. */
+  .tech-tree-actions .tech-tree-action:only-child { max-width: 260px; height: auto; padding-block: 8px 10px; line-height: 1.15; }
 
   #sceneFade {
     position: fixed;

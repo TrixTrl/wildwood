@@ -11,7 +11,7 @@ import * as rules from "./rules";
 // tests that pinned individual table values (Bramble speed 205, Dune Raider
 // reward 6, ...), which had to be rewritten on every retune without checking
 // anything a retune could break. Deliberate baselines stay pinned where they
-// live (map 1 Spitters: shared/map-balance.test.ts, shared/balance-curve.test.ts).
+// live (map 1 Spitters: shared/map-balance.test.ts).
 
 const settings = defaultBalanceSettings();
 const maps = CAMPAIGN_MAPS.map(map => resolveMapBalance(map.id, settings, 0));
@@ -106,14 +106,9 @@ describe("authored enemy table", () => {
     }
   });
 
-  it("leaves Forest exactly as authored: no curve, floor or boost reshapes the tutorial except regen pay", () => {
-    for (const [kind, enemy] of Object.entries(maps[0].enemies)) {
-      const authored = ENEMY_BASE_VALUES[kind as keyof typeof ENEMY_BASE_VALUES];
-      expect(enemy.hp, kind).toBe(authored.hp);
-      expect(enemy.damage, kind).toBe(authored.damage);
-      expect(enemy.speed, kind).toBe(authored.speed);
-      expect(enemy.reward.type, kind).toBe(authored.reward.type);
-      if (enemy.reward.type !== "regen") expect(enemy.reward.amount, kind).toBe(authored.reward.amount);
-    }
+  it("keeps the Forest's Spitter exactly as authored; the rest of the Forest is on the curve like every map", () => {
+    const spitter = maps[0].enemies.Spitter, authored = ENEMY_BASE_VALUES.Spitter;
+    expect([spitter.hp, spitter.damage, spitter.reward.amount]).toEqual([authored.hp, authored.damage, authored.reward.amount]);
+    for (const enemy of Object.values(maps[0].enemies)) expect(enemy.speed).toBe(ENEMY_BASE_VALUES[enemy.type as keyof typeof ENEMY_BASE_VALUES]?.speed ?? enemy.speed);
   });
 });

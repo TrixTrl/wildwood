@@ -70,9 +70,11 @@ export function createAutoFarmPanel(options: {
 }) {
   const storage = options.storage ?? defaultStorage;
   const aggroRun = () => Boolean(options.aggro?.()?.active);
-  const picker = createAggroPickPrompt(document, { picks: () => readAggroPicks(options.identity?.()), setPicks: picks => writeAggroPicks(options.identity?.(), picks),
+  const picker = createAggroPickPrompt(document, {
+    picks: () => readAggroPicks(options.identity?.()), setPicks: picks => writeAggroPicks(options.identity?.(), picks),
     priority: () => options.farm.priority(), setPriority: priority => options.farm.setPriority(priority),
-    advance: () => options.farm.advance(), setAdvance: on => options.farm.setAdvance(on) });
+    advance: () => options.farm.advance(), setAdvance: on => options.farm.setAdvance(on)
+  });
   /** This map's stat groups, as autofarm offers them (a soul group as its run stat); empty while it loads. */
   const mapGroups = () => [...new Set(options.farm.choices().flatMap(choice => farmGroupRewardType(choice.key) ?? []))] as RewardType[];
   const sheet = document.createElement('section');
@@ -167,7 +169,7 @@ export function createAutoFarmPanel(options: {
   const advanceSwitch = element<HTMLButtonElement>('[data-switch="advance"]');
   /** Move At: the slider under Move On, resting with it off. */
   const powerRows = [
-    { row: element('.farm-move-power'), on: () => options.farm.advance(), value: () => options.farm.movePower(), set: (step: number) => options.farm.setMovePower(step) },
+    { row: element('.farm-move-power'), on: () => options.farm.advance(), value: () => options.farm.movePower(), set: (step: number) => options.farm.setMovePower(step), fightBosses: () => options.farm.fightBosses(), setFightBosses: on => options.farm.setFightBosses(on), },
   ];
   /** A switch and its status line: the line lit when the controller says it is going now, quiet with the switch off. */
   function showSwitch(button: HTMLButtonElement, on: boolean, line: string, ready: boolean) {
@@ -265,7 +267,7 @@ export function createAutoFarmPanel(options: {
     startButton.disabled = empty || nothingSet() || Boolean(reason);
     const note = reason ?? (chaseOnly() ? 'Nothing On Farm: Fights Only What Chases You'
       : pullOnly() ? 'Nothing On Farm: Pulls Your Aggro Stats And Stands Still'
-      : !empty && nothingSet() ? 'Set A Stat To Farm Or Aggro' : '');
+        : !empty && nothingSet() ? 'Set A Stat To Farm Or Aggro' : '');
     if (selection.textContent !== note) selection.textContent = note;
     selection.hidden = !note;
   }
@@ -415,10 +417,12 @@ export function createAutoFarmPanel(options: {
     if (visible && !content.hidden) renderChoices();
   }
 
-  const movable = installMovableHudCard({ panel: sheet, handle: toggle, storage, positionKey: AUTO_FARM_POSITION_KEY, movable: () => content.hidden, toggle: () => {
-    // An Aggro run's window is the same one, with Stop; its chasing groups are a button inside it.
-    if (content.hidden) open(); else close();
-  } });
+  const movable = installMovableHudCard({
+    panel: sheet, handle: toggle, storage, positionKey: AUTO_FARM_POSITION_KEY, movable: () => content.hidden, toggle: () => {
+      // An Aggro run's window is the same one, with Stop; its chasing groups are a button inside it.
+      if (content.hidden) open(); else close();
+    }
+  });
   /** Stops whichever is running here: Auto Mine in the Town, Auto Farm elsewhere. */
   const stopRunning = () => { if (mining()) mine!.stop(); else options.farm.stop(); };
   backButton.addEventListener('click', () => {

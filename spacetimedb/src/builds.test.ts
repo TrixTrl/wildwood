@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { crystalFixture, server } from "../../tests/helpers/crystal-hollows-fixture";
-import { addCard } from "./gear-cards";
+import { crystalFixture, identity, server } from "../../tests/helpers/crystal-hollows-fixture";
+import { addCard, mergeCardData } from "./gear-cards";
 import { activeCardsFor } from "./active-cards";
-import { parseBuildCards, parseBuildGear } from "../../shared/builds";
+import { buildLabel, cleanBuildName, parseBuildCards, parseBuildGear } from "../../shared/builds";
 vi.mock("spacetimedb/server", () => import("../../tests/helpers/spacetime-module"));
 
 /** Wearing an Ion Bow, a Sky Bow in the bag, two Needle cards and a Spitter card owned, one Needle active. */
@@ -53,5 +53,34 @@ describe("builds", () => {
     f.run(server.applyBuildCards, { slot: 2 });
     // Two Needle cards owned: two active, the third skipped.
     expect(f.active()).toEqual({ HAND: ["needle_card", "needle_card"], HEAD: ["brood_card"], CHEST: [] });
+  });
+});
+
+describe("build names", () => {
+  it("names a build, cleaned and at most 20 characters, and an empty name gives it its number back", () => {
+    const f = builder();
+    const key = `${f.ctx.sender.toHexString()}:2`;
+    f.run(server.renameBuild, { slot: 2, name: "  Boss   killer\n  " });
+    expect(f.db.playerBuildName.key.find(key).name).toBe("Boss killer");
+    f.run(server.renameBuild, { slot: 2, name: "x".repeat(40) });
+    expect(f.db.playerBuildName.key.find(key).name).toBe("x".repeat(20));
+    f.run(server.renameBuild, { slot: 2, name: "   " });
+    expect(f.db.playerBuildName.key.find(key)).toBeFalsy();
+    expect(() => f.run(server.renameBuild, { slot: 3, name: "Nope" })).toThrow("That build does not exist.");
+  });
+
+  it("moves a guest's build names to the account on link, replacing the account's", () => {
+    const f = builder(), account = identity("5");
+    f.run(server.renameBuild, { slot: 2, name: "Reflect" });
+    f.transaction(() => f.db.playerBuildName.insert({ key: `${account.toHexString()}:0`, identity: account, slot: 0, name: "Old" }));
+    f.transaction(() => mergeCardData(f.ctx, f.ctx.sender, account));
+    expect([...f.db.playerBuildName.identity.filter(account)].map(row => [row.slot, row.name])).toEqual([[2, "Reflect"]]);
+    expect([...f.db.playerBuildName.identity.filter(f.ctx.sender)]).toEqual([]);
+  });
+
+  it("calls a build by its name, or its number", () => {
+    expect(cleanBuildName("\u0007Farm\tset ")).toBe("Farm set");
+    expect(buildLabel(0, "")).toBe("Build 1");
+    expect(buildLabel(1, "Reflect")).toBe("Reflect");
   });
 });

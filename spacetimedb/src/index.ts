@@ -16,7 +16,7 @@ import { isValidProfileIcon } from "../../shared/profile-icons";
 import { releaseNotice, releaseAcknowledgement, writeReleaseWindow, acknowledgeReleaseWindow, announceClientUpdate as announceClientUpdateWindow } from "./release-control";
 import { recordBossGateClear } from "./boss-gates";
 import { playerMultiplayerPreference, writeMultiplayerPreference } from "./multiplayer-preference";
-import { enemyDefeatBudget, playerDefeatClock, acceptEnemyDefeats, permittedDefeatMaps, pruneIdleDefeatBudgets, throttleKillReports, type DefeatClocks, type EnemyDefeatBatch } from "./enemy-defeats";
+import { enemyDefeatBudget, playerDefeatClock, playerMapDeparture, acceptEnemyDefeats, permittedDefeatMaps, pruneIdleDefeatBudgets, throttleKillReports, type DefeatClocks, type EnemyDefeatBatch } from "./enemy-defeats";
 import { grantVirtualPlayerConsent, revokeVirtualPlayerConsent } from "./virtual-player-consent";
 import { offlineProgressTables, beginOfflineWindow, grantOfflineProgress, acknowledgeOfflineProgress, setSimulatedTimeAway } from "./offline-progress";
 import { playerOfflinePreference, writeOfflinePreference } from "./offline-preference";
@@ -44,7 +44,7 @@ import { ensureWeaponSkillRoll } from "./weapon-skills";
 import { playerEquipmentCopy, pendingEquipmentOffer, createEquipmentCopies, publishItemDrop, offerDuplicateEquipment, expireEquipmentOffers, playerItemCollection, registerItemCollection } from "./equipment-copies";
 import { playerItemRefine, playerCopyRefine, playerOre, playerRefineResult, registerItemRefine } from "./item-refine";
 import { playerMining, playerMinedNode, playerMiningLevel, registerMining } from "./mining";
-import { playerCard, playerGearSlots, playerCopySlots, playerCardDrop, registerGearCards } from "./gear-cards"; import { playerActiveCard, registerActiveCards } from "./active-cards"; import { playerCardAttackCap, syncCardAttackCap } from "./card-attack-cap"; import { playerBuild, registerBuilds } from "./builds"; import { playerWornSkill, syncWornSkill } from "./worn-skill";
+import { playerCard, playerGearSlots, playerCopySlots, playerCardDrop, registerGearCards } from "./gear-cards"; import { playerActiveCard, registerActiveCards } from "./active-cards"; import { playerCardAttackCap, syncCardAttackCap } from "./card-attack-cap"; import { playerBuild, playerBuildName, registerBuilds } from "./builds"; import { playerWornSkill, syncWornSkill } from "./worn-skill";
 import { awardCardDrops, playerBossCardRoll, playerCardMeter } from "./card-drops"; import { playerCardShopPurchase, registerCardShop } from "./card-shop";
 import { awardRegularEnemyLoot } from "./enemy-loot-award";
 import { moderateReportedMessage } from "./chat-report-moderation";
@@ -1409,10 +1409,10 @@ const spacetimedb = schema({
   dailyGemBonus,
   playerAdReward, playerChatMute,
   balanceApologyNotice,
-  playerEquipmentLock, playerItemGift, playerBowSkill, playerSwordSkill, playerStaffSkill, playerWornStaffSkill, playerEquipmentCopy, pendingEquipmentOffer, playerIgnoredDrop, playerLootSetting, playerItemRefine, playerCopyRefine, playerOre, playerRefineResult, playerCard, playerGearSlots, playerCopySlots, playerCardDrop, playerCardAttackCap, playerBossCardRoll, playerBuild, playerCardMeter, playerCardShopPurchase, playerItemCollection, playerWornSkill, playerMining, playerMinedNode, playerMiningLevel, gemKillDaily, gemLedgerTrim,
+  playerEquipmentLock, playerItemGift, playerBowSkill, playerSwordSkill, playerStaffSkill, playerWornStaffSkill, playerEquipmentCopy, pendingEquipmentOffer, playerIgnoredDrop, playerLootSetting, playerItemRefine, playerCopyRefine, playerOre, playerRefineResult, playerCard, playerGearSlots, playerCopySlots, playerCardDrop, playerCardAttackCap, playerBossCardRoll, playerBuild, playerBuildName, playerCardMeter, playerCardShopPurchase, playerItemCollection, playerWornSkill, playerMining, playerMinedNode, playerMiningLevel, gemKillDaily, gemLedgerTrim,
   mailboxLetter, mailboxReceipt, playerJoinDate, mailboxEquipment, accountDeletionRequest,
   playerOnboarding,
-  regularEnemyLootCursor, regularEnemyStream, enemyDefeatBudget, playerDefeatClock,
+  regularEnemyLootCursor, regularEnemyStream, enemyDefeatBudget, playerDefeatClock, playerMapDeparture,
   playerMultiplayerPreference,
   chatReaction, chatHeartAllowance, chatReactionCooldown, chatReactionSummary, chatReactionUnlock, chatModerator, playerChatHearts,
   playerUpgradeBench,
@@ -1828,7 +1828,7 @@ function enterWorldPresence(ctx: any, tabId: string, forceTakeover = false, supp
     existingProfile = repairModeratedDisplayName(ctx, existingProfile);
   }
   ensureGemWallet(ctx, ctx.sender);
-  if (hasSpacetimeAuthAccount(ctx)) ensureDailyGemBonusState(ctx, ctx.sender);
+  ensureDailyGemBonusState(ctx, ctx.sender);
 
   const lifetime = ensurePlayerLifetime(ctx);
 
@@ -2945,7 +2945,6 @@ export const speedUpResearchWithGems = spacetimedb.reducer((ctx) => {
 
 export const claimDailyGemBonus = spacetimedb.reducer((ctx) => {
   requireControllingPlayer(ctx);
-  if (!hasSpacetimeAuthAccount(ctx)) throw new SenderError("Register an account to claim daily Gems.");
   const dayKey = currentUtcDayKey(ctx);
   const state = ensureDailyGemBonusState(ctx, ctx.sender);
   if (state.claimableDayKey !== dayKey) throw new SenderError("Today's daily Gems are already claimed.");
@@ -2954,7 +2953,7 @@ export const claimDailyGemBonus = spacetimedb.reducer((ctx) => {
     identity: ctx.sender,
     delta: DAILY_LOGIN_GEM_BONUS,
     kind: "daily_login_bonus",
-    note: "Registered-account daily login bonus claimed.",
+    note: "Daily login bonus claimed.",
     externalReference: dailyGemBonusClaimReference(ctx.sender, dayKey, state.claimCycle),
   });
   ctx.db.dailyGemBonus.identity.update({
@@ -3832,7 +3831,7 @@ export const { slotCard, removeCard, myCards, myGearSlots, myCopySlots, myCardDr
 // Stats, power and the attack speed cap follow the active cards.
 const afterCardsChanged = (ctx: any, identity: any) => { syncCardAttackCap(ctx, identity); const progress = readPlayerProgress(ctx, identity); if (progress) writeProgressAndPresentation(ctx, progress); };
 export const { activateCard, deactivateCard, myActiveCards } = registerActiveCards(spacetimedb, { requireControllingPlayer, activeDuelFor, afterCardsChanged });
-export const { saveBuild, applyBuildCards, myBuilds } = registerBuilds(spacetimedb, { requireControllingPlayer, activeDuelFor, afterCardsChanged });
+export const { saveBuild, applyBuildCards, renameBuild, myBuilds, myBuildNames } = registerBuilds(spacetimedb, { requireControllingPlayer, activeDuelFor, afterCardsChanged });
 export const { buyShopCard, myCardShopPurchases } = registerCardShop(spacetimedb, { requireControllingPlayer, activeDuelFor });
 export const { myGuildHall, upgradeGuildHall, useGuildHallDoor } = registerGuildHall(spacetimedb, { requireGuildPlayer, requireControllingPlayer, playerWithMotion, transitionPlayerMap, persistWorldLocation });
 export const getGuildHub = spacetimedb.procedure({ afterId: t.u64() }, t.string(), (ctx, { afterId }) => ctx.withTx(tx => {

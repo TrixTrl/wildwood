@@ -18,9 +18,8 @@ import { isUpgradeableItem, itemUpgradeDurationMs, MAX_ITEM_UPGRADE_LEVEL } from
 import { BOSS_TARGET_SECONDS } from "../../shared/progression";
 import { ATTACK_WINDUP_SECONDS } from "../game/attack-timeline";
 import { BOSS_DAMAGE_PROFILES } from "../game/boss-damage";
-import { damageAfterArmor, useCurveArmor } from "../game/combat";
+import { damageAfterArmor } from "../game/combat";
 import { addAttackSpeedRating, cleanRating } from "../../shared/stat-rating";
-import { curveArmorReduction } from "../../shared/balance-curve";
 import { ENEMY_TYPES, type EnemyKind, type EnemyDefinition, type RewardType } from "../game/enemies";
 import { createGameBootstrap } from "../game/runtime/game-bootstrap";
 import { formatCompactNumber } from "../ui/number-format";
@@ -50,7 +49,7 @@ import {
   type ItemId,
 } from "../../shared/items";
 import { effectivePlayerPowerStats, playerPowerForStats, type PlayerPowerStats } from "../../shared/player-power";
-import { AUTO_FARM_DEFEAT_LIMIT, AUTO_FARM_DEFEAT_WINDOW_MS } from "../game/runtime/auto-farm/auto-farm-smart-controller";
+import { AUTO_FARM_DEFEAT_LIMIT, AUTO_FARM_DEFEAT_WINDOW_MS } from "../game/runtime/auto-farm/growth-forecast";
 import { FARM_PUSHES } from "../game/runtime/auto-farm/auto-farm-brain";
 import {
   DEATH_SCREEN_SECONDS,
@@ -695,15 +694,6 @@ function finiteRange(value: unknown, fallback: number, minimum: number, maximum:
   return Number.isFinite(number) ? Math.max(minimum, Math.min(maximum, number)) : fallback;
 }
 
-/**
- * The game switches to the curve's armor and Speed rules on a map whose
- * balance carries them (map-balance-loader.ts). Every map here is one
- * balance, so the whole run takes the rule its maps carry.
- */
-function useCurveRules(maps: readonly BalanceMapDefinition[]) {
-  useCurveArmor(maps.some(map => map.balance?.rules.ARMOR_CURVE === 1));
-}
-
 export function createMapDefinitions(endlessMaps = 0, settings: BalanceSettings = defaultBalanceSettings()): BalanceMapDefinition[] {
   const bootstrap = createGameBootstrap();
   const maps: BalanceMapDefinition[] = [
@@ -1178,15 +1168,14 @@ function combatStats(state: EffectiveStatsState) {
 const UNWINNABLE_FIGHT_SECONDS = 1e9;
 
 /**
- * Seconds to kill an enemy. On a curve map, as in the game, an armor camp
- * blocks the player's hits on the curve's armor rule and a regen camp heals
- * `regen` a second between them (enemy-simulation.ts, player-combat-controller.ts).
+ * Seconds to kill an enemy. As in the game, a regen camp heals `regen` a
+ * second between hits (enemy-simulation.ts, player-combat-controller.ts).
  */
-function timeToKill(hitPoints: number, hitDamage: number, attackInterval: number, enemy?: { regen?: number; armor?: number }) {
+function timeToKill(hitPoints: number, hitDamage: number, attackInterval: number, enemy?: { regen?: number }) {
   const interval = Math.max(MIN_ATTACK_INTERVAL, attackInterval);
-  const hit = hitDamage * (enemy?.armor ? 1 - curveArmorReduction(enemy.armor) : 1);
+  const hit = hitDamage;
   const healed = (enemy?.regen ?? 0) * interval;
-  if (!enemy?.regen && !enemy?.armor) {
+  if (!enemy?.regen) {
     const hits = Math.max(1, Math.ceil(Math.max(1, hitPoints) / Math.max(1, hitDamage)));
     return FIRST_HIT_SECONDS + (hits - 1) * interval;
   }
@@ -1856,7 +1845,6 @@ function simulateTrial(
   existing?: ExistingPlayerSimulation,
 ): TrialResult {
   const MAP_DEFINITIONS = createMapDefinitions(config.endlessMaps, config.balanceSettings);
-  useCurveRules(MAP_DEFINITIONS);
   const random = seededRandom(config.seed + trialIndex * 104_729);
   const behavior = trialBehavior(config.strategy, random);
   const state: MutableSimulationState = {
@@ -2984,7 +2972,6 @@ function runBalanceSimulationInternal(
 ): BalanceSimulationResult {
   const config = normalizeConfig(input);
   const MAP_DEFINITIONS = createMapDefinitions(config.endlessMaps, config.balanceSettings);
-  useCurveRules(MAP_DEFINITIONS);
   const trials: TrialResult[] = [];
   for (let index = 0; index < config.trials; index += 1) {
     trials.push(simulateTrial(config, index));
@@ -3073,7 +3060,6 @@ function runBalanceSimulationInternal(
 export function arrivalChecks(config: Partial<BalanceSimulationConfig>, mapId: BalanceMapId, snapshot: SimulationStateSnapshot) {
   const normalized = normalizeConfig(config);
   const maps = createMapDefinitions(normalized.endlessMaps, normalized.balanceSettings);
-  useCurveRules(maps);
   const map = maps.find(entry => entry.id === mapId);
   if (!map) return null;
   const adjustment = normalized.mapAdjustments[mapId];
