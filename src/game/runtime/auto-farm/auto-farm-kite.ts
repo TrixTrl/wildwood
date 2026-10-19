@@ -22,7 +22,7 @@ let runningFromBoss = false;
 const filtering = false;
 const filteredEnemies = ["speed", "crit"];
 
-export function smartMove(player: PlayerState, enemies: EnemyState[]): Position {
+export function smartMove(player: PlayerState & { realRegen: number }, enemies: EnemyState[]): Position {
 
     const boss = { x: 4000, y: 4000 };
     const bossCornerDist = Math.hypot(player.x - boss.x, player.y - boss.y);
@@ -55,9 +55,9 @@ export function smartMove(player: PlayerState, enemies: EnemyState[]): Position 
         dpsClose += enemyDps(enemy) * (1 - armorDamageReduction(player.armor));
     }
 
-    const timeTillDeath = player.hp / (dpsClose - player.regen);
+    const timeTillDeath = player.hp / (dpsClose - player.realRegen);
 
-    const totalTimeTillDeath = player.hp / (dpsFollowing - player.regen);
+    const totalTimeTillDeath = player.hp / (dpsFollowing - player.realRegen);
 
     //console.log(timeTillDeath);
 
@@ -141,12 +141,12 @@ function norm(v: Position): Position {
     return { x: v.x / mag, y: v.y / mag };
 }
 
-function distanceBoost(enemy: EnemyState, player: PlayerState): number {
+function distanceBoost(enemy: EnemyState, player: PlayerState & { realRegen: number }): number {
     const priorities: Array<RewardType> = ["regen", "health", "armor", "damage", "speed", "crit"];
-    return (priorities.indexOf(enemy.reward.type)) ** 2 * (enemy.reward.type === "health" ? (player.maxHp / (player.regen * 5)) ** 1 : 1) * (enemy.reward.type === "regen" ? ((player.regen * 5) / player.maxHp) ** 1 : 1) + (enemy.reward.type === "speed" || enemy.reward.type === "crit" ? 1000000 : 0);
+    return (priorities.indexOf(enemy.reward.type)) ** 2 * (enemy.reward.type === "health" ? (player.maxHp / (player.realRegen * 5)) ** 1 : 1) * (enemy.reward.type === "regen" ? ((player.realRegen * 5) / player.maxHp) ** 1 : 1) + (enemy.reward.type === "speed" || enemy.reward.type === "crit" ? 1000000 : 0);
 }
 
-function closenessBoost(enemy: EnemyState, enemies: EnemyState[], player: PlayerState) {
+function closenessBoost(enemy: EnemyState, enemies: EnemyState[], player: PlayerState & { realRegen: number }) {
     let sum = 0;
     enemies.forEach(e => { if (!e.engaged) sum += 1 / ((Math.max(Math.hypot(enemy.x - e.x, enemy.y - e.y), 100)) ** 2) * distanceBoost(e, player); });
     return 1 / (sum + 1);
