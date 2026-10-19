@@ -146,6 +146,7 @@ const afterUpdateGateShell = String.raw`
           <div><dt>TIME PLAYED</dt><dd id="profileTimePlayed">—</dd></div>
           <div><dt>ENEMIES DEFEATED</dt><dd id="profileKills">—</dd></div>
           <div id="profilePrestigeRow" hidden><dt>PRESTIGE</dt><dd id="profilePrestige">—</dd></div>
+          <div id="profileMasteryRow" hidden><dt>MASTERY</dt><dd id="profileMastery">—</dd></div>
           <div><dt>STATUS</dt><dd id="profileOnline">—</dd></div>
         </dl>
         <div id="profileSafetyActions" class="profile-safety-actions" hidden>
@@ -480,6 +481,10 @@ export function installGameShell(doc: Document = document) {
   }
   if (!doc.getElementById("mailboxToggle")) {
     doc.getElementById("playerVisibilityToggle")?.insertAdjacentHTML("afterend", `<button id="mailboxToggle" class="mailbox-toggle" type="button" aria-label="Mailbox" hidden></button>`);
+  }
+  // Gold sits right of the gems, in the same chip; the coin is drawn here rather than shipped as art.
+  if (!doc.getElementById("hudGoldWallet")) {
+    doc.getElementById("hudGemWallet")?.insertAdjacentHTML("afterend", `<div id="hudGoldWallet" class="hud-gem-wallet hud-gold-wallet" aria-label="0 Gold"><svg class="hud-gem-icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8.5" fill="#e3b23c" stroke="#7a4f12" stroke-width="1.5"/><circle cx="10" cy="10" r="5.5" fill="none" stroke="#a8741d" stroke-width="1.2"/><path d="M6.5 7.5a4.5 4.5 0 0 1 3-2.5" fill="none" stroke="#fff3c4" stroke-width="1.2" stroke-linecap="round"/></svg><strong id="hudGoldBalance" class="hud-gem-balance">0</strong></div>`);
   }
   const toolbar = doc.getElementById("toolbar");
   for (const [id, label, icon] of [

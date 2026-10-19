@@ -184,6 +184,18 @@ describe("profile stat display", () => {
     expect(aggro.find(row => row.kind === "speed")).toMatchObject({ total: "200", sources: [] });
   });
 
+  it("shows Warrior Boots on Armor and Ranger Boots on Move Speed, at the pair's refine", () => {
+    const profile = (feet: string) => ({
+      progress: { ...progress(), speed: 200, equippedFeet: feet, inventoryJson: JSON.stringify([feet]) },
+      research: createEmptyResearchRanks(), itemUpgradeLevels: {}, itemRefines: { [feet]: 10 },
+    }) as Parameters<typeof profileStatDisplayRows>[0];
+    const rows = (feet: string) => profileStatDisplayRows(profile(feet), () => "0%", MIN_ATTACK_INTERVAL);
+    // Rare: Warrior +36% armor, Ranger +8% move speed, both half as much again at ★10.
+    expect(rows("rare_warrior_boots").find(row => row.kind === "armor")).toMatchObject({ total: "15", sources: [{ label: "Boots", value: "+54%" }] });
+    expect(rows("rare_ranger_boots").find(row => row.kind === "speed")).toMatchObject({ total: "224", sources: [{ label: "Boots", value: "+12%" }] });
+    expect(rows("rare_ranger_boots").find(row => row.kind === "armor")).toMatchObject({ total: "10", sources: [] });
+  });
+
   it("clamps a legacy saved attack rate and places the short max marker beside it", () => {
     const profile = {
       progress: { ...progress(FROST_BOW), attackRate: .32 },
@@ -457,4 +469,23 @@ it("counts another player's active Quick Draw cards in their attack speed cap, a
   // One slot in play during an Aggro run: the second card waits.
   expect(profileAttackCap({ ...profile, aggroChallenge: { active: true, completed: 0 } }).raise - bare.raise).toBeCloseTo(.1, 9);
   expect(profileActiveCardIds({ ...profile, prestigePerks: {} })).toEqual(["ion_needle_card"]);
+});
+
+it("shows Mining and Woodcutting once each skill has been used, and neither before", () => {
+  const base = { progress: progress(), research: createEmptyResearchRanks(), itemUpgradeLevels: {} } as Parameters<typeof profileStatDisplayRows>[0];
+  const kinds = (profile: typeof base) => profileStatDisplayRows(profile, () => "0%", MIN_ATTACK_INTERVAL).map(row => row.kind);
+  expect(kinds(base)).not.toContain("woodcutting");
+  const rows = profileStatDisplayRows({ ...base, mining: 40, woodcutting: 500 }, () => "0%", MIN_ATTACK_INTERVAL);
+  expect(rows.find(row => row.kind === "mining")).toMatchObject({ label: "Mining:", total: "40" });
+  expect(rows.find(row => row.kind === "woodcutting")).toMatchObject({ label: "Woodcutting:", total: "500", expandedDetail: "(Fells trees 2.00× as fast)" });
+});
+
+it("shows each craft once practised, by level", () => {
+  const base = { progress: progress(), research: createEmptyResearchRanks(), itemUpgradeLevels: {} } as Parameters<typeof profileStatDisplayRows>[0];
+  const rows = (crafts: Parameters<typeof profileStatDisplayRows>[0]["crafts"]) => profileStatDisplayRows({ ...base, crafts }, () => "0%", MIN_ATTACK_INTERVAL);
+  expect(rows(undefined).map(row => row.kind)).not.toContain("smithing");
+  const shown = rows({ fletching: 12, enchanting: 1 });
+  expect(shown.map(row => row.kind)).not.toContain("smithing");
+  expect(shown.find(row => row.kind === "fletching")).toMatchObject({ label: "Fletching:", total: "Lv 12", expandedDetail: "(Crafts bows and Light armor at the Archery Range)" });
+  expect(shown.find(row => row.kind === "enchanting")).toMatchObject({ label: "Enchanting:", total: "Lv 1" });
 });

@@ -999,11 +999,17 @@ export type MyCards = __Infer<typeof MyCards>;
 export const MyChatMute = __t.object("MyChatMute", {});
 export type MyChatMute = __Infer<typeof MyChatMute>;
 
+export const MyChoppedTrees = __t.object("MyChoppedTrees", {});
+export type MyChoppedTrees = __Infer<typeof MyChoppedTrees>;
+
 export const MyCopyRefines = __t.object("MyCopyRefines", {});
 export type MyCopyRefines = __Infer<typeof MyCopyRefines>;
 
 export const MyCopySlots = __t.object("MyCopySlots", {});
 export type MyCopySlots = __Infer<typeof MyCopySlots>;
+
+export const MyCraftSkills = __t.object("MyCraftSkills", {});
+export type MyCraftSkills = __Infer<typeof MyCraftSkills>;
 
 export const MyCutsceneHistory = __t.object("MyCutsceneHistory", {});
 export type MyCutsceneHistory = __Infer<typeof MyCutsceneHistory>;
@@ -1034,6 +1040,9 @@ export type MyGemPurchases = __Infer<typeof MyGemPurchases>;
 
 export const MyGemWallet = __t.object("MyGemWallet", {});
 export type MyGemWallet = __Infer<typeof MyGemWallet>;
+
+export const MyGold = __t.object("MyGold", {});
+export type MyGold = __Infer<typeof MyGold>;
 
 export const MyGuildHall = __t.object("MyGuildHall", {});
 export type MyGuildHall = __Infer<typeof MyGuildHall>;
@@ -1110,14 +1119,26 @@ export type MySoulStats = __Infer<typeof MySoulStats>;
 export const MyStaffSkills = __t.object("MyStaffSkills", {});
 export type MyStaffSkills = __Infer<typeof MyStaffSkills>;
 
+export const MyStarterWeapon = __t.object("MyStarterWeapon", {});
+export type MyStarterWeapon = __Infer<typeof MyStarterWeapon>;
+
 export const MySwordSkills = __t.object("MySwordSkills", {});
 export type MySwordSkills = __Infer<typeof MySwordSkills>;
+
+export const MyTools = __t.object("MyTools", {});
+export type MyTools = __Infer<typeof MyTools>;
 
 export const MyUpgradeBench = __t.object("MyUpgradeBench", {});
 export type MyUpgradeBench = __Infer<typeof MyUpgradeBench>;
 
 export const MyUpgradeBenchThirdSlot = __t.object("MyUpgradeBenchThirdSlot", {});
 export type MyUpgradeBenchThirdSlot = __Infer<typeof MyUpgradeBenchThirdSlot>;
+
+export const MyWeaponMastery = __t.object("MyWeaponMastery", {});
+export type MyWeaponMastery = __Infer<typeof MyWeaponMastery>;
+
+export const MyWoodcutting = __t.object("MyWoodcutting", {});
+export type MyWoodcutting = __Infer<typeof MyWoodcutting>;
 
 export const NameChangeStatus = __t.object("NameChangeStatus", {
   cost: __t.u32(),
@@ -1143,6 +1164,15 @@ export const OfflineProgress = __t.object("OfflineProgress", {
   pending: __t.bool(),
 });
 export type OfflineProgress = __Infer<typeof OfflineProgress>;
+
+export const OldGearPayout = __t.object("OldGearPayout", {
+  identity: __t.identity(),
+  itemsJson: __t.string(),
+  gold: __t.u64(),
+  masteryJson: __t.string(),
+  at: __t.timestamp(),
+});
+export type OldGearPayout = __Infer<typeof OldGearPayout>;
 
 export const PatreonAnnouncement = __t.object("PatreonAnnouncement", {
   userId: __t.string(),
@@ -1452,6 +1482,14 @@ export const PlayerChatMute = __t.object("PlayerChatMute", {
 });
 export type PlayerChatMute = __Infer<typeof PlayerChatMute>;
 
+export const PlayerChoppedTree = __t.object("PlayerChoppedTree", {
+  key: __t.string(),
+  identity: __t.identity(),
+  treeId: __t.u32(),
+  choppedAt: __t.timestamp(),
+});
+export type PlayerChoppedTree = __Infer<typeof PlayerChoppedTree>;
+
 export const PlayerCombatRating = __t.object("PlayerCombatRating", {
   identity: __t.identity(),
   critDamage: __t.f64(),
@@ -1480,6 +1518,22 @@ export const PlayerCopySlots = __t.object("PlayerCopySlots", {
   cards: __t.array(__t.string()),
 });
 export type PlayerCopySlots = __Infer<typeof PlayerCopySlots>;
+
+export const PlayerCraftLevel = __t.object("PlayerCraftLevel", {
+  key: __t.string(),
+  identity: __t.identity(),
+  skill: __t.string(),
+  level: __t.u8(),
+});
+export type PlayerCraftLevel = __Infer<typeof PlayerCraftLevel>;
+
+export const PlayerCraftSkill = __t.object("PlayerCraftSkill", {
+  key: __t.string(),
+  identity: __t.identity(),
+  skill: __t.string(),
+  experience: __t.u64(),
+});
+export type PlayerCraftSkill = __Infer<typeof PlayerCraftSkill>;
 
 export const PlayerCutsceneHistory = __t.object("PlayerCutsceneHistory", {
   identity: __t.identity(),
@@ -1591,6 +1645,12 @@ export const PlayerGemWallet = __t.object("PlayerGemWallet", {
   updatedAt: __t.timestamp(),
 });
 export type PlayerGemWallet = __Infer<typeof PlayerGemWallet>;
+
+export const PlayerGold = __t.object("PlayerGold", {
+  identity: __t.identity(),
+  gold: __t.u64(),
+});
+export type PlayerGold = __Infer<typeof PlayerGold>;
 
 export const PlayerIgnoredDrop = __t.object("PlayerIgnoredDrop", {
   key: __t.string(),
@@ -1758,6 +1818,14 @@ export const PlayerMapMarker = __t.object("PlayerMapMarker", {
   updatedAt: __t.timestamp(),
 });
 export type PlayerMapMarker = __Infer<typeof PlayerMapMarker>;
+
+export const PlayerMasteryLevel = __t.object("PlayerMasteryLevel", {
+  key: __t.string(),
+  identity: __t.identity(),
+  school: __t.string(),
+  level: __t.u8(),
+});
+export type PlayerMasteryLevel = __Infer<typeof PlayerMasteryLevel>;
 
 export const PlayerMinedNode = __t.object("PlayerMinedNode", {
   key: __t.string(),
@@ -2145,6 +2213,13 @@ export const PlayerStaffSkill = __t.object("PlayerStaffSkill", {
 });
 export type PlayerStaffSkill = __Infer<typeof PlayerStaffSkill>;
 
+export const PlayerStarterWeapon = __t.object("PlayerStarterWeapon", {
+  identity: __t.identity(),
+  kind: __t.string(),
+  at: __t.timestamp(),
+});
+export type PlayerStarterWeapon = __Infer<typeof PlayerStarterWeapon>;
+
 export const PlayerSwordSkill = __t.object("PlayerSwordSkill", {
   key: __t.string(),
   identity: __t.identity(),
@@ -2154,6 +2229,14 @@ export const PlayerSwordSkill = __t.object("PlayerSwordSkill", {
   shockwave: __t.f32(),
 });
 export type PlayerSwordSkill = __Infer<typeof PlayerSwordSkill>;
+
+export const PlayerTool = __t.object("PlayerTool", {
+  key: __t.string(),
+  identity: __t.identity(),
+  tool: __t.string(),
+  level: __t.u8(),
+});
+export type PlayerTool = __Infer<typeof PlayerTool>;
 
 export const PlayerUpgradeBench = __t.object("PlayerUpgradeBench", {
   identity: __t.identity(),
@@ -2168,6 +2251,14 @@ export const PlayerUpgradeBenchThirdSlot = __t.object("PlayerUpgradeBenchThirdSl
 });
 export type PlayerUpgradeBenchThirdSlot = __Infer<typeof PlayerUpgradeBenchThirdSlot>;
 
+export const PlayerWeaponMastery = __t.object("PlayerWeaponMastery", {
+  key: __t.string(),
+  identity: __t.identity(),
+  school: __t.string(),
+  points: __t.u64(),
+});
+export type PlayerWeaponMastery = __Infer<typeof PlayerWeaponMastery>;
+
 export const PlayerWideStats = __t.object("PlayerWideStats", {
   identity: __t.identity(),
   maxHp: __t.f64(),
@@ -2176,6 +2267,22 @@ export const PlayerWideStats = __t.object("PlayerWideStats", {
   regen: __t.f64(),
 });
 export type PlayerWideStats = __Infer<typeof PlayerWideStats>;
+
+export const PlayerWoodcutting = __t.object("PlayerWoodcutting", {
+  identity: __t.identity(),
+  woodcutting: __t.u32(),
+  treesChopped: __t.u32(),
+  hatchetAt: __t.timestamp(),
+  lastChopAt: __t.timestamp(),
+  lastTreeId: __t.u32(),
+});
+export type PlayerWoodcutting = __Infer<typeof PlayerWoodcutting>;
+
+export const PlayerWoodcuttingLevel = __t.object("PlayerWoodcuttingLevel", {
+  identity: __t.identity(),
+  woodcutting: __t.u32(),
+});
+export type PlayerWoodcuttingLevel = __Infer<typeof PlayerWoodcuttingLevel>;
 
 export const PlayerWornSkill = __t.object("PlayerWornSkill", {
   identity: __t.identity(),

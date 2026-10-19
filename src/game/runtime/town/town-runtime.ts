@@ -1,17 +1,18 @@
 import {
-  isTownMap, townChunkOf, townRoomAt, TOWN_ARRIVAL, TOWN_DOORS, TOWN_FEET_OFFSET, TOWN_WALK_AREA, type TownDoor,
+  isTownMap, townChunkOf, townRoomAt, townWalkClamp, TOWN_ARRIVAL, TOWN_DOORS, TOWN_FEET_OFFSET, type TownDoor,
 } from "../../../../shared/town";
 import { SOUL_DOORS_OPEN, SOUL_INTERIOR_SOLIDS, SOUL_VILLAGE_PITS, SOUL_VILLAGE_SOLIDS, type SoulSolid } from "../../soul-village";
-import { townWindowDecor } from "../../town-world";
+import { furnishedInteriorSolids, townWindowDecor } from "../../town-world";
 import type { MapId, WorldDecor } from "../../world";
 import { soulWellFall } from "../soul/soul-well-fall";
 import type { PlayerState } from "../types";
 import { createMiningRuntime, type MiningSource } from "./mining-runtime";
+import { createWoodcuttingRuntime, type WoodcuttingSource } from "./woodcutting-runtime";
 import type { InventoryState } from "../../inventory";
 import type { OreCounts } from "../../../../shared/ore-bag";
 import { bagSlotCapacity } from "../../../../shared/gems";
 
-export type TownSource = MiningSource & {
+export type TownSource = MiningSource & WoodcuttingSource & {
   /** What the bag holds besides its items: kept copies, ore stacks, and how many slots are bought. */
   equipmentCopies?: () => readonly unknown[];
   ores?: () => OreCounts;
@@ -57,7 +58,7 @@ export function goThroughDoor(options: {
 }
 
 /** The village's water and building footprints, and the rooms' walls and furniture: a player cannot walk through them. */
-export const TOWN_SOLIDS: readonly SoulSolid[] = [...SOUL_VILLAGE_SOLIDS, ...SOUL_INTERIOR_SOLIDS];
+export const TOWN_SOLIDS: readonly SoulSolid[] = [...SOUL_VILLAGE_SOLIDS, ...furnishedInteriorSolids(SOUL_INTERIOR_SOLIDS)];
 /** Where the feet are below the player's position (depth-world-renderer sorts the player there too), and how wide. */
 const FEET_OFFSET = TOWN_FEET_OFFSET;
 export const TOWN_FEET_RADIUS = 12;
@@ -118,9 +119,9 @@ export function createTownRuntime(deps: {
   currentMapId: () => MapId;
   invalidateDepthOrder: () => void;
   logPickup?: (label: string, color: string) => void;
-  /** The game's message line and its particle bursts, for mining in the Copper Hills. */
+  /** The game's message line and its particle bursts, for mining in the Copper Hills and chopping in Timberwood. */
   message?: (text: string, color: string) => void;
-  /** The bag, for the room a new kind of ore needs. */
+  /** The bag, for the room a new kind of ore or log needs. */
   inventory?: Pick<InventoryState, "itemIds" | "equippedHead" | "equippedChest" | "equippedFeet" | "equippedRightHand" | "equippedLeftHand">;
   burst?: (x: number, y: number, color: string, count: number, speed: number) => void;
   /** Darkens the screen, runs the action once it is black, and brings the world back around the player. */
@@ -140,6 +141,7 @@ export function createTownRuntime(deps: {
     };
   };
   const mining = createMiningRuntime({ source, player: deps.player, message: deps.message, logPickup: deps.logPickup, burst: deps.burst, bag });
+  const woodcutting = createWoodcuttingRuntime({ source, player: deps.player, message: deps.message, logPickup: deps.logPickup, burst: deps.burst, bag });
 
   /** Brings the props around the player up to date. */
   function refreshWindow(force = false) {
@@ -163,10 +165,7 @@ export function createTownRuntime(deps: {
       if (feet.x <= solid.left - feet.r || feet.x >= solid.right + feet.r || feet.y <= solid.top - feet.r || feet.y >= solid.bottom + feet.r) continue;
       pushOutOf(feet, solid);
     }
-    if (!townRoomAt(player.x, player.y, 400)) {
-      feet.x = Math.max(TOWN_WALK_AREA.left, Math.min(TOWN_WALK_AREA.right, feet.x));
-      feet.y = Math.max(TOWN_WALK_AREA.top, Math.min(TOWN_WALK_AREA.bottom, feet.y));
-    }
+    if (!townRoomAt(player.x, player.y, 400)) Object.assign(feet, townWalkClamp(feet.x, feet.y));
     player.x = feet.x;
     player.y = feet.y - FEET_OFFSET;
   }
@@ -296,7 +295,9 @@ export function createTownRuntime(deps: {
 
   return {
     update(dt: number) {
-      mining.update(dt, step(dt));
+      const free = step(dt);
+      mining.update(dt, free);
+      woodcutting.update(dt, free);
     },
     /** Forces the window to rebuild, as after the map loads. */
     refresh: () => refreshWindow(true),

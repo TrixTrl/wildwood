@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { advanceTime, startNextEquipmentUpgrade, simulationUpgradeLevel } from "./simulator";
-import { IRON_BOW, STARTER_STONE, itemUpgradeDurationMs } from "../../shared/items";
+import { gradeShopLinesFor } from "./smith-purchases";
+import { advanceTime, buyGradeGear, runBalanceSimulation, startNextEquipmentUpgrade, simulationUpgradeLevel } from "./simulator";
+import { BASIC_PAPER_HAT, IRON_BOW, STARTER_STONE, itemUpgradeDurationMs } from "../../shared/items";
+import { isGradeItemId } from "../../shared/grade-equipment";
+import { masteryPointsForLevel } from "../../shared/weapon-mastery";
+import { GRADE_GOLD_PRICE } from "../../shared/gear-grades";
 import { createEmptyResearchRanks } from "../../shared/research";
 
 function fixture() {
@@ -9,11 +13,11 @@ function fixture() {
     stats: { damage: 100, maxHp: 1000, armor: 10, regen: 1, attackRate: 1 },
     research: createEmptyResearchRanks(),
     equipped: { head: "", chest: "", weapon: IRON_BOW },
-    ownedItems: new Set([IRON_BOW, STARTER_STONE]),
+    ownedItems: new Set<string>([IRON_BOW, STARTER_STONE]),
     bootsEquipped: true, itemUpgradeLevel: 0, itemUpgradeLevels: {} as Record<string, number>,
     equipmentStrengthMultiplier: 1, steadyEquipmentUpgrades: true,
     activeUpgrade: null as { itemId: string; completesAt: number; level: number } | null,
-    activeResearch: null, bossRewardClaims: 0,
+    activeResearch: null, bossRewardClaims: 0, gold: 0, masteryPoints: {} as { archery?: number },
   };
 }
 
@@ -41,4 +45,64 @@ describe("steady simulated equipment upgrades", () => {
     expect(state.activeUpgrade?.level).toBe(1);
     expect(state.activeUpgrade?.completesAt).toBeCloseTo((itemUpgradeDurationMs(0) + itemUpgradeDurationMs(1)) / 1000, 6);
   });
+});
+
+describe("the Smith's graded gear", () => {
+  const smith = (gold: number, archery: number) => ({ ...fixture(), mapIndex: 0, gold, masteryPoints: { archery },
+    equipped: { head: BASIC_PAPER_HAT, chest: "", weapon: STARTER_STONE }, ownedItems: new Set([BASIC_PAPER_HAT, STARTER_STONE]) });
+
+  it("buys what the Smith offers on each line while gold allows, cheapest first, and wears the set", () => {
+    const state = smith(500, 0), recorded = vi.fn();
+    buyGradeGear(state, recorded);
+    expect(state.equipped).toEqual({ weapon: "crude_bow", chest: "crude_light_armor", head: "crude_light_helmet", feet: "crude_ranger_boots" });
+    expect(state.gold).toBe(500 - 4 * GRADE_GOLD_PRICE.crude);
+    expect(recorded).toHaveBeenCalledTimes(4);
+    expect(gradeShopLinesFor(state.equipped.weapon)).toEqual([
+      { kind: "bow" }, { kind: "armor", armorClass: "light" }, { kind: "helmet", armorClass: "light" }, { kind: "boots", bootStyle: "ranger" },
+    ]);
+    expect(gradeShopLinesFor("crude_sword").at(-1)).toEqual({ kind: "boots", bootStyle: "warrior" });
+  });
+
+  it("waits for Mastery to open a grade, then buys the highest it opens and affords, skipping those between", () => {
+    const state = smith(10_000, 0);
+    buyGradeGear(state, vi.fn());
+    expect(state.equipped.weapon).toBe("crude_bow");
+    expect(state.gold).toBe(10_000 - 4 * GRADE_GOLD_PRICE.crude);
+    state.masteryPoints.archery = masteryPointsForLevel(5);
+    buyGradeGear(state, vi.fn());
+    expect(state.equipped).toEqual({ weapon: "rare_bow", chest: "rare_light_armor", head: "rare_light_helmet", feet: "rare_ranger_boots" });
+    expect([...state.ownedItems].filter(id => id.startsWith("common_"))).toEqual([]);
+    expect(state.gold).toBe(10_000 - 4 * GRADE_GOLD_PRICE.crude - 4 * GRADE_GOLD_PRICE.rare);
+  });
+
+  it("on a tie, buys for the line furthest behind first", () => {
+    const state = smith(GRADE_GOLD_PRICE.rare, 0);
+    for (const itemId of ["fine_bow", "crude_light_armor", "fine_light_helmet", "fine_ranger_boots"]) state.ownedItems.add(itemId);
+    state.masteryPoints.archery = masteryPointsForLevel(5);
+    buyGradeGear(state, vi.fn());
+    expect(state.ownedItems.has("rare_light_armor")).toBe(true);
+    expect(state.ownedItems.has("rare_bow")).toBe(false);
+  });
+
+  it("buys the best open grade the gold covers when the highest is out of reach", () => {
+    const state = smith(GRADE_GOLD_PRICE.rare - 1, 0);
+    state.ownedItems.add("crude_bow");
+    state.equipped.weapon = "crude_bow";
+    for (const itemId of ["rare_light_armor", "rare_light_helmet", "rare_ranger_boots"]) state.ownedItems.add(itemId);
+    state.masteryPoints.archery = masteryPointsForLevel(5);
+    buyGradeGear(state, vi.fn());
+    expect(state.equipped.weapon).toBe("superior_bow");
+    expect(state.gold).toBe(GRADE_GOLD_PRICE.rare - 1 - GRADE_GOLD_PRICE.superior);
+  });
+});
+
+it("a fresh Lab run earns gold and Mastery from kills and wears only the Smith's gear", () => {
+  const run = runBalanceSimulation({ trials: 1, durationSeconds: 3 * 3600, seed: 5 });
+  const arrivals = Object.values(run.arrivalStates ?? {});
+  const last = arrivals.at(-1)!;
+  expect(last.masteryPoints?.archery).toBeGreaterThan(100);
+  const worn = arrivals.flatMap(arrival => arrival ? [arrival.equipped.weapon, arrival.equipped.head, arrival.equipped.chest] : []).filter(Boolean);
+  expect(worn.every(itemId => [STARTER_STONE, BASIC_PAPER_HAT].includes(itemId) || isGradeItemId(itemId))).toBe(true);
+  expect(worn.some(isGradeItemId)).toBe(true);
+  expect(run.maps[1].entryMasteryLevelMedian).toBeGreaterThanOrEqual(0);
 });

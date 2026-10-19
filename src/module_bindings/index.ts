@@ -46,6 +46,7 @@ import AnnounceClientUpdateReducer from "./announce_client_update_reducer";
 import ApplyBuildCardsReducer from "./apply_build_cards_reducer";
 import BeginAccountLinkReducer from "./begin_account_link_reducer";
 import BeginAdventureReducer from "./begin_adventure_reducer";
+import BuyGradeGearReducer from "./buy_grade_gear_reducer";
 import BuyOxShopCosmeticReducer from "./buy_ox_shop_cosmetic_reducer";
 import BuyShopCardReducer from "./buy_shop_card_reducer";
 import CancelGemPurchaseReducer from "./cancel_gem_purchase_reducer";
@@ -53,18 +54,22 @@ import CancelItemUpgradeReducer from "./cancel_item_upgrade_reducer";
 import ChallengeGuildReducer from "./challenge_guild_reducer";
 import ChangeDisplayNameReducer from "./change_display_name_reducer";
 import ChangeMapReducer from "./change_map_reducer";
+import ChopTreeReducer from "./chop_tree_reducer";
 import ClaimAdGemsReducer from "./claim_ad_gems_reducer";
 import ClaimDailyGemBonusReducer from "./claim_daily_gem_bonus_reducer";
 import ClaimDeveloperItemGiftReducer from "./claim_developer_item_gift_reducer";
 import ClaimGuestAccountReducer from "./claim_guest_account_reducer";
+import ClaimHatchetReducer from "./claim_hatchet_reducer";
 import ClaimMailboxGiftReducer from "./claim_mailbox_gift_reducer";
 import ClaimPickaxeReducer from "./claim_pickaxe_reducer";
 import ClaimStarterStaffReducer from "./claim_starter_staff_reducer";
+import ClaimStarterWeaponReducer from "./claim_starter_weapon_reducer";
 import CollectGuildMemberQuestsReducer from "./collect_guild_member_quests_reducer";
 import CompleteOnboardingStepReducer from "./complete_onboarding_step_reducer";
 import ConfigureGemCommerceReducer from "./configure_gem_commerce_reducer";
 import ConfigurePatreonReducer from "./configure_patreon_reducer";
 import ConvertItemToCosmeticReducer from "./convert_item_to_cosmetic_reducer";
+import CraftGradeGearReducer from "./craft_grade_gear_reducer";
 import CreateGuildReducer from "./create_guild_reducer";
 import DeactivateCardReducer from "./deactivate_card_reducer";
 import DestroyEquipmentReducer from "./destroy_equipment_reducer";
@@ -165,6 +170,7 @@ import SaveBuildReducer from "./save_build_reducer";
 import SavePlayerProgressReducer from "./save_player_progress_reducer";
 import SeedTemporaryGuildReducer from "./seed_temporary_guild_reducer";
 import SelectEquipmentCopyReducer from "./select_equipment_copy_reducer";
+import SellGradedItemReducer from "./sell_graded_item_reducer";
 import SendChatMessageReducer from "./send_chat_message_reducer";
 import SendChatReplyReducer from "./send_chat_reply_reducer";
 import SendSocialMessageReducer from "./send_social_message_reducer";
@@ -216,6 +222,7 @@ import UnlockSecondUpgradeSlotReducer from "./unlock_second_upgrade_slot_reducer
 import UnlockThirdUpgradeSlotReducer from "./unlock_third_upgrade_slot_reducer";
 import UpdateMovementStateReducer from "./update_movement_state_reducer";
 import UpgradeGuildHallReducer from "./upgrade_guild_hall_reducer";
+import UpgradeToolReducer from "./upgrade_tool_reducer";
 import UseFreePrestigeRespecReducer from "./use_free_prestige_respec_reducer";
 import UseGuildHallDoorReducer from "./use_guild_hall_door_reducer";
 import UseTownDoorReducer from "./use_town_door_reducer";
@@ -292,8 +299,10 @@ import MyCardDropRow from "./my_card_drop_table";
 import MyCardShopPurchasesRow from "./my_card_shop_purchases_table";
 import MyCardsRow from "./my_cards_table";
 import MyChatMuteRow from "./my_chat_mute_table";
+import MyChoppedTreesRow from "./my_chopped_trees_table";
 import MyCopyRefinesRow from "./my_copy_refines_table";
 import MyCopySlotsRow from "./my_copy_slots_table";
+import MyCraftSkillsRow from "./my_craft_skills_table";
 import MyCutsceneHistoryRow from "./my_cutscene_history_table";
 import MyDailyGemBonusRow from "./my_daily_gem_bonus_table";
 import MyDefeatSessionRestrictionRow from "./my_defeat_session_restriction_table";
@@ -304,6 +313,7 @@ import MyEquipmentOffersRow from "./my_equipment_offers_table";
 import MyGearSlotsRow from "./my_gear_slots_table";
 import MyGemPurchasesRow from "./my_gem_purchases_table";
 import MyGemWalletRow from "./my_gem_wallet_table";
+import MyGoldRow from "./my_gold_table";
 import MyGuildHallRow from "./my_guild_hall_table";
 import MyIgnoredDropsRow from "./my_ignored_drops_table";
 import MyInventoryCapacityRow from "./my_inventory_capacity_table";
@@ -329,9 +339,13 @@ import MySocialMessagesWithReactionsRow from "./my_social_messages_with_reaction
 import MySoulLevelRow from "./my_soul_level_table";
 import MySoulStatsRow from "./my_soul_stats_table";
 import MyStaffSkillsRow from "./my_staff_skills_table";
+import MyStarterWeaponRow from "./my_starter_weapon_table";
 import MySwordSkillsRow from "./my_sword_skills_table";
+import MyToolsRow from "./my_tools_table";
 import MyUpgradeBenchRow from "./my_upgrade_bench_table";
 import MyUpgradeBenchThirdSlotRow from "./my_upgrade_bench_third_slot_table";
+import MyWeaponMasteryRow from "./my_weapon_mastery_table";
+import MyWoodcuttingRow from "./my_woodcutting_table";
 import PatreonTickerSupportersRow from "./patreon_ticker_supporters_table";
 import PausedResearchRow from "./paused_research_table";
 import PlayerRow from "./player_table";
@@ -343,6 +357,7 @@ import PlayerAutoFarmPuppetRow from "./player_auto_farm_puppet_table";
 import PlayerBonusToggleRow from "./player_bonus_toggle_table";
 import PlayerChatHeartsRow from "./player_chat_hearts_table";
 import PlayerCombatRatingRow from "./player_combat_rating_table";
+import PlayerCraftLevelRow from "./player_craft_level_table";
 import PlayerDailyQuestRow from "./player_daily_quest_table";
 import PlayerDeathFrameRow from "./player_death_frame_table";
 import PlayerFreeRespecRow from "./player_free_respec_table";
@@ -356,6 +371,7 @@ import PlayerLifetimeRow from "./player_lifetime_table";
 import PlayerLuckResearchRow from "./player_luck_research_table";
 import PlayerMapFrameRow from "./player_map_frame_table";
 import PlayerMapMarkerRow from "./player_map_marker_table";
+import PlayerMasteryLevelRow from "./player_mastery_level_table";
 import PlayerMiningLevelRow from "./player_mining_level_table";
 import PlayerMotionDetailFrameRow from "./player_motion_detail_frame_table";
 import PlayerMotionIdentityRow from "./player_motion_identity_table";
@@ -372,6 +388,7 @@ import PlayerProfileSnapshotRow from "./player_profile_snapshot_table";
 import PlayerProgressRow from "./player_progress_table";
 import PlayerResearchRow from "./player_research_table";
 import PlayerWideStatsRow from "./player_wide_stats_table";
+import PlayerWoodcuttingLevelRow from "./player_woodcutting_level_table";
 import PlayerWornSkillRow from "./player_worn_skill_table";
 import PlayerWornStaffSkillRow from "./player_worn_staff_skill_table";
 import PrestigeExpansionRow from "./prestige_expansion_table";
@@ -661,6 +678,20 @@ const tablesSchema = __schema({
       { name: 'player_combat_rating_identity_key', constraint: 'unique', columns: ['identity'] },
     ],
   }, PlayerCombatRatingRow),
+  playerCraftLevel: __table({
+    name: 'player_craft_level',
+    indexes: [
+      { accessor: 'identity', name: 'player_craft_level_identity_idx_btree', algorithm: 'btree', columns: [
+        'identity',
+      ] },
+      { accessor: 'key', name: 'player_craft_level_key_idx_btree', algorithm: 'btree', columns: [
+        'key',
+      ] },
+    ],
+    constraints: [
+      { name: 'player_craft_level_key_key', constraint: 'unique', columns: ['key'] },
+    ],
+  }, PlayerCraftLevelRow),
   playerDailyQuest: __table({
     name: 'player_daily_quest',
     indexes: [
@@ -821,6 +852,20 @@ const tablesSchema = __schema({
       { name: 'player_map_marker_identity_key', constraint: 'unique', columns: ['identity'] },
     ],
   }, PlayerMapMarkerRow),
+  playerMasteryLevel: __table({
+    name: 'player_mastery_level',
+    indexes: [
+      { accessor: 'identity', name: 'player_mastery_level_identity_idx_btree', algorithm: 'btree', columns: [
+        'identity',
+      ] },
+      { accessor: 'key', name: 'player_mastery_level_key_idx_btree', algorithm: 'btree', columns: [
+        'key',
+      ] },
+    ],
+    constraints: [
+      { name: 'player_mastery_level_key_key', constraint: 'unique', columns: ['key'] },
+    ],
+  }, PlayerMasteryLevelRow),
   playerMiningLevel: __table({
     name: 'player_mining_level',
     indexes: [
@@ -1004,6 +1049,17 @@ const tablesSchema = __schema({
       { name: 'player_wide_stats_identity_key', constraint: 'unique', columns: ['identity'] },
     ],
   }, PlayerWideStatsRow),
+  playerWoodcuttingLevel: __table({
+    name: 'player_woodcutting_level',
+    indexes: [
+      { accessor: 'identity', name: 'player_woodcutting_level_identity_idx_btree', algorithm: 'btree', columns: [
+        'identity',
+      ] },
+    ],
+    constraints: [
+      { name: 'player_woodcutting_level_identity_key', constraint: 'unique', columns: ['identity'] },
+    ],
+  }, PlayerWoodcuttingLevelRow),
   playerWornSkill: __table({
     name: 'player_worn_skill',
     indexes: [
@@ -1221,6 +1277,13 @@ const tablesSchema = __schema({
     constraints: [
     ],
   }, MyChatMuteRow),
+  myChoppedTrees: __table({
+    name: 'my_chopped_trees',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, MyChoppedTreesRow),
   myCopyRefines: __table({
     name: 'my_copy_refines',
     indexes: [
@@ -1235,6 +1298,13 @@ const tablesSchema = __schema({
     constraints: [
     ],
   }, MyCopySlotsRow),
+  myCraftSkills: __table({
+    name: 'my_craft_skills',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, MyCraftSkillsRow),
   myCutsceneHistory: __table({
     name: 'my_cutscene_history',
     indexes: [
@@ -1305,6 +1375,13 @@ const tablesSchema = __schema({
     constraints: [
     ],
   }, MyGemWalletRow),
+  myGold: __table({
+    name: 'my_gold',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, MyGoldRow),
   myGuildHall: __table({
     name: 'my_guild_hall',
     indexes: [
@@ -1480,6 +1557,13 @@ const tablesSchema = __schema({
     constraints: [
     ],
   }, MyStaffSkillsRow),
+  myStarterWeapon: __table({
+    name: 'my_starter_weapon',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, MyStarterWeaponRow),
   mySwordSkills: __table({
     name: 'my_sword_skills',
     indexes: [
@@ -1487,6 +1571,13 @@ const tablesSchema = __schema({
     constraints: [
     ],
   }, MySwordSkillsRow),
+  myTools: __table({
+    name: 'my_tools',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, MyToolsRow),
   myUpgradeBench: __table({
     name: 'my_upgrade_bench',
     indexes: [
@@ -1501,6 +1592,20 @@ const tablesSchema = __schema({
     constraints: [
     ],
   }, MyUpgradeBenchThirdSlotRow),
+  myWeaponMastery: __table({
+    name: 'my_weapon_mastery',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, MyWeaponMasteryRow),
+  myWoodcutting: __table({
+    name: 'my_woodcutting',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, MyWoodcuttingRow),
   patreonTickerSupporters: __table({
     name: 'patreon_ticker_supporters',
     indexes: [
@@ -1531,6 +1636,7 @@ const reducersSchema = __reducers(
   __reducerSchema("apply_build_cards", ApplyBuildCardsReducer),
   __reducerSchema("begin_account_link", BeginAccountLinkReducer),
   __reducerSchema("begin_adventure", BeginAdventureReducer),
+  __reducerSchema("buy_grade_gear", BuyGradeGearReducer),
   __reducerSchema("buy_ox_shop_cosmetic", BuyOxShopCosmeticReducer),
   __reducerSchema("buy_shop_card", BuyShopCardReducer),
   __reducerSchema("cancel_gem_purchase", CancelGemPurchaseReducer),
@@ -1538,18 +1644,22 @@ const reducersSchema = __reducers(
   __reducerSchema("challenge_guild", ChallengeGuildReducer),
   __reducerSchema("change_display_name", ChangeDisplayNameReducer),
   __reducerSchema("change_map", ChangeMapReducer),
+  __reducerSchema("chop_tree", ChopTreeReducer),
   __reducerSchema("claim_ad_gems", ClaimAdGemsReducer),
   __reducerSchema("claim_daily_gem_bonus", ClaimDailyGemBonusReducer),
   __reducerSchema("claim_developer_item_gift", ClaimDeveloperItemGiftReducer),
   __reducerSchema("claim_guest_account", ClaimGuestAccountReducer),
+  __reducerSchema("claim_hatchet", ClaimHatchetReducer),
   __reducerSchema("claim_mailbox_gift", ClaimMailboxGiftReducer),
   __reducerSchema("claim_pickaxe", ClaimPickaxeReducer),
   __reducerSchema("claim_starter_staff", ClaimStarterStaffReducer),
+  __reducerSchema("claim_starter_weapon", ClaimStarterWeaponReducer),
   __reducerSchema("collect_guild_member_quests", CollectGuildMemberQuestsReducer),
   __reducerSchema("complete_onboarding_step", CompleteOnboardingStepReducer),
   __reducerSchema("configure_gem_commerce", ConfigureGemCommerceReducer),
   __reducerSchema("configure_patreon", ConfigurePatreonReducer),
   __reducerSchema("convert_item_to_cosmetic", ConvertItemToCosmeticReducer),
+  __reducerSchema("craft_grade_gear", CraftGradeGearReducer),
   __reducerSchema("create_guild", CreateGuildReducer),
   __reducerSchema("deactivate_card", DeactivateCardReducer),
   __reducerSchema("destroy_equipment", DestroyEquipmentReducer),
@@ -1650,6 +1760,7 @@ const reducersSchema = __reducers(
   __reducerSchema("save_player_progress", SavePlayerProgressReducer),
   __reducerSchema("seed_temporary_guild", SeedTemporaryGuildReducer),
   __reducerSchema("select_equipment_copy", SelectEquipmentCopyReducer),
+  __reducerSchema("sell_graded_item", SellGradedItemReducer),
   __reducerSchema("send_chat_message", SendChatMessageReducer),
   __reducerSchema("send_chat_reply", SendChatReplyReducer),
   __reducerSchema("send_social_message", SendSocialMessageReducer),
@@ -1701,6 +1812,7 @@ const reducersSchema = __reducers(
   __reducerSchema("unlock_third_upgrade_slot", UnlockThirdUpgradeSlotReducer),
   __reducerSchema("update_movement_state", UpdateMovementStateReducer),
   __reducerSchema("upgrade_guild_hall", UpgradeGuildHallReducer),
+  __reducerSchema("upgrade_tool", UpgradeToolReducer),
   __reducerSchema("use_free_prestige_respec", UseFreePrestigeRespecReducer),
   __reducerSchema("use_guild_hall_door", UseGuildHallDoorReducer),
   __reducerSchema("use_town_door", UseTownDoorReducer),

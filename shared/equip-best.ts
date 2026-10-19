@@ -4,19 +4,20 @@ import {
   type EquipmentSlot, type ItemSlot,
   type ItemLevel,
 } from "./items";
-import { equipmentMapRequirement, type CampaignAccess } from "./equipment-access";
 import {
   effectivePlayerPowerStats, unroundedPlayerPower, type PlayerPowerProgress, type PlayerPowerResearch,
 } from "./player-power";
+import { bootStyleOf, gradeOf } from "./grade-equipment";
+import { gradeIndex, type BootStyle } from "./gear-grades";
 
 /**
  * Which of two pieces of gear is better in a slot.
  *
  * One rule, shared by the inventory's Equip best button and by the server's
- * auto equip (a new drop, or gear a newly reached map makes usable), so the
+ * auto equip (gear new in the bag), so the
  * two never disagree about what "better" means. Equipment bonuses are
  * additive, so each slot is scored on its own: the player's power with the
- * candidate in that slot. Boots add no power; only Black Boots' speed counts.
+ * candidate in that slot. Boots go by their own score (bootsScore), not power.
  * A weapon's skills count too, multiplied into its damage (see
  * equipComparisonPower), so of two copies of one weapon the better roll wins.
  * Active cards do not: they stay on whatever is worn.
@@ -70,8 +71,21 @@ export function equippedInSlot(loadout: EquipLoadout, slot: ItemSlot) {
 
 /** How good a loadout is for one slot's comparison. */
 export function equipSlotScore<T extends EquipLoadout>(slot: ItemSlot, loadout: T, power: (candidate: T) => number) {
-  if (slot === "FEET") return loadout.equippedFeet === BLACK_BOOTS ? BLACK_BOOTS_SPEED_BONUS : 0;
+  if (slot === "FEET") return bootsScore(loadout);
   return power(loadout);
+}
+
+const STYLE_WEAPON: Readonly<Record<BootStyle, WeaponKind>> = { ranger: "RANGED", warrior: "MELEE", mystic: "MAGIC" };
+
+/**
+ * Boots' score: graded boots above Black Boots' speed, the style of the weapon in hand above the others, then the
+ * higher grade. Their stats differ in kind (speed, armor, skill chance), so power cannot rank them.
+ */
+export function bootsScore(loadout: EquipLoadout) {
+  const feet = loadout.equippedFeet, style = bootStyleOf(feet), grade = gradeOf(feet);
+  if (!style || !grade) return feet === BLACK_BOOTS ? BLACK_BOOTS_SPEED_BONUS : 0;
+  const matches = STYLE_WEAPON[style] === weaponKind(equippedInSlot(loadout, "HAND"));
+  return 100 + (matches ? 100 : 0) + gradeIndex(grade);
 }
 
 /** Keep an equipped item on ties, but fill an empty slot even at zero power. */
@@ -112,20 +126,19 @@ export function weaponKind(itemId: string | undefined): WeaponKind {
 
 /**
  * What an empty hand means: the strongest weapon of the kind the hand held
- * (weaponKind) that the player owns and may use, by the item's own damage
- * bonus. The starter stone, which every player owns, is ranged, so a ranged
- * hand always has one; a sword hand with no usable sword takes the strongest
- * ranged one, and so does a staff hand with no usable staff. Never "". A blank hand is a normal saved state (older saves,
- * gear whose map is locked again), and a player with no weapon cannot attack,
- * so the server's reading of a saved hand and the client's bag both fill it
- * from here.
+ * (weaponKind) that the player owns, by the item's own damage bonus. The
+ * starter stone, which every player owns, is ranged, so a ranged hand always
+ * has one; a sword or staff hand with none of its kind takes the strongest
+ * ranged one. Never "". A blank hand is a normal saved state (older saves),
+ * and a player with no weapon cannot attack, so the server's reading of a
+ * saved hand and the client's bag both fill it from here.
  */
-export function fallbackWeapon(itemIds: readonly string[], access: CampaignAccess | null | undefined, kind: WeaponKind = "RANGED") {
+export function fallbackWeapon(itemIds: readonly string[], kind: WeaponKind = "RANGED") {
   const strongest = (wanted: WeaponKind) => {
     let best = wanted === "RANGED" ? STARTER_STONE : "";
     let bestBonus = best ? equipmentDamageMultiplierBonus(best, "", "") : -Infinity;
     for (const itemId of itemIds) {
-      if (itemDefinition(itemId)?.slot !== "HAND" || isCosmeticOnlyItem(itemId) || equipmentMapRequirement(itemId, access)) continue;
+      if (itemDefinition(itemId)?.slot !== "HAND" || isCosmeticOnlyItem(itemId)) continue;
       if (weaponKind(itemId) !== wanted) continue;
       const bonus = equipmentDamageMultiplierBonus(itemId, "", "");
       if (bonus > bestBonus) {
@@ -143,8 +156,7 @@ export function fallbackWeapon(itemIds: readonly string[], access: CampaignAcces
  * looks never do, and a weapon only ever replaces one of its own kind: swords
  * hit harder than bows but only up close, so power alone would trade every
  * archer's bow for a sword (or a staff). `kind` is the hand's kind, by default what it
- * holds; callers that read locked gear as an empty hand pass the locked
- * weapon's kind, so locking a sword away does not make its owner an archer.
+ * holds; a caller with an empty hand can pass the kind it should keep.
  */
 export function isEquipUpgrade<T extends EquipLoadout>(loadout: T, itemId: string, power: (candidate: T) => number,
   kind: WeaponKind = weaponKind(equippedInSlot(loadout, "HAND"))) {

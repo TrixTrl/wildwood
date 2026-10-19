@@ -1,8 +1,12 @@
-import { inTownInteriors, inTownVillage, TOWN_ARRIVAL, TOWN_BENCH_POSITION, TOWN_CARD_SELLER_STALL, TOWN_CHUNK_SIZE, TOWN_HILLS, TOWN_HILLS_SIGNPOST_POSITION, TOWN_INTERIOR_MARGIN, TOWN_OX_POSITION, TOWN_QUEST_BOARD_POSITION, TOWN_RESEARCH_POSITION, TOWN_SMITH_POSITION, townChunkProps, townRandom, townWindowChunks, type TownPropKind, TOWN_SOUL_RUNESTONE } from "../../shared/town";
-import { SOUL_ATLAS, SOUL_INTERIOR_DECOR, SOUL_VILLAGE_DECOR, type SoulFrame } from "./soul-village";
+import { inTownInteriors, inTownVillage, TOWN_ARRIVAL, TOWN_GROVE, TOWN_BENCH_POSITION, TOWN_CARD_SELLER_STALL, TOWN_CHUNK_SIZE, TOWN_DOORS, TOWN_SCHOOL_POSITIONS, TOWN_HILLS, TOWN_HILLS_SIGNPOST_POSITION, TOWN_INTERIOR_MARGIN, TOWN_OX_POSITION, TOWN_QUEST_BOARD_POSITION, TOWN_RESEARCH_POSITION, TOWN_SMITH_POSITION, TOWN_WEST_BRIDGE, townChunkProps, townRandom, townWindowChunks, type TownPropKind, TOWN_SOUL_RUNESTONE } from "../../shared/town";
+import { SOUL_ATLAS, SOUL_INTERIOR_DECOR, SOUL_VILLAGE_DECOR, type SoulFrame, type SoulSolid } from "./soul-village";
 import {
   MINING_NODES, MINING_OUTCROPS, MINING_REACH, MINING_TRACK, MINING_TRACK_HALF_WIDTH, MINING_VEINS, miningTrackDistanceSquared, type MiningNode, type MiningNodeKind,
 } from "../../shared/mining";
+import { SCHOOL_DETAILS, WEAPON_SCHOOLS, type WeaponSchool } from "../../shared/weapon-mastery";
+import {
+  GROVE_LANDING_RADIUS, GROVE_ROAD, GROVE_ROAD_END, GROVE_ROAD_HALF_WIDTH, WOOD_TREE_NODES, WOOD_TREE_SPOTS, groveRoadDistanceSquared, type WoodTree, type WoodTreeKind,
+} from "../../shared/woodcutting";
 import type { WorldDecor, WorldPath } from "./world";
 
 /** How each countryside prop is drawn: one of its atlas frames (by the prop's variant) and its size. */
@@ -48,7 +52,76 @@ export const TOWN_OX_DECOR: WorldDecor = { type: "upgradeBench", x: TOWN_OX_POSI
 export const TOWN_SMITH_DECOR: WorldDecor = { type: "upgradeBench", x: TOWN_SMITH_POSITION.x, y: TOWN_SMITH_POSITION.y, s: 1, label: "Smith" };
 /** The Card Seller's name over the village's own market stall: just in front of it, so it draws over the awning. */
 export const TOWN_CARD_SELLER_DECOR: WorldDecor = { type: "upgradeBench", x: TOWN_CARD_SELLER_STALL.x, y: TOWN_CARD_SELLER_STALL.y + 1, s: 1, label: "Card Seller" };
-export const TOWN_INTERIOR_DECOR: readonly WorldDecor[] = [...SOUL_INTERIOR_DECOR.filter(item => !replacedByStation(item)), ...TOWN_STATION_DECOR, TOWN_OX_DECOR];
+/** Each Weapon Mastery school's sign, on its building's back wall over the spot that opens its window. */
+export const TOWN_SCHOOL_DECOR: readonly WorldDecor[] = WEAPON_SCHOOLS.map(school => ({
+  type: "upgradeBench", x: TOWN_SCHOOL_POSITIONS[school].x, y: TOWN_SCHOOL_POSITIONS[school].y, s: 1, label: SCHOOL_DETAILS[school].building,
+}));
+
+type RoomPiece = { frame: string; x: number; y: number; dy?: number; s?: number; atlas?: boolean; shadow?: string; solid?: readonly [number, number, number, number] };
+/**
+ * The school rooms' own furnishing over the pack's, in room units: a piece of furniture at (x, y) moved along the
+ * back wall to `to` or taken out (null), its shadow and collider with it; and a few pieces of the school's own.
+ */
+const SCHOOL_ROOMS: readonly { door: number; moves: readonly { x: number; y: number; to: number | null }[]; adds: readonly RoomPiece[] }[] = [
+  // Archery Range: the chest moves left to clear the floor under the sign; a bow on the wall, arrows in a barrel.
+  { door: 2, moves: [{ x: 380, y: 44, to: 308 }], adds: [
+    { frame: "103", x: 200, y: -40, dy: -45 }, { frame: "104", x: 200, y: -39, dy: -22 },
+    { frame: "105", x: 513, y: 40, dy: -40 }, { frame: "105", x: 521, y: 40, dy: -46 }, { frame: "105", x: 529, y: 40, dy: -39 },
+  ] },
+  // Sword Hall: a weapon rack under the sign, the woodpile moved aside and the gold taken out.
+  { door: 3, moves: [{ x: 160, y: 34, to: 285 }, { x: 196, y: 40, to: null }], adds: [
+    { frame: "267", x: 200, y: 36, shadow: "268", solid: [160, 24, 240, 44] },
+  ] },
+  // Mage Tower: a rune stone and a staff where the wheat stood.
+  { door: 4, moves: [{ x: 50, y: 40, to: null }, { x: 100, y: 46, to: null }], adds: [
+    { frame: "RuneStone_01", atlas: true, x: 70, y: 44, s: .55, solid: [52, 30, 88, 46] },
+    { frame: "46", x: 118, y: 40, solid: [110, 30, 126, 42] },
+  ] },
+];
+const roomOf = (door: number) => TOWN_DOORS[door].room;
+/** Whether a piece of furniture (or its shadow) is the one at (x, y) in this room. */
+const pieceAt = (item: { x: number; y: number }, room: Box, at: { x: number; y: number }) => item.x === room.left + at.x && item.y === room.top + at.y;
+/** Whether a collider is that piece's: centred on it, a little behind its foot. */
+const solidOf = (solid: SoulSolid, room: Box, at: { x: number; y: number }) =>
+  Math.abs((solid.left + solid.right) / 2 - room.left - at.x) <= 2 && Math.abs((solid.top + solid.bottom) / 2 - room.top - at.y) <= 16 && solid.right - solid.left < 100;
+const boxSolid = (left: number, top: number, right: number, bottom: number): SoulSolid =>
+  ({ xs: [left, right, right, left], ys: [top, top, bottom, bottom], left, top, right, bottom });
+
+/** The rooms' furniture as the Town draws it: the pack's, with the school rooms' own furnishing. */
+export const TOWN_FURNISHED_INTERIOR: readonly WorldDecor[] = (() => {
+  let decor = [...SOUL_INTERIOR_DECOR];
+  for (const { door, moves, adds } of SCHOOL_ROOMS) {
+    const room = roomOf(door);
+    for (const move of moves) {
+      decor = decor.flatMap(item => !pieceAt(item, room, move) ? [item] : move.to === null ? [] : [{ ...item, x: room.left + move.to }]);
+    }
+    for (const piece of adds) {
+      const at = { x: room.left + piece.x, y: room.top + piece.y, s: piece.s ?? 1, dy: piece.dy ?? 0 };
+      const sheet = piece.atlas ? {} : { sheet: "village" as const };
+      if (piece.shadow) decor.push({ type: "soulProp", ...sheet, frame: piece.shadow, ...at, shadow: true });
+      decor.push({ type: "soulProp", ...sheet, frame: piece.frame, ...at, shadow: false });
+    }
+  }
+  return decor;
+})();
+/** The rooms' walls and furniture's colliders, moved and added with the school rooms' furnishing. */
+export function furnishedInteriorSolids(solids: readonly SoulSolid[]): SoulSolid[] {
+  let result = [...solids];
+  for (const { door, moves, adds } of SCHOOL_ROOMS) {
+    const room = roomOf(door);
+    for (const move of moves) {
+      result = result.flatMap(solid => {
+        if (!solidOf(solid, room, move)) return [solid];
+        if (move.to === null) return [];
+        const dx = move.to - move.x;
+        return [{ xs: solid.xs.map(x => x + dx), ys: solid.ys, left: solid.left + dx, top: solid.top, right: solid.right + dx, bottom: solid.bottom }];
+      });
+    }
+    for (const { solid } of adds) if (solid) result.push(boxSolid(room.left + solid[0], room.top + solid[1], room.left + solid[2], room.top + solid[3]));
+  }
+  return result;
+}
+export const TOWN_INTERIOR_DECOR: readonly WorldDecor[] = [...TOWN_FURNISHED_INTERIOR.filter(item => !replacedByStation(item)), ...TOWN_STATION_DECOR, TOWN_OX_DECOR, ...TOWN_SCHOOL_DECOR];
 
 /**
  * The square's signpost, just east of where every traveller lands (on open cobbles, clear of the fountain,
@@ -59,6 +132,17 @@ export const TOWN_RUNESTONE: WorldDecor = { type: "soulProp", frame: "RuneStone_
 export const TOWN_SIGNPOST: WorldDecor = { type: "soulProp", frame: "", s: 1, x: TOWN_ARRIVAL.x + 230, y: TOWN_ARRIVAL.y - 10, signpost: "Travel" };
 /** Its twin by the Smith's yard, pointing east: the way to the Copper Hills, where his pickaxe is for. */
 export const TOWN_HILLS_SIGNPOST: WorldDecor = { type: "soulProp", frame: "", s: 1, ...TOWN_HILLS_SIGNPOST_POSITION, signpost: "Copper Hills", flip: true };
+/**
+ * A signpost by each school's door, naming its building from the square: on the road beside the door, its
+ * plank pointing at it (from its sill, and whether it points right).
+ */
+const SCHOOL_SIGNPOST_AT: Readonly<Record<WeaponSchool, { dx: number; dy: number; flip: boolean }>> = {
+  archery: { dx: -100, dy: 45, flip: true }, swordplay: { dx: 170, dy: 48, flip: false }, sorcery: { dx: -88, dy: 70, flip: true },
+};
+export const TOWN_SCHOOL_SIGNPOSTS: readonly WorldDecor[] = WEAPON_SCHOOLS.map(school => {
+  const door = TOWN_DOORS[SCHOOL_DETAILS[school].door], at = SCHOOL_SIGNPOST_AT[school];
+  return { type: "soulProp", frame: "", s: 1, x: door.x + at.dx, y: door.y + at.dy, signpost: SCHOOL_DETAILS[school].building, flip: at.flip };
+});
 
 // ---- The Copper Hills ----
 
@@ -74,12 +158,13 @@ export function spriteBox(frame: Frame, x: number, y: number, s: number, flip = 
 
 /**
  * The pack's own stones the ore rocks are drawn on, by kind: a Small rock is one of the two round ones, a Large rock
- * the tall boulder (a little bigger) or the wide one, and a Mysterious rock always the tall boulder.
+ * the tall boulder (a little bigger) or the wide one, a Mysterious rock always the tall boulder, and a crystal rock either big one.
  */
 const ROCK_LOOKS: Readonly<Record<MiningNodeKind, readonly { frame: SoulFrame; s: number }[]>> = {
   small: [{ frame: "Stone_01_Gray", s: 1 }, { frame: "Stone_04_Gray", s: 1 }],
   large: [{ frame: "Stone_02_Gray", s: 1.12 }, { frame: "Stone_07_Gray", s: 1 }],
   mysterious: [{ frame: "Stone_02_Gray", s: 1.12 }],
+  crystal: [{ frame: "Stone_07_Gray", s: 1 }, { frame: "Stone_02_Gray", s: 1.12 }],
 };
 export function oreRockDecor(node: MiningNode): Extract<WorldDecor, { type: "oreRock" }> {
   const looks = ROCK_LOOKS[node.kind], look = looks[node.id % looks.length];
@@ -198,6 +283,18 @@ const TRACK_SEGMENTS = MINING_TRACK.slice(1).map((to, index) => {
 });
 /** How wide the track is, its rim and all. */
 const TRACK_REACH = MINING_TRACK_HALF_WIDTH + HILLS_EARTH_RIM;
+/** The woodcutters' road to Timberwood, its rim and all: kept as clear as the track. */
+const ROAD_SEGMENTS = GROVE_ROAD.slice(1).map((to, index) => {
+  const from = GROVE_ROAD[index];
+  return { ends: [from, to], box: boxOf([from, to]) };
+});
+const ROAD_REACH = GROVE_ROAD_HALF_WIDTH + HILLS_EARTH_RIM;
+/**
+ * The sign to Timberwood, at the village's edge where the woodcutters' road comes off the west bridge: just north
+ * of the road, its plank pointing west along it. Nothing standing grows round it.
+ */
+export const TOWN_GROVE_SIGNPOST: WorldDecor = { type: "soulProp", frame: "", s: 1, x: TOWN_WEST_BRIDGE.x - 175, y: TOWN_WEST_BRIDGE.y - 84, signpost: "Timberwood" };
+const GROVE_SIGNPOST_BOX: Box = { left: TOWN_GROVE_SIGNPOST.x - 80, right: TOWN_GROVE_SIGNPOST.x + 56, top: TOWN_GROVE_SIGNPOST.y - 128, bottom: TOWN_GROVE_SIGNPOST.y + 10 };
 
 /** Whether a standing sprite comes within `pad` of what the hills keep clear: a clearing, an ore rock or its plate, the track. */
 function crowdsHills(box: Box, pad: number) {
@@ -217,8 +314,23 @@ function onHillsEarth(x: number, y: number, pad: number) {
   if (ORE_ROCK_BOXES.some(rock => x > rock.left - pad && x < rock.right + pad && y > rock.top - pad && y < rock.bottom + pad)) return true;
   return miningTrackDistanceSquared(x, y, TRACK_REACH + pad) < (TRACK_REACH + pad) ** 2;
 }
+/** Whether a standing sprite comes within `pad` of the woodcutters' road or its sign. */
+function crowdsGroveRoad(box: Box, pad: number) {
+  if (near(box, GROVE_SIGNPOST_BOX, pad)) return true;
+  const shape = corners(box);
+  return ROAD_SEGMENTS.some(segment => near(box, segment.box, ROAD_REACH + pad) && convexDistance(shape, segment.ends) < ROAD_REACH + pad);
+}
+const onGroveRoad = (x: number, y: number, pad: number) => groveRoadDistanceSquared(x, y, ROAD_REACH + pad) < (ROAD_REACH + pad) ** 2;
 
 type Placed = { frame: SoulFrame; x: number; y: number; s: number; flip: boolean };
+/** Whoever stands at any of Timberwood's chopping spots, as big as a player is drawn. */
+let groveSpotBodies: Box[] | null = null;
+/** Whether a sprite standing at `foot` would hide someone chopping in Timberwood: in front of them, and over them. */
+function hidesWoodcutter(box: Box, foot: number) {
+  if (!near(box, TOWN_GROVE, 100)) return false;
+  groveSpotBodies ??= WOOD_TREE_NODES.flatMap(tree => WOOD_TREE_SPOTS.map(spot => ({ left: tree.x + spot.x - 22, right: tree.x + spot.x + 22, top: tree.y + spot.y - 75, bottom: tree.y + spot.y })));
+  return groveSpotBodies.some(body => foot > body.bottom && near(box, body, 0));
+}
 /** The trees that frame the hills: big round ones and pines, in a staggered double row. */
 const BORDER_TREES: readonly SoulFrame[] = ["Tree_07_Green", "Tree_08_Green", "Tree_09_Green", "Tree_10_Green", "Tree_03_Green", "Tree_18_Green", "Tree_19_Green", "Tree_17_Green"];
 /** The hedges between the veins: bushes, now and then a small tree. */
@@ -334,7 +446,7 @@ function oreRockShadow(rock: Extract<WorldDecor, { type: "oreRock" }>): WorldDec
 
 /** Every prop in the chunk window around a point: the village's and its rooms' when they are near, and the countryside's. */
 export function townWindowDecor(x: number, y: number): WorldDecor[] {
-  const decor: WorldDecor[] = inTownVillage(x, y, TOWN_CHUNK_SIZE * 2.5) ? [...SOUL_VILLAGE_DECOR, TOWN_SIGNPOST, TOWN_RUNESTONE, TOWN_SMITH_DECOR, TOWN_CARD_SELLER_DECOR, TOWN_HILLS_SIGNPOST] : [];
+  const decor: WorldDecor[] = inTownVillage(x, y, TOWN_CHUNK_SIZE * 2.5) ? [...SOUL_VILLAGE_DECOR, TOWN_SIGNPOST, TOWN_RUNESTONE, TOWN_SMITH_DECOR, TOWN_CARD_SELLER_DECOR, TOWN_HILLS_SIGNPOST, ...TOWN_SCHOOL_SIGNPOSTS] : [];
   if (inTownInteriors(x, y, TOWN_INTERIOR_MARGIN)) decor.push(...TOWN_INTERIOR_DECOR);
   for (const { cx, cy } of townWindowChunks(x, y)) decor.push(...townChunkDecor(cx, cy));
   return decor;
@@ -345,13 +457,19 @@ const HILLS_CLEAR_AREA = {
   left: Math.min(TOWN_HILLS.left, ...MINING_TRACK.map(point => point.x)) - 200, right: TOWN_HILLS.right + 200,
   top: Math.min(TOWN_HILLS.top, ...MINING_TRACK.map(point => point.y)) - 200, bottom: Math.max(TOWN_HILLS.bottom, ...MINING_TRACK.map(point => point.y)) + 200,
 };
+/** As much for the woodcutters' road, its sign and Timberwood's chopping spots. */
+const GROVE_CLEAR_AREA = {
+  left: Math.min(TOWN_GROVE.left, ...GROVE_ROAD.map(point => point.x)) - 200, right: Math.max(GROVE_SIGNPOST_BOX.right, ...GROVE_ROAD.map(point => point.x)) + 200,
+  top: Math.min(TOWN_GROVE.top, GROVE_SIGNPOST_BOX.top) - 200, bottom: TOWN_GROVE.bottom + 500,
+};
 
 const chunkDecor = new Map<string, readonly WorldDecor[]>();
 /**
  * One countryside chunk's props as decor, each tree's or stone's shadow just before it, then the Copper Hills'
  * own scenery and ore rocks (each rock's shadow under it). The countryside never changes, so each chunk is made
- * once and shared by every window (and the ground's baked tiles) that holds it. Where the miners' track runs
- * through the countryside, nothing grows on it and nothing stands over it.
+ * once and shared by every window (and the ground's baked tiles) that holds it. Where the miners' track or the
+ * woodcutters' road runs through the countryside, nothing grows on it and nothing stands over it, nor in front of
+ * anyone chopping in Timberwood.
  */
 export function townChunkDecor(cx: number, cy: number): readonly WorldDecor[] {
   const key = `${cx}:${cy}`;
@@ -366,16 +484,119 @@ export function townChunkDecor(cx: number, cy: number): readonly WorldDecor[] {
   for (const prop of townChunkProps(cx, cy)) {
     const look = PROP_FRAMES[prop.kind];
     const frame = look.frames[prop.variant % look.frames.length], s = look.s * prop.s;
-    const box = spriteBox(atlasFrame(frame)!, prop.x, prop.y, s, prop.flip);
-    if (near(box, HILLS_CLEAR_AREA, 0) && (lowEnough(frame, s) ? onHillsEarth(prop.x, prop.y, 10) : crowdsHills(box, 14))) continue;
+    const box = spriteBox(atlasFrame(frame)!, prop.x, prop.y, s, prop.flip), low = lowEnough(frame, s);
+    if (near(box, HILLS_CLEAR_AREA, 0) && (low ? onHillsEarth(prop.x, prop.y, 10) : crowdsHills(box, 14))) continue;
+    if (near(box, GROVE_CLEAR_AREA, 0) && (low ? onGroveRoad(prop.x, prop.y, 10) : crowdsGroveRoad(box, 14) || hidesWoodcutter(box, prop.y))) continue;
     add(frame, prop.x, prop.y, s, prop.flip);
   }
   hillsScenery ??= layHillsScenery();
   for (const item of hillsScenery.get(key) ?? []) add(item.frame, item.x, item.y, item.s, item.flip);
   for (const node of rocksIn(cx, cy)) made.push(oreRockShadow(ROCK_DECOR[node.id]), ROCK_DECOR[node.id]);
+  groveCover ??= layGroveCover();
+  for (const item of groveCover.get(key) ?? []) add(item.frame, item.x, item.y, item.s, item.flip);
+  for (const tree of treesIn(cx, cy)) {
+    const decor = TREE_DECOR[tree.id];
+    // The tree's shadow is baked with the ground: a felled tree's stump stands in it.
+    if (`${decor.frame}__shadow` in SOUL_ATLAS.frames) made.push({ type: "soulProp", x: decor.x, y: decor.y, s: decor.s, frame: `${decor.frame}__shadow`, flip: decor.flip, shadow: true });
+    made.push(decor);
+  }
+  if (Math.floor(TOWN_GROVE_SIGNPOST.x / TOWN_CHUNK_SIZE) === cx && Math.floor(TOWN_GROVE_SIGNPOST.y / TOWN_CHUNK_SIZE) === cy) made.push(TOWN_GROVE_SIGNPOST);
+  if (Math.floor(GROVE_ROAD_END.x / TOWN_CHUNK_SIZE) === cx && Math.floor(GROVE_ROAD_END.y / TOWN_CHUNK_SIZE) === cy) made.push(...GROVE_LANDING_DECOR);
   decor = Object.freeze(made);
   chunkDecor.set(key, decor);
   return decor;
+}
+
+// ---- Timberwood ----
+
+/**
+ * The pack's own trees the grove's are drawn as, by kind: pines and spruces, round oaks, the dark cypress for yew, and
+ * the big old twisted and spreading trees for elder.
+ */
+const TREE_LOOKS: Readonly<Record<WoodTreeKind, readonly { frame: SoulFrame; s: number }[]>> = {
+  pine: [{ frame: "Tree_19_Green", s: 1 }, { frame: "Tree_17_Green", s: 1.08 }, { frame: "Tree_18_Green", s: 1 }],
+  oak: [{ frame: "Tree_07_Green", s: 1.05 }, { frame: "Tree_09_Green", s: 1 }, { frame: "Tree_08_Green", s: 1 }],
+  yew: [{ frame: "Tree_16_Green", s: .94 }, { frame: "Tree_16_Green", s: 1.02 }],
+  elder: [{ frame: "Tree_06_Green", s: 1.08 }, { frame: "Tree_15_Green", s: 1 }],
+};
+export function woodTreeDecor(tree: WoodTree): Extract<WorldDecor, { type: "woodTree" }> {
+  const looks = TREE_LOOKS[tree.kind], look = looks[tree.id % looks.length];
+  return { type: "woodTree", x: tree.x, y: tree.y, s: look.s, node: tree.id, frame: look.frame, flip: tree.id % 3 === 1 };
+}
+const TREE_DECOR = WOOD_TREE_NODES.map(woodTreeDecor);
+/** Each tree's sprite, as drawn standing. */
+export const WOOD_TREE_BOXES: readonly Box[] = TREE_DECOR.map(tree => spriteBox(atlasFrame(tree.frame)!, tree.x, tree.y, tree.s, tree.flip));
+let treesByChunk: Map<string, WoodTree[]> | null = null;
+function treesIn(cx: number, cy: number) {
+  if (!treesByChunk) {
+    treesByChunk = new Map();
+    for (const tree of WOOD_TREE_NODES) {
+      const key = `${Math.floor(tree.x / TOWN_CHUNK_SIZE)}:${Math.floor(tree.y / TOWN_CHUNK_SIZE)}`;
+      treesByChunk.set(key, [...treesByChunk.get(key) ?? [], tree]);
+    }
+  }
+  return treesByChunk.get(`${cx}:${cy}`) ?? [];
+}
+
+/** Felled logs stacked on the landing where the road ends, along its north edge: the village's own log stacks. */
+export const GROVE_LANDING_DECOR: readonly WorldDecor[] = ([[-46, -58, "12", "13"], [-8, -66, "21", "20"], [34, -60, "12", "13"]] as const).flatMap(([dx, dy, frame, shadow]) => {
+  const at = { x: GROVE_ROAD_END.x + dx, y: GROVE_ROAD_END.y + dy, s: 1.2 };
+  return [{ type: "soulProp", sheet: "village", frame: shadow, ...at, shadow: true }, { type: "soulProp", sheet: "village", frame, ...at, shadow: false }] as WorldDecor[];
+});
+const GROVE_COVER: readonly SoulFrame[] = ["Grass_01_Green", "Grass_02_Green", "Grass_03_Green", "Grass_04_Green", "Grass_05_Green", "Grass_06_Green"];
+const GROVE_LITTER: readonly SoulFrame[] = ["Mushroom_01_Pink", "Mushroom_01_White", "Mushroom_05_Blue", "Tree_Log_02", "Flower_01_Yellow", "Flower_01_Blue"];
+/** What grows low round a tree's foot and in the shade between: ferny bushes, toadstools, a fallen branch, a stone. */
+const GROVE_UNDERSTORY: readonly SoulFrame[] = ["Bush_04_Green", "Bush_05_Green", "Bush_04_Green", "Bush_05_Green", "Mushroom_05_Purple", "Mushroom_01_White", "Stone_05_Gray", "Stone_06_Gray", "Tree_Log_02"];
+let groveCover: Map<string, Placed[]> | null = null;
+/**
+ * Timberwood's floor (the countryside's props keep out of it, shared/town.ts): grass in clumps, low bushes and
+ * toadstools round the trees' feet and in patches between, and now and then a mushroom, a fallen branch or a
+ * flower, all low enough to lie with the ground, so nothing stands in front of the trees or whoever chops them.
+ * None on the road.
+ */
+function layGroveCover() {
+  const placed: Placed[] = [];
+  const { left, right, top, bottom } = TOWN_GROVE;
+  const put = (frame: SoulFrame, x: number, y: number, s: number, flip: boolean) => {
+    x = Math.round(x); y = Math.round(y);
+    if (!lowEnough(frame, s) || groveRoadDistanceSquared(x, y, ROAD_REACH + 10) < (ROAD_REACH + 10) ** 2) return;
+    if (Math.hypot(x - GROVE_ROAD_END.x, y - GROVE_ROAD_END.y) < GROVE_LANDING_RADIUS + 10) return;
+    placed.push({ frame, x, y, s, flip });
+  };
+  // A few loose logs round the landing where the road ends, just off its earth.
+  for (const [angle, flip] of [[-2.7, false], [.5, true]] as const) {
+    const reach = GROVE_LANDING_RADIUS + 16;
+    placed.push({ frame: "Tree_Log_02", x: Math.round(GROVE_ROAD_END.x + Math.cos(angle) * reach), y: Math.round(GROVE_ROAD_END.y + Math.sin(angle) * reach * .8), s: 1, flip });
+  }
+  for (let gy = top; gy < bottom; gy += 200) {
+    for (let gx = left; gx < right; gx += 200) {
+      const random = townRandom(gx, gy, 89);
+      const clump = (list: readonly SoulFrame[], count: number, spread: number) => {
+        const cx = gx + random() * 200, cy = gy + random() * 200;
+        for (let index = 0; index < count; index++) {
+          put(pick(list, random), cx + (random() - .5) * spread, cy + (random() - .5) * spread * .6, .9 + random() * .2, random() < .5);
+        }
+      };
+      if (random() < .55) clump(GROVE_COVER, 2 + Math.floor(random() * 3), 70);
+      if (random() < .2) clump(GROVE_LITTER, 1, 0);
+      if (random() < .22) clump(GROVE_UNDERSTORY, 2 + Math.floor(random() * 3), 90);
+    }
+  }
+  // Round most trees' feet, a little to either side and behind, where the chopper does not stand.
+  for (const tree of WOOD_TREE_NODES) {
+    const random = townRandom(tree.id, 91);
+    const count = Math.floor(random() * 4);
+    for (let index = 0; index < count; index++) {
+      const side = random() < .5 ? -1 : 1;
+      put(pick(index ? GROVE_UNDERSTORY : GROVE_COVER, random), tree.x + side * (34 + random() * 48), tree.y - 4 - random() * 22, .85 + random() * .2, random() < .5);
+    }
+  }
+  const byChunk = new Map<string, Placed[]>();
+  for (const item of placed) {
+    const key = `${Math.floor(item.x / TOWN_CHUNK_SIZE)}:${Math.floor(item.y / TOWN_CHUNK_SIZE)}`;
+    byChunk.set(key, [...byChunk.get(key) ?? [], item]);
+  }
+  return byChunk;
 }
 
 /** The village's ground is one baked image (soul-prop-renderer.ts), so there are no painted paths. */

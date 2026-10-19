@@ -23,7 +23,7 @@ import {
 } from "../../shared/rules";
 import { MAGMALISK_ID, TEMPEST_KIRIN_ID, MIREMAW_ID, DREADREAPER_ID, VOLTWARDEN_ID, GRAVEBLOOM_ID } from "./boss-combat";
 import { NAME_CHANGE_COOLDOWN_MS } from "../../shared/name-change";
-import { publishRebalanceMail, publishSlotUpgradeMail } from "./mailbox";
+import { publishGearOverhaulMail, publishRebalanceMail, publishSlotUpgradeMail } from "./mailbox";
 import { migrateGuildTags } from "./player-name-tags";
 import { compressLegacyMapPower } from "../../shared/map-power-rescale";
 import { rescaleEndgameProgress, rescaleRankingConflict, rescaleRankingStats } from "../../shared/endgame-power-rescale";
@@ -42,11 +42,14 @@ import { readPlayerProgress, iterPlayerProgress, moveCombatColumnsOntoProgress }
 import { moveSoloQuestsToGuild } from "./daily-quests";
 import { rebuildParkedAggroRun } from "./aggro-challenge";
 import { backfillMiningLevels } from "./mining";
+import { backfillMasteryLevels } from "./weapon-mastery";
 import { convertToStatRatings, trimStoredSoulCritDamage } from "./stat-rating-migration";
 import { installBalanceCurve, repinMapBalances } from "./map-balance";
 import { activateCardsFromGear } from "./active-cards";
+import { payOutAllOldGear } from "./old-gear-payout";
+import { giveEveryoneStarterWeapons } from "./starter-chest";
 
-export const MODULE_MIGRATION_VERSION = 60;
+export const MODULE_MIGRATION_VERSION = 63;
 
 /**
  * Migration 50 (0.856): the ranking snapshot moves to leaderboard_entry_v2,
@@ -554,6 +557,12 @@ export function createModuleMigrations(deps: ModuleMigrationDeps) {
     if (currentVersion < 59) activateCardsFromGear(ctx);
     // 60 (0.915): the balance curve, every factor at 1, as the next revision, with every pinned visit moved onto it.
     if (currentVersion < 60) installBalanceCurve(ctx);
+    // 61: profiles show Mastery; player_mastery_level copies it from the points earned since Mastery began.
+    if (currentVersion < 61) backfillMasteryLevels(ctx);
+    // 62 (0.916): graded gear replaces map gear; every old piece, wherever it is held, is wiped and paid in gold (old-gear-payout.ts).
+    if (currentVersion < 62) { payOutAllOldGear(ctx); publishGearOverhaulMail(ctx); }
+    // 63 (0.916.1): new players pick a weapon from the Starter Chest; everyone already here gets all three Crude ones (starter-chest.ts).
+    if (currentVersion < 63) giveEveryoneStarterWeapons(ctx);
     const next = { id: 0, version: MODULE_MIGRATION_VERSION };
     if (state) ctx.db.moduleMigrationState.id.update(next);
     else ctx.db.moduleMigrationState.insert(next);

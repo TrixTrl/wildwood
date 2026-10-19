@@ -10,11 +10,15 @@
  * more per minute than staying on the last one (same arrival build); a regular's hit as
  * a share of the arriving player's health; whether the boss beats the arriving build;
  * the boss's heaviest attack over the map's regular hit; and the arriving build's attack speed and
- * crit multiplier with the attack speed and crit camp kills made on the map (shared/stat-rating.ts).
+ * crit multiplier with the attack speed and crit camp kills made on the map (shared/stat-rating.ts); deaths on the
+ * map (median) and an hour; and the arriving build's Smith gear (weapon/helmet/armor/boots grade), its share of power,
+ * gold and Mastery level.
  */
 import { LIVE_BALANCE } from "../src/balance/live-balance";
 import { GAME_BALANCE } from "../src/balance/game-balance";
-import { arrivalChecks, defaultBalanceSimulationConfig, runBalanceSimulation, type BalanceMapId } from "../src/balance/simulator";
+import { arrivalChecks, defaultBalanceSimulationConfig, runBalanceSimulation, snapshotMasteryLevel, type BalanceMapId } from "../src/balance/simulator";
+import { gradeOf } from "../shared/grade-equipment";
+import { gradeIndex } from "../shared/gear-grades";
 import { resolveMapBalance } from "../shared/map-balance";
 import { criticalDamageMultiplier } from "../shared/critical-damage";
 
@@ -63,17 +67,28 @@ const rows = result.maps.map((map, index) => {
     speedKills: map.statProgression.find(stat => stat.stat === "attackSpeed")?.rewardEventsMedian ?? null,
     critKills: map.statProgression.find(stat => stat.stat === "critDamage")?.rewardEventsMedian ?? null,
     regularKills: map.regularKillsMedian,
+    deaths: map.deathsMedian,
+    deathsPerHour: map.deathsPerHourMedian,
+    // Weapon, helmet, armor and boots grade on arrival, as grade numbers (1 Crude to 15 Eternal; - for none).
+    gear: arrival ? [arrival.equipped.weapon, arrival.equipped.head, arrival.equipped.chest, arrival.equipped.feet]
+      .map(itemId => { const grade = gradeOf(itemId); return grade ? String(gradeIndex(grade) + 1) : "-"; }).join("/") : null,
+    gearSharePercent: map.entryPowerComponentsMedian?.equipmentSharePercent ?? null,
+    gold: arrival?.gold ?? null,
+    masteryLevel: arrival ? snapshotMasteryLevel(arrival) : null,
   };
 });
 if (args.includes("--json")) {
   console.log(JSON.stringify(rows, null, 2));
 } else {
   const cell = (value: number | null, digits = 2) => value === null || !Number.isFinite(value) ? "—" : value.toFixed(digits);
-  console.log(["Map".padEnd(26), "Hours".padStart(7), "Growth".padStart(7), "Pay/prev".padStart(9), "Reg hit%".padStart(9), "Boss wins".padStart(10), "Boss min".padStart(9), "Heavy×".padStart(7), "Atk/s".padStart(6), "Crit×".padStart(6), "Spd k".padStart(6), "Crit k".padStart(6), "Kills".padStart(7)].join(" "));
+  console.log(["Map".padEnd(26), "Hours".padStart(7), "Growth".padStart(7), "Pay/prev".padStart(9), "Reg hit%".padStart(9), "Boss wins".padStart(10), "Boss min".padStart(9), "Heavy×".padStart(7), "Atk/s".padStart(6), "Crit×".padStart(6), "Spd k".padStart(6), "Crit k".padStart(6), "Kills".padStart(7),
+    "Deaths".padStart(7), "D/h".padStart(5), "Gear".padStart(11), "Gear%".padStart(6), "Gold".padStart(7), "Mst".padStart(4)].join(" "));
   for (const row of rows) {
     console.log([row.map.padEnd(26), cell(row.hours).padStart(7), cell(row.growth).padStart(7), cell(row.payVsPrevious).padStart(9),
       cell(row.regularHitPercent, 1).padStart(9), String(row.bossBeatsArrival ?? "—").padStart(10), cell(row.bossFightMinutes, 1).padStart(9),
       cell(row.heavyOverRegular, 1).padStart(7), cell(row.attacksPerSecond).padStart(6), cell(row.critMultiplier, 1).padStart(6),
-      cell(row.speedKills, 0).padStart(6), cell(row.critKills, 0).padStart(6), cell(row.regularKills, 0).padStart(7)].join(" "));
+      cell(row.speedKills, 0).padStart(6), cell(row.critKills, 0).padStart(6), cell(row.regularKills, 0).padStart(7),
+      cell(row.deaths, 0).padStart(7), cell(row.deathsPerHour, 1).padStart(5), (row.gear ?? "—").padStart(11), cell(row.gearSharePercent, 0).padStart(6), cell(row.gold, 0).padStart(7),
+      cell(row.masteryLevel, 0).padStart(4)].join(" "));
   }
 }

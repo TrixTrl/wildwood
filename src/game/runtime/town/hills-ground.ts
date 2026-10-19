@@ -1,4 +1,5 @@
 import { MINING_TRACK, MINING_TRACK_HALF_WIDTH } from "../../../../shared/mining";
+import { GROVE_LANDING_RADIUS, GROVE_ROAD, GROVE_ROAD_END, GROVE_ROAD_HALF_WIDTH } from "../../../../shared/woodcutting";
 import { HILLS_CLEARING_ROUND, HILLS_CLEARINGS, HILLS_EARTH_RIM, HILLS_ROUGH_MARGIN } from "../../town-world";
 
 type Rect = { left: number; top: number; right: number; bottom: number };
@@ -16,6 +17,13 @@ const TRACK_BOX = {
   left: Math.min(...MINING_TRACK.map(point => point.x)) - TRACK_REACH, right: Math.max(...MINING_TRACK.map(point => point.x)) + TRACK_REACH,
   top: Math.min(...MINING_TRACK.map(point => point.y)) - TRACK_REACH, bottom: Math.max(...MINING_TRACK.map(point => point.y)) + TRACK_REACH,
 };
+const ROAD_REACH = GROVE_ROAD_HALF_WIDTH + HILLS_EARTH_RIM;
+/** The road and its landing, rims and all. */
+const ROAD_PAINT_REACH = Math.max(ROAD_REACH, GROVE_LANDING_RADIUS + HILLS_EARTH_RIM);
+const ROAD_BOX = {
+  left: Math.min(...GROVE_ROAD.map(point => point.x)) - ROAD_PAINT_REACH, right: Math.max(...GROVE_ROAD.map(point => point.x)) + ROAD_PAINT_REACH,
+  top: Math.min(...GROVE_ROAD.map(point => point.y)) - ROAD_PAINT_REACH, bottom: Math.max(...GROVE_ROAD.map(point => point.y)) + ROAD_PAINT_REACH,
+};
 const near = (a: Rect, b: Rect, pad: number) => a.left < b.right + pad && a.right > b.left - pad && a.top < b.bottom + pad && a.bottom > b.top - pad;
 /** All the hills paint, in one rectangle. */
 const PAINTED = HILLS_CLEARINGS.reduce((area, { box }) => ({
@@ -23,8 +31,8 @@ const PAINTED = HILLS_CLEARINGS.reduce((area, { box }) => ({
   top: Math.min(area.top, box.top - CLEARING_REACH), bottom: Math.max(area.bottom, box.bottom + CLEARING_REACH),
 }), TRACK_BOX);
 
-/** Whether a rectangle of the world reaches the hills' ground at all. */
-export const touchesHillsGround = (rect: Rect) => near(rect, PAINTED, 0);
+/** Whether a rectangle of the world reaches the hills' ground, or the road to Timberwood west of the village, at all. */
+export const touchesHillsGround = (rect: Rect) => near(rect, PAINTED, 0) || near(rect, ROAD_BOX, 0);
 
 function traceShape(context: CanvasRenderingContext2D, points: readonly Point[], ox: number, oy: number, closed: boolean) {
   context.beginPath();
@@ -35,14 +43,15 @@ function traceShape(context: CanvasRenderingContext2D, points: readonly Point[],
 /**
  * Paints the Copper Hills' ground into one of the Town's baked tiles, over the countryside's green and under its
  * props: each outcrop's clearing, one rounded shape of bare earth rimmed as the village's roads are, with the
- * darker grass worn round it, and the miners' track out from the village through every vein. Every rim is laid
- * before any earth, so where a clearing meets the track the two read as one piece of ground.
+ * darker grass worn round it, and the miners' track out from the village through every vein; and west of the
+ * village, the woodcutters' road from the west bridge into Timberwood, to its landing. Every rim is laid before any
+ * earth, so where a clearing meets the track the two read as one piece of ground.
  */
 export function paintHillsGround(context: CanvasRenderingContext2D, rect: Rect, ox: number, oy: number) {
   if (!touchesHillsGround(rect)) return;
   const clearings = HILLS_CLEARINGS.filter(clearing => near(clearing.box, rect, CLEARING_REACH));
-  const track = near(TRACK_BOX, rect, 0);
-  if (!clearings.length && !track) return;
+  const track = near(TRACK_BOX, rect, 0), road = near(ROAD_BOX, rect, 0);
+  if (!clearings.length && !track && !road) return;
   context.save();
   context.lineJoin = "round";
   context.lineCap = "round";
@@ -54,8 +63,8 @@ export function paintHillsGround(context: CanvasRenderingContext2D, rect: Rect, 
     context.lineWidth = margin * 2;
     context.stroke();
   };
-  const path = (half: number) => {
-    traceShape(context, MINING_TRACK, ox, oy, false);
+  const path = (line: readonly Point[], half: number) => {
+    traceShape(context, line, ox, oy, false);
     context.lineWidth = half * 2;
     context.stroke();
   };
@@ -63,9 +72,16 @@ export function paintHillsGround(context: CanvasRenderingContext2D, rect: Rect, 
   for (const { core } of clearings) clearing(core, CLEARING_REACH);
   context.fillStyle = context.strokeStyle = EARTH_RIM;
   for (const { core } of clearings) clearing(core, HILLS_CLEARING_ROUND + HILLS_EARTH_RIM);
-  if (track) path(TRACK_REACH);
+  if (track) path(MINING_TRACK, TRACK_REACH);
+  const landing = (radius: number) => {
+    context.beginPath();
+    context.arc(GROVE_ROAD_END.x - ox, GROVE_ROAD_END.y - oy, radius, 0, Math.PI * 2);
+    context.fill();
+  };
+  if (road) { path(GROVE_ROAD, ROAD_REACH); landing(GROVE_LANDING_RADIUS + HILLS_EARTH_RIM); }
   context.fillStyle = context.strokeStyle = EARTH;
   for (const { core } of clearings) clearing(core, HILLS_CLEARING_ROUND);
-  if (track) path(MINING_TRACK_HALF_WIDTH);
+  if (track) path(MINING_TRACK, MINING_TRACK_HALF_WIDTH);
+  if (road) { path(GROVE_ROAD, GROVE_ROAD_HALF_WIDTH); landing(GROVE_LANDING_RADIUS); }
   context.restore();
 }

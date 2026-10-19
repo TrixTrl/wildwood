@@ -158,8 +158,8 @@ export type InventoryMoveAction = {
 
 const itemsById = ITEM_DEFINITIONS as Record<string, ItemDefinition>;
 
-function itemArt(itemId: string, hidden = true) {
-  return itemArtMarkup(itemId, hidden);
+function itemArt(itemId: string, hidden = true, refine = 0) {
+  return itemArtMarkup(itemId, hidden, refine);
 }
 
 function equipmentItemId(inventory: InventoryViewState, slot: EquipmentSlot, mode: InventoryMode) {
@@ -273,13 +273,14 @@ function renderEquipmentSlot(
   slotLabel.textContent = label;
   const art = document.createElement("span");
   art.className = "equipment-slot-art";
-  if (item) art.innerHTML = itemArt(itemId, false);
+  // Graded gear shows its refine look: the worn piece's, or the gear under an empty look's.
+  if (item) art.innerHTML = itemArt(itemId, false, refine);
   else if (cosmeticHidden) {
     const hidden = document.createElement("span");
     hidden.className = "cosmetic-hidden-icon";
     hidden.setAttribute("aria-hidden", "true");
     art.append(hidden);
-  } else if (inheritedItem) art.innerHTML = itemArt(inheritedItemId, false);
+  } else if (inheritedItem) art.innerHTML = itemArt(inheritedItemId, false, refineLevel?.(inheritedItemId) ?? 0);
   else {
     const empty = document.createElement("span");
     empty.className = "equipment-slot-empty";
@@ -308,8 +309,8 @@ function renderEquipmentSlot(
 }
 
 /**
- * One kind of ore in the bag: its icon, its name over it as a tier sits over gear, and the stack's count in the
- * corner. Tapping it opens the item window. It takes a bag slot like an item, but is never picked to delete.
+ * One kind of ore, wood or crystal in the bag: its icon, its name over it as a tier sits over gear, and the stack's
+ * count in the corner. Tapping it opens the item window. It takes a bag slot like an item, but is never picked to delete.
  */
 function oreTile(oreId: OreId, count: number, onInspect?: (oreId: OreId) => void) {
   const name = REFINE_ORES[oreId].name;
@@ -331,7 +332,7 @@ function oreTile(oreId: OreId, count: number, onInspect?: (oreId: OreId) => void
   }
   const label = document.createElement("span");
   label.className = "item-tier-label is-above";
-  label.textContent = name.replace(/ Ore$/, "");
+  label.textContent = name.replace(/ Ore$/, "").replace(/^Arcane /, "");
   const stack = document.createElement("span");
   stack.className = "inventory-stack-count";
   stack.textContent = count < 10_000 ? String(count) : formatCompactNumber(count);
@@ -410,7 +411,7 @@ export function renderInventoryView(
       if (copyId) button.dataset.copyId = String(copyId);
       const art = document.createElement("span");
       art.className = "inventory-item-art-wrap";
-      art.innerHTML = itemArt(itemId);
+      art.innerHTML = itemArt(itemId, true, refine);
       button.append(art);
       if (!cosmetics) appendItemTierLabel(button, itemId, "above");
       if (!cosmetics) {
@@ -448,7 +449,7 @@ export function renderInventoryView(
   if (actions.filter && visibleStacks.length + visibleOres.length === 0) {
     const empty = document.createElement("p");
     empty.className = "inventory-filter-empty";
-    empty.textContent = `No ${{ HAND: "weapons", CHEST: "armor", HEAD: "helmets", FEET: "boots", ORE: "ores" }[actions.filter] ?? "items"}`;
+    empty.textContent = `No ${{ HAND: "weapons", CHEST: "armor", HEAD: "helmets", FEET: "boots", ORE: "materials" }[actions.filter] ?? "items"}`;
     elements.items.append(empty);
   }
   if (!actions.filter && !cosmetics && actions.nextSlotCost !== undefined) {

@@ -1,13 +1,17 @@
 import { SOUL_VILLAGE_GROUND } from "../../soul-village";
 import { WORLD_WIDTH } from "../../../../shared/rules";
 import { isSoulMap, SOUL_STAT_DETAILS } from "../../../../shared/soul-dimension";
-import { inTownInteriors, isTownMap, TOWN_DOORS, TOWN_INTERIOR_MARGIN, TOWN_VILLAGE_WALK_AREA, TOWN_WALK_AREA } from "../../../../shared/town";
+import { inTownInteriors, isTownMap, TOWN_DOORS, TOWN_GROVE_WALK_AREA, TOWN_INTERIOR_MARGIN, TOWN_VILLAGE_WALK_AREA, TOWN_WALK_AREAS } from "../../../../shared/town";
 import { MINING_NODES } from "../../../../shared/mining";
+import { SCHOOL_DETAILS } from "../../../../shared/weapon-mastery";
 import { ORE_COLORS } from "../town/ore-rock-renderer";
 import { miningScene } from "../town/mining-scene";
+import { WOOD_TREE_NODES } from "../../../../shared/woodcutting";
+import { LOG_COLORS } from "../town/wood-tree-renderer";
+import { woodcuttingScene } from "../town/woodcutting-scene";
 import { soulStatOfCampName } from "../../soul-world";
 import { residentDrawable } from "./resident-image";
-import { drawHomeCourtyard, drawHomeQuestBoard, drawHomeResearchDesk, drawHomeStationSign } from "../town/home-courtyard";
+import { drawHomeCourtyard, drawHomeQuestBoard, drawHomeResearchDesk, drawHomeStationSign, drawSchoolWallSign } from "../town/home-courtyard";
 import { drawIonRoads } from "./ion-ground";
 import { drawVerdantRoads } from "./verdant-ground";
 import { drawNeonRoads } from "./neon-ground";
@@ -50,6 +54,8 @@ type UpgradeBenchDecor = Extract<WorldDecor, { type: "upgradeBench" }>;
 type LavaRockDecor = Extract<WorldDecor, { type: "lavaRock" }>;
 type CharredTreeDecor = Extract<WorldDecor, { type: "charredTree" }>;
 
+/** The Weapon Mastery schools' buildings, drawn as a sign on the wall. */
+const SCHOOL_BUILDINGS: ReadonlySet<string> = new Set(Object.values(SCHOOL_DETAILS).map(school => school.building));
 const STATIC_TILE_SIZE = 640;
 /** The minimap inside the Town's rooms: a campaign map's 4,800 square, following the player. */
 const TOWN_ROOMS_MINIMAP_SPAN = WORLD_WIDTH;
@@ -995,6 +1001,11 @@ if (options.getMapId() === ION_CITADEL_MAP_ID) { drawIonRoads(ctx, options.paths
       });
       return;
     }
+    // A school's building has no station, only its plank sign on the back wall.
+    if (SCHOOL_BUILDINGS.has(bench.label)) {
+      drawSchoolWallSign(ctx, x, y, bench.label);
+      return;
+    }
     if (bench.label === "Quest Board") {
       const quests = options.questBoardStatus?.();
       drawHomeQuestBoard(ctx, x, y, options.getGameTime(), quests?.finished ?? []);
@@ -1146,17 +1157,18 @@ if (options.getMapId() === ION_CITADEL_MAP_ID) { drawIonRoads(ctx, options.paths
 
   /**
    * Where the minimap looks on the Town, or null on any other map (it shows the whole world): the walled village,
-   * or once the player is out past it, the Copper Hills and the walk out to them.
+   * or once the player is out past it, the Copper Hills east of it or Timberwood west of it, and the walk out.
    */
   function townMinimapFrame() {
     if (!isTownMap(options.getMapId())) return null;
     if (inTownInteriors(options.player.x, options.player.y, TOWN_INTERIOR_MARGIN)) {
-      return { x: options.player.x - TOWN_ROOMS_MINIMAP_SPAN / 2, y: options.player.y - TOWN_ROOMS_MINIMAP_SPAN / 2, span: TOWN_ROOMS_MINIMAP_SPAN, rooms: true, hills: false };
+      return { x: options.player.x - TOWN_ROOMS_MINIMAP_SPAN / 2, y: options.player.y - TOWN_ROOMS_MINIMAP_SPAN / 2, span: TOWN_ROOMS_MINIMAP_SPAN, rooms: true, hills: false, grove: false };
     }
-    const hills = options.player.x > TOWN_VILLAGE_WALK_AREA.right;
-    const area = hills ? { ...TOWN_WALK_AREA, left: TOWN_VILLAGE_WALK_AREA.right - 300 } : TOWN_VILLAGE_WALK_AREA;
+    const hills = options.player.x > TOWN_VILLAGE_WALK_AREA.right, grove = options.player.x < TOWN_VILLAGE_WALK_AREA.left;
+    const area = hills ? { ...TOWN_WALK_AREAS[0], left: TOWN_VILLAGE_WALK_AREA.right - 300 }
+      : grove ? { ...TOWN_GROVE_WALK_AREA, right: TOWN_VILLAGE_WALK_AREA.left + 300 } : TOWN_VILLAGE_WALK_AREA;
     const span = Math.max(area.right - area.left, area.bottom - area.top);
-    return { x: (area.left + area.right - span) / 2, y: (area.top + area.bottom - span) / 2, span, rooms: false, hills };
+    return { x: (area.left + area.right - span) / 2, y: (area.top + area.bottom - span) / 2, span, rooms: false, hills, grove };
   }
 
   /** The hills' ore rocks on the minimap: a dot each in its ore's colour, faded while it is bare. */
@@ -1166,6 +1178,17 @@ if (options.getMapId() === ION_CITADEL_MAP_ID) { drawIonRoads(ctx, options.paths
       draw.globalAlpha = miningScene.bare.has(node.id) ? .35 : 1;
       draw.fillStyle = "#101010"; draw.fillRect(px - 2, py - 2, 4, 4);
       draw.fillStyle = ORE_COLORS[node.ore].light; draw.fillRect(px - 1, py - 1, 2, 2);
+    }
+    draw.globalAlpha = 1;
+  }
+
+  /** Timberwood's trees on the minimap: a dot each in its wood's colour, faded while it is a stump. */
+  function drawWoodTreesOnMinimap(draw: CanvasRenderingContext2D, ox: number, oy: number, sx: number, sy: number) {
+    for (const tree of WOOD_TREE_NODES) {
+      const px = (tree.x - ox) * sx, py = (tree.y - oy) * sy;
+      draw.globalAlpha = woodcuttingScene.felled.has(tree.id) ? .35 : 1;
+      draw.fillStyle = "#101010"; draw.fillRect(px - 2, py - 2, 4, 4);
+      draw.fillStyle = LOG_COLORS[tree.log].face; draw.fillRect(px - 1, py - 1, 2, 2);
     }
     draw.globalAlpha = 1;
   }
@@ -1206,6 +1229,7 @@ if (options.getMapId() === ION_CITADEL_MAP_ID) { drawIonRoads(ctx, options.paths
     draw.fillStyle = colors.ground; draw.fillRect(innerX, innerY, innerSize, innerSize);
     if (frame && !frame.rooms) drawSoulVillageOnMinimap(draw, ox, oy, sx, sy);
     if (frame?.hills) drawOreRocksOnMinimap(draw, ox, oy, sx, sy);
+    if (frame?.grove) drawWoodTreesOnMinimap(draw, ox, oy, sx, sy);
     if (frame?.rooms) drawSoulRoomsOnMinimap(draw, innerSize, ox, oy, sx, sy);
     draw.fillStyle = colors.path; for (const path of options.paths) draw.fillRect(innerX + (path.x - ox) * sx, innerY + (path.y - oy) * sy, path.w * sx, path.h * sy);
     draw.save();

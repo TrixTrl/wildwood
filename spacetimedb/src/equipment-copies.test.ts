@@ -1,10 +1,10 @@
 import { Timestamp } from "spacetimedb";
 import { expect, it, vi } from "vitest";
 import { crystalFixture, identity, server } from "../../tests/helpers/crystal-hollows-fixture";
-import { fillDefeatBudget, reportEnemy } from "../../tests/helpers/enemy-defeat";
 import { eraseIdentityRows } from "./account-erasure";
 import { bowSkillKey, bowSkillRollFor, duelBowSkillFields } from "./bow-skills";
 import { offerDuplicateEquipment, offerItemForFullBag, publishItemDrop } from "./equipment-copies";
+import { awardDrops } from "./enemy-loot-award";
 import { oreCount, refineLevelFor, setRefineLevel } from "./item-refine";
 import { salvageOre } from "../../shared/refine";
 import { inventoryForProgress } from "./progress-helpers";
@@ -17,6 +17,7 @@ import { BASE_INVENTORY_SLOT_CAPACITY } from "../../shared/gems";
 import { ATTACK_BALANCE_VERSION, BOSS_REWARD_CLAIM_BITS, SPACETIME_AUTH_CLIENT_ID, SPACETIME_AUTH_ISSUER } from "../../shared/rules";
 import { cosmeticUnlocks } from "../../shared/cosmetic-conversion";
 import { progressOf } from "../../tests/helpers/progress";
+import { MODULE_MIGRATION_VERSION } from "./module-migrations";
 vi.mock("spacetimedb/server", () => import("../../tests/helpers/spacetime-module"));
 
 type Fixture = ReturnType<typeof crystalFixture>;
@@ -43,6 +44,9 @@ const later = (f: Fixture, ms: number) => { f.ctx.timestamp = new Timestamp(f.ct
 const luckyRandom = (f: Fixture, float = .1) => {
   Object.assign(f.ctx, { random: Object.assign(() => float, { integerInRange: (min: number) => min }) });
 };
+/** Rolled drops reaching the bag, as kill loot is awarded. Kills no longer drop gear, so the rolls are given. */
+const dropRolled = (f: Fixture, itemIds: readonly string[]) =>
+  f.transaction(() => awardDrops(f.ctx as any, new Map(itemIds.map(id => [id, 1]))));
 /** A player holding an iron bow with roll A in their hand. */
 function archer(extra: Record<string, unknown> = {}) {
   const f = crystalFixture();
@@ -63,12 +67,11 @@ it("offers equipment only: never cosmetic looks, starter or developer items", ()
   expect(bagSlotsUsed([IRON_BOW, SAMURAI_HAT, BASIC_PAPER_HAT, IRON_BOW], [IRON_BOW], 2)).toBe(3);
 });
 
-it("settles a duplicate enemy drop on the spot: no offer and no spare copy", () => {
+it("settles a duplicate drop on the spot: no offer and no spare copy", () => {
   const f = crystalFixture();
   luckyRandom(f);
   f.patch("playerProgress", { damage: 1e15, inventoryJson: '["crystal_armor"]' });
-  fillDefeatBudget(f, "crystal_hollows", "Shard Hopper");
-  reportEnemy(f, "Shard Hopper", 1);
+  dropRolled(f, ["crystal_bow", "crystal_helmet", "crystal_armor"]);
   // The bow and helmet were new and went into the bag; the armor already held is simply settled.
   expect(inventory(f)).toEqual(expect.arrayContaining(["crystal_bow", "crystal_helmet", "crystal_armor"]));
   expect(inventory(f).filter(id => id === "crystal_armor")).toHaveLength(1);
@@ -187,8 +190,7 @@ it("turns new drops that find the bag full into offers, so the bag never holds m
   const f = archer({ damage: 1e15 });
   luckyRandom(f);
   fillBag(f, 1);
-  fillDefeatBudget(f, "crystal_hollows", "Shard Hopper");
-  reportEnemy(f, "Shard Hopper", 1);
+  dropRolled(f, NEW_CRYSTAL_GEAR);
   // One slot was free: one new item went in, and the rest wait.
   const kept = NEW_CRYSTAL_GEAR.filter(itemId => inventory(f).includes(itemId));
   expect(kept).toHaveLength(1);
@@ -203,8 +205,7 @@ it("offers every new drop when the bag is full, and Keep makes one the first cop
   luckyRandom(f);
   fillBag(f, 0);
   const before = inventory(f);
-  fillDefeatBudget(f, "crystal_hollows", "Shard Hopper");
-  reportEnemy(f, "Shard Hopper", 1);
+  dropRolled(f, NEW_CRYSTAL_GEAR);
   expect(inventory(f)).toEqual(before);
   expect(offers(f).map(offer => offer.itemId).sort()).toEqual([...NEW_CRYSTAL_GEAR].sort());
   const bow = offers(f).find(offer => offer.itemId === "crystal_bow")!;
@@ -220,8 +221,7 @@ it("counts Bag Slots research as room for a new drop", () => {
   luckyRandom(f);
   fillBag(f, 0);
   f.seed("playerResearch", { identity: f.ctx.sender, frontierMastery: 0, ...createEmptyResearchRanks(), inventorySlots: 1 });
-  fillDefeatBudget(f, "crystal_hollows", "Shard Hopper");
-  reportEnemy(f, "Shard Hopper", 1);
+  dropRolled(f, NEW_CRYSTAL_GEAR);
   expect(NEW_CRYSTAL_GEAR.filter(itemId => inventory(f).includes(itemId))).toHaveLength(1);
 });
 
@@ -243,6 +243,8 @@ it("rolls no card slots for a kept copy", () => {
 
 it("ignores unanswered offers after five minutes, and an ignored offer cannot be kept", () => {
   const f = archer();
+  // Migrated already, so maintenance does not pay the old bow out (migration 62).
+  f.seed("moduleMigrationState", { id: 0, version: MODULE_MIGRATION_VERSION });
   const offer = seedOffer(f, B);
   later(f, EQUIPMENT_OFFER_LIFETIME_MS - 1);
   f.run(server.runMaintenance, {});
@@ -350,16 +352,17 @@ it("moves a guest's copies and offers to the account it links to, replacing the 
   const guest = identity("2");
   seedCopy(f, NONE, SAMURAI_HAT); // the account's own, from a bag the guest's replaces
   f.db.playerProgress.identity.delete(f.ctx.sender);
-  f.progress(guest, { inventoryJson: JSON.stringify([IRON_BOW]) });
+  // Graded gear: old map gear arriving on a link is paid out instead (old-gear-payout.ts).
+  f.progress(guest, { inventoryJson: JSON.stringify(["rare_bow"]) });
   f.seed("playerBalanceVersion", { identity: guest, version: ATTACK_BALANCE_VERSION });
-  seedCopy(f, B, IRON_BOW, guest);
-  seedOffer(f, C, IRON_BOW, guest);
+  seedCopy(f, B, "rare_bow", guest);
+  seedOffer(f, C, "rare_bow", guest);
   f.seed("accountLink", { code: "copy-link", guest, createdAt: f.ctx.timestamp });
   f.ctx.senderAuth = { jwt: { issuer: SPACETIME_AUTH_ISSUER, audience: [SPACETIME_AUTH_CLIENT_ID] } };
   f.run(server.claimGuestAccount, { code: "copy-link" });
   expect(copies(f, guest)).toEqual([]);
   expect(offers(f, guest)).toEqual([]);
-  expect(copies(f).map(row => [row.itemId, rollOf(row)])).toEqual([[IRON_BOW, B]]);
+  expect(copies(f).map(row => [row.itemId, rollOf(row)])).toEqual([["rare_bow", B]]);
   expect(offers(f).map(rollOf)).toEqual([C]);
 });
 
