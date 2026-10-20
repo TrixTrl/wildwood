@@ -57,7 +57,7 @@ export function installStatTracker(options: {
   applyOpacity(opacity.valueAsNumber);
   opacity.addEventListener('input', () => {
     applyOpacity(opacity.valueAsNumber);
-    try { options.storage.setItem(OPACITY_KEY, String(opacity.valueAsNumber)); } catch {}
+    try { options.storage.setItem(OPACITY_KEY, String(opacity.valueAsNumber)); } catch { }
   });
   // Hand the keyboard back to the world once the thumb is released, so arrow
   // keys walk again. Tabbing to the slider still keeps focus for adjustment.
@@ -67,7 +67,7 @@ export function installStatTracker(options: {
 
   // Which rows show. Saved as the hidden ones, so a stat added later shows by default.
   const hidden = new Set<TrackedStat>();
-  try { for (const stat of JSON.parse(options.storage.getItem(HIDDEN_KEY) || '[]')) if ((TRACKED_STATS as readonly string[]).includes(stat)) hidden.add(stat); } catch {}
+  try { for (const stat of JSON.parse(options.storage.getItem(HIDDEN_KEY) || '[]')) if ((TRACKED_STATS as readonly string[]).includes(stat)) hidden.add(stat); } catch { }
   function renderFilters() {
     for (const stat of TRACKED_STATS) {
       panel.querySelector<HTMLElement>(`tr[data-stat="${stat}"]`)!.hidden = hidden.has(stat);
@@ -79,17 +79,17 @@ export function installStatTracker(options: {
     const stat = box.dataset.stat as TrackedStat | undefined;
     if (!stat) return;
     if (box.checked) hidden.delete(stat); else hidden.add(stat);
-    try { options.storage.setItem(HIDDEN_KEY, JSON.stringify([...hidden])); } catch {}
+    try { options.storage.setItem(HIDDEN_KEY, JSON.stringify([...hidden])); } catch { }
     renderFilters(); movable.place();
   });
   const prestigeReset = settings.querySelector<HTMLInputElement>('.stat-tracker-prestige-reset input')!;
   let resetOnPrestige = true;
-  try { resetOnPrestige = options.storage.getItem(PRESTIGE_RESET_KEY) !== 'false'; } catch {}
+  try { resetOnPrestige = options.storage.getItem(PRESTIGE_RESET_KEY) !== 'false'; } catch { }
   prestigeReset.checked = resetOnPrestige;
   model.setResetOnPrestige(resetOnPrestige);
   prestigeReset.addEventListener('change', () => {
     model.setResetOnPrestige(prestigeReset.checked);
-    try { options.storage.setItem(PRESTIGE_RESET_KEY, String(prestigeReset.checked)); } catch {}
+    try { options.storage.setItem(PRESTIGE_RESET_KEY, String(prestigeReset.checked)); } catch { }
   });
 
   /** Opens the settings card beside the tracker: to its left, else its right, else above or below it. */
@@ -121,7 +121,7 @@ export function installStatTracker(options: {
   try {
     enabled = options.storage.getItem(ENABLED_KEY) === 'true';
     collapsed = options.storage.getItem(COLLAPSED_KEY) === 'true';
-  } catch {}
+  } catch { }
   function renderCollapsed() {
     panel.classList.toggle('is-collapsed', collapsed);
     handle.setAttribute('aria-expanded', String(!collapsed));
@@ -152,6 +152,10 @@ export function installStatTracker(options: {
         : formatCompactNumber(value);
       const detail = snapshot?.details?.[row.stat];
       rowCells[0].textContent = detail ? `${format(row.current)} (${detail})` : format(row.current);
+      if (row.stat === "regen") {
+        const regenText = document.getElementById('dpsChasingCounter-regen');
+        if (regenText && regenText.textContent) regenText.textContent = `${format(row.current)}HP/s`;
+      }
       [row.gain, row.perHour].forEach((value, index) => {
         rowCells[index + 1].textContent = `${value > 0 ? '+' : value < 0 ? '−' : ''}${format(Math.abs(value))}`;
         rowCells[index + 1].className = value > 0 ? 'positive' : value < 0 ? 'negative' : '';
@@ -160,7 +164,7 @@ export function installStatTracker(options: {
   }
   function setEnabled(value: boolean) {
     enabled = value;
-    try { options.storage.setItem(ENABLED_KEY, String(value)); } catch {}
+    try { options.storage.setItem(ENABLED_KEY, String(value)); } catch { }
     renderBooleanSetting(toggle, value);
     refresh();
   }
@@ -170,11 +174,13 @@ export function installStatTracker(options: {
   // Pointer activation should not move keyboard focus onto the reset button.
   reset.addEventListener('pointerdown', event => event.preventDefault());
   // Dragging, keyboard moves and keeping its touches out of the world: the shared HUD card.
-  const movable = installMovableHudCard({ panel, handle, storage: () => options.storage, positionKey: POSITION_KEY, toggle: () => {
-    collapsed = !collapsed;
-    try { options.storage.setItem(COLLAPSED_KEY, String(collapsed)); } catch {}
-    renderCollapsed();
-  } });
+  const movable = installMovableHudCard({
+    panel, handle, storage: () => options.storage, positionKey: POSITION_KEY, toggle: () => {
+      collapsed = !collapsed;
+      try { options.storage.setItem(COLLAPSED_KEY, String(collapsed)); } catch { }
+      renderCollapsed();
+    }
+  });
   window.addEventListener('pagehide', model.save);
   document.addEventListener('visibilitychange', () => { model.save(); if (!document.hidden) refresh(); });
   window.setInterval(() => { if (!document.hidden) refresh(); }, 1000);
