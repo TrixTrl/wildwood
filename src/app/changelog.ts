@@ -1,4 +1,29 @@
 export const RELEASE_NOTES: Record<string, string[]> = {
+  "0.916.8": [
+    "Fixed the game not loading your character",
+  ],
+  "0.916.7": [
+    "The HUD gear opens Settings",
+    "Research Ready and Smith upgrades show as their own HUD hints, not dots on the Town button",
+    "Hide the quest tracker from the tracker itself, and turn it back on in Settings",
+    "Slot Upgrades has one name everywhere",
+    "The Smith has four tabs: Buy, Craft, Refine and Upgrade",
+    "The Map Guide shows your next goal and has a Travel button",
+    "New Town signposts for the Smith, Inn, Windmill and Ox",
+  ],
+  "0.916.6": [
+    "The Dragon hits five times harder, so Reflect Only can beat it",
+  ],
+  "0.916.5": [
+    "The quest tracker, stat tracker and FPS readout line up at the same height",
+    "Bosses no longer get cut off in their animations",
+    "Settings shows whether your browser draws with your graphics card, and your FPS",
+    "Smoother drawing in Firefox: glows no longer slow every frame",
+    "The Town river costs far less to draw, smoother in Firefox",
+    "Smoother long sessions in Firefox: cached art no longer gets copied back every frame",
+    "Crafting needs only your craft level, not Mastery",
+    "The Smith's Craft button says exactly what it makes, and Reforge is its own button",
+  ],
   "0.916.4": [
     "Mining and chopping send far fewer server calls",
     "Slot upgrade levels show on your equipment slots only, not on every item",
@@ -3673,6 +3698,10 @@ const RELEASE_DATES: Record<string, string> = {
 };
 
 export const RELEASE_DAYS: Record<string, string> = {
+  "0.916.8": "2026-10-19",
+  "0.916.7": "2026-10-19",
+  "0.916.6": "2026-10-19",
+  "0.916.5": "2026-10-19",
   "0.916.4": "2026-10-19",
   "0.916.3": "2026-10-19",
   "0.916.2": "2026-10-19",

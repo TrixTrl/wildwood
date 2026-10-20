@@ -37,7 +37,7 @@ describe("installed interface structure", () => {
     // The map-name label adds one accessible element below the minimap.
     // Raised by 128 for the Zoom Buttons row, and 256 more for High Resolution.
     expect(Buffer.byteLength(entryHtml)).toBeLessThan(25_216);
-    for (const id of ["start", "gameUpdateGate", "dailyGemBonus", "gameOver", "playerProfile", "techTreeOverlay", "guildBtn"]) {
+    for (const id of ["start", "gameUpdateGate", "chatMessageActions", "gameOver", "playerProfile", "techTreeOverlay", "guildBtn"]) {
       expect(doc.getElementById(id), id).not.toBeNull();
     }
     expect(doc.getElementById("journeyBtn")).toBeNull();
@@ -48,9 +48,11 @@ describe("installed interface structure", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("puts a gear in the player HUD right of power, and leaves settings its own inside the profile", () => {
+  it("puts a Settings gear in the player HUD right of power, and leaves settings its own inside the profile", () => {
     const gear = doc.getElementById("playerHudProfileGear")!;
     expect(gear.previousElementSibling?.id).toBe("playerPower");
+    expect(gear.getAttribute("aria-label")).toBe("Open settings");
+    expect(gear.title).toBe("Settings");
     expect(gear.closest(".player-summary")).not.toBeNull();
     expect(gear.hidden).toBe(false);
     // Only the entry page's byte budget keeps it out of index.html.
@@ -61,6 +63,23 @@ describe("installed interface structure", () => {
     // guard stays so a reintroduced drop cannot reach it.
     expect(declarations(".hud-settings-button:active").transform).toBe("none");
     expect(declarations("button").transform).toBeUndefined();
+  });
+
+  it("keeps the Town button free of dots: research and Smith upgrades are HUD chips by the ad button", () => {
+    expect(doc.getElementById("techTreeBtn")!.querySelector("#techTreeNotice, .smith-upgrade-notice")).toBeNull();
+    for (const id of ["techTreeNotice", "smithUpgradeNotice"]) {
+      const chip = doc.getElementById(id)!;
+      expect(chip.classList.contains("hud-reminder"), id).toBe(true);
+      expect(chip.hidden, id).toBe(true);
+    }
+    expect(doc.getElementById("smithUpgradeNotice")!.nextElementSibling?.id).toBe("enemyRespawnAdBtn");
+  });
+
+  it("lists the Quest Tracker switch in Settings → Game → Display, beside the stat tracker", () => {
+    const row = doc.getElementById("questTrackerToggle")!.closest(".setting-row")!;
+    expect(row.closest("#settings-game-panel")).not.toBeNull();
+    expect(row.querySelector("span")!.textContent).toBe("Quest Tracker");
+    expect(row.previousElementSibling?.querySelector("#statTrackerToggle")).not.toBeNull();
   });
 
   it("provides real targets for accessibility labels and tab controls", () => {

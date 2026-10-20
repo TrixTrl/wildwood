@@ -1,33 +1,10 @@
 import { installFeedbackControls } from "./feedback-settings";
 import { installSettingsTabs } from "./settings-tabs";
+import { hudReminderMarkup } from "./hud-reminders";
 import { installGamepadControls } from "./gamepad-controls";
 import { applyTextOutlineMode } from "./text-outline-mode";
 
 const beforeStartShell = String.raw`
-<div id="dailyGemBonus" class="daily-gem-bonus" hidden>
-  <section class="daily-gem-bonus-card" role="dialog" aria-modal="true" aria-labelledby="dailyGemBonusTitle" aria-describedby="dailyGemBonusCopy">
-    <div class="daily-gem-bonus-kicker">DAILY BONUS</div>
-    <div class="daily-gem-bonus-art" aria-hidden="true">
-      <img src="assets/wildstat/gems/gem-icon-v2.webp" alt="" draggable="false" />
-    </div>
-    <h2 id="dailyGemBonusTitle">+7 GEMS</h2>
-    <p id="dailyGemBonusCopy">WELCOME BACK</p>
-    <button id="dailyGemClaimBtn" class="daily-gem-claim-button" type="button">CLAIM</button>
-  </section>
-</div>
-
-<div id="balanceApologyGift" class="daily-gem-bonus balance-apology-gift" hidden>
-  <section class="daily-gem-bonus-card" role="dialog" aria-modal="true" aria-labelledby="balanceApologyGiftTitle" aria-describedby="balanceApologyGiftCopy">
-    <div class="daily-gem-bonus-kicker">A NOTE FROM WILDSTAT</div>
-    <div class="daily-gem-bonus-art" aria-hidden="true">
-      <img src="assets/wildstat/gems/gem-icon-v2.webp" alt="" draggable="false" />
-    </div>
-    <h2 id="balanceApologyGiftTitle">+10 GEMS</h2>
-    <p id="balanceApologyGiftCopy" class="balance-apology-gift-copy">A GIFT FROM THE DEVELOPER.<br />THANK YOU FOR TESTING WILDSTAT.</p>
-    <button id="balanceApologyContinueBtn" class="daily-gem-claim-button" type="button">CONTINUE</button>
-  </section>
-</div>
-
 <div id="chatMessageActions" class="chat-message-actions" hidden>
   <button id="chatMessageActionsBackdrop" class="chat-message-actions-backdrop" type="button" aria-label="Close message actions" tabindex="-1"></button>
   <section id="chatMessageActionSheet" class="chat-message-action-sheet" role="dialog" aria-modal="true" aria-labelledby="chatMessageActionTitle" aria-describedby="chatMessageActionPreview">
@@ -471,13 +448,13 @@ const afterUpdateGateShell = String.raw`
 `;
 
 export function installGameShell(doc: Document = document) {
-  // A gear beside power, opening the same profile window the card does: the
-  // card was always a button and nothing said so. Settings keeps its own gear
-  // inside that window. Injected rather than written into the entry page so the
-  // startup shell keeps its byte budget.
+  // A gear beside power that opens Settings; the card itself still opens the profile,
+  // which keeps its own Settings gear. Injected so the entry page keeps its byte budget.
   if (!doc.getElementById("playerHudProfileGear")) {
-    doc.getElementById("playerPower")?.insertAdjacentHTML("afterend", `<button id="playerHudProfileGear" class="hud-settings-button" type="button" aria-label="Open your player profile" title="Profile and settings"><img src="assets/wildstat/icons/Icon_Settings.webp" alt="" aria-hidden="true"></button>`);
+    doc.getElementById("playerPower")?.insertAdjacentHTML("afterend", `<button id="playerHudProfileGear" class="hud-settings-button" type="button" aria-label="Open settings" title="Settings"><img src="assets/wildstat/icons/Icon_Settings.webp" alt="" aria-hidden="true"></button>`);
   }
+  // Research Ready and Smith upgrades; the timer column takes them in once it is built.
+  if (!doc.getElementById("techTreeNotice")) doc.getElementById("enemyRespawnAdBtn")?.insertAdjacentHTML("beforebegin", hudReminderMarkup());
   if (!doc.getElementById("playerVisibilityToggle")) {
     doc.getElementById("hudGemWallet")?.insertAdjacentHTML("afterend", `<button id="playerVisibilityToggle" class="player-visibility-toggle" type="button" aria-label="Show other players" aria-pressed="false"></button>`);
   }
@@ -525,6 +502,11 @@ export function installGameShell(doc: Document = document) {
   const settingsPanel = doc.getElementById("settingsPanel");
   if (settingsPanel && settingsPanel.parentElement !== doc.body) doc.body.append(settingsPanel);
   installFeedbackControls(doc);
+  if (!doc.getElementById("questTrackerToggle")) {
+    doc.getElementById("statTrackerToggle")?.closest(".setting-row")?.insertAdjacentHTML("afterend", `
+      <div class="setting-row"><span>Quest Tracker</span>
+      <button id="questTrackerToggle" class="setting-toggle" type="button" aria-label="Quest tracker on the HUD" aria-pressed="true">ON</button></div>`);
+  }
   if (!doc.getElementById("baseStatRewardsToggle")) {
     doc.getElementById("statTrackerToggle")?.closest(".setting-row")?.insertAdjacentHTML("afterend", `
       <div class="setting-row"><span>Base Stat Rewards</span>
@@ -532,14 +514,14 @@ export function installGameShell(doc: Document = document) {
   }
   if (!doc.getElementById("upgradeBenchSlotThree")) {
     doc.getElementById("upgradeBenchSlotTwo")?.insertAdjacentHTML("afterend", `
-      <button id="upgradeBenchSlotThree" class="inventory-item upgrade-bench-slot is-locked" type="button" aria-label="Unlock a third upgrade slot for 200 Gems" aria-pressed="false" hidden></button>`);
+      <button id="upgradeBenchSlotThree" class="inventory-item upgrade-bench-slot is-locked" type="button" aria-label="Unlock A Third Queue For 200 Gems" aria-pressed="false" hidden></button>`);
   }
   installSettingsTabs(doc);
   // From the title screen on, so a controller can sign in too.
   installGamepadControls(doc);
   const start = doc.getElementById("start");
   if (!start) throw new Error("WildStat startup shell is missing #start");
-  if (!doc.getElementById("dailyGemBonus")) {
+  if (!doc.getElementById("chatMessageActions")) {
     start.insertAdjacentHTML("beforebegin", beforeStartShell);
   }
 
