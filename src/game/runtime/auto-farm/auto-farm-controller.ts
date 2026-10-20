@@ -27,6 +27,7 @@ import { armorDamageReduction } from '../../combat';
 import { createAutoMine, type AutoMineSource } from './auto-mine';
 import { bossAggroRange, BOSS_ZONE_PAD } from './boss-zone';
 import { playerRegenerationPerSecond } from '../reward-display';
+import { PlayerCombatController } from '../player-combat-controller';
 
 /** An attacker of another kind is fought off on the way only if it dies within this many seconds. */
 const QUICK_DEFENCE_SECONDS = 3;
@@ -164,7 +165,7 @@ export function createAutoFarmController(options: {
   reportDeath?: (detail: string) => void;
   /** Whether a kill of this reward gives nothing now, the stat at its cap: the "Capped" its label shows (reward-labels.ts). */
   rewardCapped?: (reward: FarmReward, soul: SoulStatId | null) => boolean;
-  bossDefinition?: () => EnemyState | BossStates[BossKind] | null;
+  bossDefinition?: () => (EnemyState | BossStates[BossKind]) & { bossKind?: BossKind, damage?: number } | null;
   /** The gathering session: with it, the button runs Auto Mine in the Copper Hills and Auto Chop in Timberwood instead. */
   mining?: () => (AutoMineSource & AutoChopSource) | null | undefined;
   equipment?: () => Pick<{
@@ -172,7 +173,8 @@ export function createAutoFarmController(options: {
     equippedHead: string; equippedChest: string;
   }, "equippedHead" | "equippedChest">;
   research?: () => number;
-  upgradeLevel?: (itemId: string) => number
+  upgradeLevel?: (itemId: string) => number;
+  playerCombat: () => PlayerCombatController;
 }) {
   const { player, enemies, spawnSites } = options;
   const now = options.now ?? monotonicNowMs;
@@ -525,16 +527,21 @@ export function createAutoFarmController(options: {
       const enoughHealth = player.maxHp > hpThreshold;
       const enoughRegen = player.regen * regenMultiplier > regenThreshold;
       if (enoughHealth && enoughRegen) return { ready: true, line: `Ready to fight boss` };
-      if (enoughHealth) return { ready: false, line: `Not enough regen (${formatCompactNumber(player.regen * regenMultiplier)}/${formatCompactNumber(regenThreshold)})` };
       if (enoughRegen) return { ready: false, line: `Not enough health (${formatCompactNumber(player.maxHp)}/${formatCompactNumber(hpThreshold)})` };
+      if (enoughHealth) {
+        const playerDps = options.playerCombat().expectedFullDps();
+        const survivalTime = player.maxHp / (regenThreshold - player.regen * regenMultiplier);
+        if (boss.maxHp / playerDps < survivalTime) return { ready: true, line: `Fighting boss based on DPS` };
+        return { ready: false, line: `Not enough regen (${formatCompactNumber(player.regen * regenMultiplier)}/${formatCompactNumber(regenThreshold)}) or DPS, ${formatCompactNumber(boss.maxHp / playerDps)}s kill time, ${formatCompactNumber(survivalTime)}s estimated survival time` };
+      }
       return { ready: false, line: `Not enough health (${formatCompactNumber(player.maxHp)}/${formatCompactNumber(hpThreshold)}) or regen (${formatCompactNumber(player.regen * regenMultiplier)}/${formatCompactNumber(regenThreshold)})` };
     }
     let bossDamage = 0;
     let highestAttack = 0;
     let attacks = 0;
     for (const attack in BOSS_DAMAGE_PROFILES[boss.bossKind as BossKind]) {
-      bossDamage += BOSS_DAMAGE_PROFILES[boss.bossKind as BossKind][attack] * (1 - armorDamageReduction(player.armor));
-      highestAttack = Math.max(highestAttack, BOSS_DAMAGE_PROFILES[boss.bossKind as BossKind][attack] * (1 - armorDamageReduction(player.armor)));
+      bossDamage += (BOSS_DAMAGE_PROFILES as { [key: string]: { [key: string]: number } })[boss.bossKind][attack] * (1 - armorDamageReduction(player.armor));
+      highestAttack = Math.max(highestAttack, (BOSS_DAMAGE_PROFILES as { [key: string]: { [key: string]: number } })[boss.bossKind][attack] * (1 - armorDamageReduction(player.armor)));
       attacks++;
     }
     const hpThreshold = bossDamage * 2 * bossPower;
@@ -542,8 +549,13 @@ export function createAutoFarmController(options: {
     const enoughHealth = player.maxHp > hpThreshold;
     const enoughRegen = player.regen * regenMultiplier > regenThreshold;
     if (enoughHealth && enoughRegen) return { ready: true, line: `Ready to fight boss` };
-    if (enoughHealth) return { ready: false, line: `Not enough regen (${formatCompactNumber(player.regen * regenMultiplier)}/${formatCompactNumber(regenThreshold)})` };
     if (enoughRegen) return { ready: false, line: `Not enough health (${formatCompactNumber(player.maxHp)}/${formatCompactNumber(hpThreshold)})` };
+    if (enoughHealth) {
+      const playerDps = options.playerCombat().expectedFullDps();
+      const survivalTime = player.maxHp / (regenThreshold - player.regen * regenMultiplier);
+      if (boss.maxHp / playerDps < survivalTime * 0.7) return { ready: true, line: `Fighting boss based on DPS` };
+      return { ready: false, line: `Not enough regen (${formatCompactNumber(player.regen * regenMultiplier)}/${formatCompactNumber(regenThreshold)}) or DPS, ${formatCompactNumber(boss.maxHp / playerDps)}s kill time, ${formatCompactNumber(survivalTime)}s estimated survival time` };
+    }
     return { ready: false, line: `Not enough health (${formatCompactNumber(player.maxHp)}/${formatCompactNumber(hpThreshold)}) or regen (${formatCompactNumber(player.regen * regenMultiplier)}/${formatCompactNumber(regenThreshold)})` };
     /*
     const readiness = options.bossReady ? cachedReady(`boss:${options.mapId()}:${bossPower}`, () => options.bossReady!(bossPower)) : null;
@@ -874,26 +886,26 @@ export function createAutoFarmController(options: {
     // with another kind is walked away from, so a weak character is never pinned for minutes.
     const quickKill = (enemy: EnemyState) => enemy.hp <= player.damage / Math.max(.05, player.attackRate) * QUICK_DEFENCE_SECONDS;
     const worthDefending = (enemy: EnemyState) => !target || choiceKey(enemy) === choiceKey(target) || quickKill(enemy);
-    if (phase === 'farm' && !pulling()) for (const enemy of enemies) {
-      if (!enemy.generatedBoss && farmedGroup(enemy) && worthDefending(enemy) && isEnemyAttackingPlayer(enemy, options.localIdentity?.()) && (!threat || distance(enemy) < distance(threat))) threat = enemy;
-    }
-    // Everything it farms comes to it: it stands its ground, where the player left it. It used to walk first to a spot
-    // clear of the boss's range and of camps not pulled, which read as wandering off, and away from a boss being farmed.
-    if (phase === 'farm' && pullCoversFarm()) {
-      const reachAll = weaponAttackRange(options.equippedWeapon?.(), player.attackRange);
-      const inReach = enemies.some(enemy => pulledEnemy(enemy) && distance(enemy) <= reachAll + enemy.r);
-      holding = true; route = []; status = inReach ? 'Farming' : enemies.some(pulledEnemy) ? 'Pulling' : 'Waiting for respawn';
-      return idle();
-    }
-    // With the group on its way (pulled, or already chasing), stand and let it come; walk out only if nothing has reached range for a few seconds.
-    // A melee weapon waits only for what is pulled: it walks into its own reach of the rest instead of stopping where they woke.
-    const reach = weaponAttackRange(options.equippedWeapon?.(), player.attackRange), melee = isMeleeWeapon(options.equippedWeapon?.());
-    if (phase === 'farm' && !threat && !inZone(zone, player)) {
-      const coming = enemies.some(enemy => validEnemy(enemy) && ((enemy.engaged && !melee) || pullsEnemy(enemy)));
-      const inReach = enemies.some(enemy => validEnemy(enemy) && distance(enemy) <= reach + enemy.r);
-      pullWait = coming && !inReach ? pullWait + dt : 0;
-      if (coming && (inReach || pullWait < PULL_WAIT_SECONDS)) { holding = true; route = []; status = inReach ? 'Farming' : pulling() ? 'Pulling' : 'Holding ground'; return idle(); }
-    }
+    /* if (phase === 'farm' && !pulling()) for (const enemy of enemies) {
+       if (!enemy.generatedBoss && farmedGroup(enemy) && worthDefending(enemy) && isEnemyAttackingPlayer(enemy, options.localIdentity?.()) && (!threat || distance(enemy) < distance(threat))) threat = enemy;
+     }
+     // Everything it farms comes to it: it stands its ground, where the player left it. It used to walk first to a spot
+     // clear of the boss's range and of camps not pulled, which read as wandering off, and away from a boss being farmed.
+     if (phase === 'farm' && pullCoversFarm()) {
+       const reachAll = weaponAttackRange(options.equippedWeapon?.(), player.attackRange);
+       const inReach = enemies.some(enemy => pulledEnemy(enemy) && distance(enemy) <= reachAll + enemy.r);
+       holding = true; route = []; status = inReach ? 'Farming' : enemies.some(pulledEnemy) ? 'Pulling' : 'Waiting for respawn';
+       return idle();
+     }
+     // With the group on its way (pulled, or already chasing), stand and let it come; walk out only if nothing has reached range for a few seconds.
+     // A melee weapon waits only for what is pulled: it walks into its own reach of the rest instead of stopping where they woke.
+     const reach = weaponAttackRange(options.equippedWeapon?.(), player.attackRange), melee = isMeleeWeapon(options.equippedWeapon?.());
+     if (phase === 'farm' && !threat && !inZone(zone, player)) {
+       const coming = enemies.some(enemy => validEnemy(enemy) && ((enemy.engaged && !melee) || pullsEnemy(enemy)));
+       const inReach = enemies.some(enemy => validEnemy(enemy) && distance(enemy) <= reach + enemy.r);
+       pullWait = coming && !inReach ? pullWait + dt : 0;
+       if (coming && (inReach || pullWait < PULL_WAIT_SECONDS)) { holding = true; route = []; status = inReach ? 'Farming' : pulling() ? 'Pulling' : 'Holding ground'; return idle(); }
+     }*/
     // A boss is aimed at its hitbox, not its sprite's foot.
     const bossPoint = boss ? { x: boss.x, y: boss.y + (boss.hitboxOffsetY ?? 0) } : null;
     let destination: Position | null = threat ?? target ?? portal ?? bossPoint;

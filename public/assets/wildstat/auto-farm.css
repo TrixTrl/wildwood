@@ -377,6 +377,7 @@
   #autoFarmSheet.farm-card .farm-weight, #autoFarmSheet.farm-card .farm-weight input { min-height: 44px; }
   #autoFarmSheet.farm-card .farm-segment button { height: 44px; }
 }
+.farm-boss-status { text-wrap: wrap; }
 /* Home's travel portal reuses this window frame and its rows. It sizes to its
  * list, so a new player's two maps do not sit in a mostly empty window. */
 .farm-sheet.travel-sheet {
