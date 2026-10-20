@@ -7,10 +7,11 @@ type SettingsSection = { title?: string; selectors: readonly string[] };
 /** Game's long list is split into headed sections; the other tabs are one section each. */
 const SETTINGS_GROUPS: readonly { id: string; label: string; sections: readonly SettingsSection[] }[] = [
   { id: "game", label: "Game", sections: [
-    { title: "Display", selectors: ["#attackRangeToggle", "#remoteGhostsToggle", "#cameraZoomToggle", "#ownNamePlateToggle", "#enemyHpNumbersToggle", "#damageNumbersToggle", "#cardFoundPopupsToggle", "#statPopupsToggle", "#baseStatRewardsToggle", "#scientificNotationToggle", "#statTrackerToggle", "#gameTickerToggle"] },
+    { title: "Display", selectors: ["#attackRangeToggle", "#remoteGhostsToggle", "#cameraZoomToggle", "#ownNamePlateToggle", "#enemyHpNumbersToggle", "#damageNumbersToggle", "#cardFoundPopupsToggle", "#statPopupsToggle", "#baseStatRewardsToggle", "#scientificNotationToggle", "#statTrackerToggle", "#questTrackerToggle", "#gameTickerToggle"] },
     { title: "Chat", selectors: ["#chatToggle", "#chatTimestampsToggle"] },
     { title: "Device", selectors: ["#toolbarHapticsToggle", "#selfProfileTapToggle", "#fullscreenToggle", "#keepScreenOnToggle"] },
     { title: "Performance", selectors: ["#highResolutionToggle", "#lowPerformanceToggle", "#fpsToggle", "#latencyToggle"] },
+    { title: "Graphics", selectors: ["#graphicsInfo"] },
     { title: "Help", selectors: ["#replayTutorialRow"] },
   ] },
   { id: "controls", label: "Controls", sections: [{ selectors: ["#controlsSettings"] }] },
@@ -54,7 +55,6 @@ export function installSettingsTabs(doc: Document) {
   privacy.id = "privacySettings";
   for (const [label, path] of [
     ["Privacy policy", "privacy.html"],
-    ["Account and data deletion", "delete-account.html"],
   ]) {
     const link = doc.createElement("a");
     link.textContent = label;
@@ -79,6 +79,21 @@ export function installSettingsTabs(doc: Document) {
     button.textContent = "Replay";
     row.append(label, button);
     settings.append(row);
+  }
+  if (!doc.getElementById("graphicsInfo")) {
+    // Read-only; filled by the graphics report while Settings is open.
+    const info = doc.createElement("div");
+    info.id = "graphicsInfo";
+    info.className = "graphics-info";
+    for (const [line, text] of [["card", "Graphics Card: Checking…"], ["drawing", "Drawing: Checking…"], ["tip", ""], ["fps", "FPS: Measuring…"]]) {
+      const row = doc.createElement("p");
+      row.setAttribute("data-line", line);
+      row.textContent = text;
+      row.hidden = !text;
+      if (line === "tip") row.className = "graphics-tip";
+      info.append(row);
+    }
+    settings.append(info);
   }
   const tablist = doc.createElement("div");
   tablist.id = "settingsTabs";

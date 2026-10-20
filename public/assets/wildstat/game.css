@@ -5,20 +5,38 @@
   /* Above HUD controls (5–8), below full-screen windows (10+). */
   #hud > .stat-tracker { z-index: 6; }
   /* Quest tracker: top left under the gem row until dragged. Three quests in play, this map's first and bright. */
-  .quest-tracker { position: fixed; top: calc(var(--hud-safe-top) + var(--player-hud-visual-height) + 48px); left: var(--hud-safe-left); z-index: 5; width: min(196px, 46vw); padding: 0 0 4px; border: 2px solid var(--hud-frame); border-radius: var(--hud-radius-small); background: var(--hud-surface); box-shadow: 0 2px 0 rgba(0,0,0,.35); color: #fff; font: 700 11px/1.25 "Wildstat Chat", sans-serif; pointer-events: auto; }
+  .quest-tracker { position: fixed; top: calc(var(--hud-safe-top) + var(--player-hud-visual-height) + 40px); left: var(--hud-safe-left); z-index: 5; width: min(196px, 46vw); padding: 0 0 4px; border: 2px solid var(--hud-frame); border-radius: var(--hud-radius-small); background: var(--hud-surface); box-shadow: 0 2px 0 rgba(0,0,0,.35); color: #fff; font: 700 11px/1.25 "Wildstat Chat", sans-serif; pointer-events: auto; }
   .quest-tracker[hidden] { display: none; }
+  /* Under the FPS readout when it shows, the same 4px apart. */
+  body:has(#fpsStatus:not([hidden])) .quest-tracker { top: calc(var(--hud-safe-top) + var(--player-hud-visual-height) + 74px); }
   .quest-tracker .quest-tracker-header:active { cursor: grabbing; }
   .quest-tracker.is-world-gesture, .quest-tracker.is-world-gesture * { pointer-events: none; }
-  .quest-tracker .quest-tracker-header { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 30px; margin: 0; padding: 4px 8px; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: inherit; font: inherit; text-align: left; cursor: grab; touch-action: none; }
+  .quest-tracker .quest-tracker-header { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 30px; margin: 0; padding: 4px 8px; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: inherit; font: inherit; font-size: 13px; text-align: left; cursor: grab; touch-action: none; }
   .quest-tracker .quest-tracker-header:active { transform: none; }
   .quest-tracker .quest-tracker-header:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
   .quest-tracker-title { font-weight: 900; letter-spacing: .03em; }
   .quest-tracker-week { margin-left: auto; color: #ffd66b; font-variant-numeric: tabular-nums; }
   .quest-tracker-chevron { width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid currentColor; opacity: .8; transition: transform .15s; }
   .quest-tracker.is-collapsed { width: auto; padding-bottom: 0; }
+  /* Minimized, it is the same 30px chip as the stat tracker and FPS readout, border and all. */
+  .quest-tracker.is-collapsed { height: 30px; }
+  .quest-tracker.is-collapsed .quest-tracker-header { height: 100%; min-height: 0; padding: 0 8px; }
   .quest-tracker.is-collapsed .quest-tracker-chevron { transform: rotate(-90deg); }
   .quest-tracker.is-collapsed .quest-tracker-list { display: none; }
   .quest-tracker-list { display: grid; gap: 5px; margin: 0; padding: 0 8px; list-style: none; }
+  /* The × that turns it off, over the header's right end; it asks first and says where to turn it back on. */
+  .quest-tracker { --quest-hide-size: 30px; }
+  .quest-tracker.has-hide:not(.is-collapsed) .quest-tracker-header { padding-right: calc(var(--quest-hide-size) + 2px); }
+  .quest-tracker .quest-tracker-hide { position: absolute; top: 0; right: 0; display: grid; place-items: center; width: var(--quest-hide-size); height: var(--quest-hide-size); min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: #fff; font: 700 20px/1 Arial, sans-serif; opacity: .8; }
+  .quest-tracker .quest-tracker-hide:active { transform: none; opacity: 1; }
+  .quest-tracker .quest-tracker-hide[hidden], .quest-tracker.is-collapsed .quest-tracker-hide, .quest-tracker.is-confirming .quest-tracker-list { display: none; }
+  .quest-tracker-confirm { display: grid; gap: 6px; padding: 2px 8px 4px; font-size: 13px; }
+  .quest-tracker-confirm[hidden], .quest-tracker.is-collapsed .quest-tracker-confirm { display: none; }
+  .quest-tracker-confirm p { margin: 0; color: #e8ece9; font-weight: 700; }
+  .quest-tracker-confirm-actions { display: flex; gap: 6px; }
+  .quest-tracker .quest-tracker-confirm-actions button { flex: 1; min-height: 30px; margin: 0; padding: 4px 6px; border: 2px solid #fff; border-radius: var(--hud-radius-small); background: #111; box-shadow: none; color: #fff; font: 900 13px/1.1 var(--font-rounded); }
+  .quest-tracker .quest-tracker-confirm-actions .quest-tracker-confirm-keep { border-color: rgba(255,255,255,.35); background: transparent; }
+  .quest-tracker .quest-tracker-confirm-actions button:active { transform: none; background: #333; }
   .quest-tracker-item { display: grid; gap: 2px; }
   /* A quest on another map is dimmed, but not its location line: that is what says where to go. */
   .quest-tracker-item:not(.is-here) > :not(.quest-tracker-where) { opacity: .6; }
@@ -73,7 +91,7 @@
   .stat-tracker-prestige-reset { margin: 0 10px; padding-top: 6px; border-top: 1px solid var(--border); }
   @media (any-pointer: coarse) { .stat-tracker:not(.is-collapsed) button { min-height: 44px; } }
   /* Folded, it is one row the size of the folded quest tracker, not a tall touch block. */
-  .stat-tracker.is-collapsed { min-width: 0; border-radius: var(--hud-radius-small); font: 700 11px/1.25 "Wildstat Chat", sans-serif; }
+  .stat-tracker.is-collapsed { min-width: 0; border-radius: var(--hud-radius-small); font: 700 13px/1.25 "Wildstat Chat", sans-serif; }
   .stat-tracker.is-collapsed header { padding: 0; }
   /* Minimized, it stands as tall as the gem and mail row beside it, border and all. */
   .stat-tracker.is-collapsed { box-sizing: border-box; height: 30px; }
@@ -353,8 +371,6 @@
   .home-teleport-cooldown[hidden] { display: none; }
   #techTreeBtn.is-home-cooldown { opacity: 1; }
   #techTreeBtn.is-home-cooldown .toolbar-icon { visibility: hidden; }
-  .tech-tree-notice { position: absolute; top: 12%; left: calc(50% + 8px); width: 8px; height: 8px; border: 1px solid #fff; border-radius: 50%; background: #e63d3d; box-shadow: 0 1px 0 #000; pointer-events: none; }
-  .tech-tree-notice[hidden] { display: none; }
   .inventory-notice { position: absolute; top: 12%; left: calc(50% + 8px); width: 8px; height: 8px; border: 1px solid #fff; border-radius: 50%; background: #e63d3d; box-shadow: 0 1px 0 #000; pointer-events: none; }
   .inventory-notice[hidden] { display: none; }
 
@@ -379,7 +395,7 @@
   #settingsBtn[aria-expanded="true"] { background: transparent; box-shadow: none; }
   .settings-button:active { filter: brightness(1.16); transform: none; }
 
-  .fps-status { position: fixed; top: calc(var(--hud-safe-top) + var(--player-hud-visual-height) + 40px); bottom: auto; left: var(--hud-safe-left); z-index: 5; display: flex; gap: 7px; padding: 5px 7px; border: 2px solid var(--hud-frame); border-radius: var(--hud-radius-small); background: var(--hud-surface); color: #fff; font: 900 8px/1 var(--font-rounded); letter-spacing: .03em; white-space: nowrap; pointer-events: none; }
+  .fps-status { position: fixed; top: calc(var(--hud-safe-top) + var(--player-hud-visual-height) + 40px); bottom: auto; left: var(--hud-safe-left); z-index: 5; display: flex; align-items: center; gap: 7px; height: 30px; padding: 0 8px; border: 2px solid var(--hud-frame); border-radius: var(--hud-radius-small); background: var(--hud-surface); box-shadow: 0 2px 0 rgba(0,0,0,.35); color: #fff; font: 700 13px/1.25 "Wildstat Chat", sans-serif; white-space: nowrap; pointer-events: none; }
   .fps-status[hidden] { display: none; }
 
   .card.settings-panel {
@@ -452,6 +468,11 @@
   .settings-panel > .settings-content::-webkit-scrollbar { display: none; }
   .settings-tab-panel[hidden] { display: none; }
   .settings-tab-panel .setting-reset { margin-top: 28px; }
+  /* The Graphics readout: plain read-only lines, the tip dimmer. */
+  .graphics-info { display: grid; gap: 4px; padding: 6px 0 2px; }
+  .graphics-info p { margin: 0; font-size: 13px; line-height: 1.35; color: #e6e6e6; overflow-wrap: anywhere; }
+  .graphics-info p[hidden] { display: none; }
+  .graphics-info .graphics-tip { color: #a8a8a8; }
 
   .card.inventory-panel {
     --inventory-surface: #1e1e1e;
@@ -1222,6 +1243,12 @@
   .hud-progress-timer[hidden] { display: none; }
   .hud-progress-timer-tech { color: #77caff; }
   .hud-progress-timer-slot { color: #ffd367; }
+  /* Research Ready and Smith upgrades under the timers; away from the Town a tap goes there. */
+  .hud-reminder { box-sizing: border-box; width: 100%; min-height: 0; margin: 0; padding: 4px 3px; border: 2px solid var(--hud-frame); border-radius: var(--hud-radius-small); background: var(--hud-surface); box-shadow: 0 2px 0 rgba(0,0,0,.42); color: #fff; font: 900 13px/1.2 var(--font-rounded); letter-spacing: .02em; text-align: center; text-shadow: 1px 2px 0 #000; white-space: normal; pointer-events: auto; cursor: pointer; }
+  .hud-reminder[hidden], .hud-reminder.is-switched-off { display: none; }
+  .hud-reminder:active { transform: none; background: rgba(70, 70, 70, .78); }
+  .hud-reminder.is-in-town { cursor: default; }
+  .hud-reminder.is-in-town:active { background: var(--hud-surface); }
   .hud-progress-timer.hud-soul-level { display: grid; gap: 3px; padding: 4px 5px; color: #e4ccff; font-size: 13px; white-space: normal; }
   .hud-progress-timer.hud-soul-level[hidden] { display: none; }
   .hud-soul-level-head { display: flex; flex-wrap: wrap; justify-content: space-between; column-gap: 4px; }
@@ -1406,15 +1433,6 @@
     white-space: nowrap;
   }
 
-  #duelControls button {
-    margin: 0;
-    padding: 7px 11px;
-    border-width: 2px;
-    border-radius: 7px;
-    font-size: 11px;
-    max-width: calc(100vw - 160px);
-  }
-
   #duelCountdown {
     position: fixed;
     top: 42%;
@@ -1426,8 +1444,6 @@
     text-shadow: var(--text-shadow-large);
     pointer-events: none;
   }
-
-  #duelAcceptBtn { background: linear-gradient(#83cdf2, #3f83bd); }
 
   #pickupLog {
     position: fixed;
@@ -1684,8 +1700,6 @@
   .daily-gem-claim-button:hover:not(:disabled), .daily-gem-claim-button:focus-visible { border-color: #fff; background: linear-gradient(#f58abd, #bd4a8b); outline: 0; }
   .daily-gem-claim-button:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 #55233f; }
   .daily-gem-bonus.is-claimed .daily-gem-bonus-art img { animation: daily-gem-claimed .72s cubic-bezier(.2,.9,.24,1.3); }
-  .balance-apology-gift { z-index: 19; }
-  .daily-gem-bonus-card .balance-apology-gift-copy { max-width: 265px; font-size: 10px; line-height: 1.55; letter-spacing: .08em; }
 
   @keyframes daily-gem-card-enter { from { opacity: 0; transform: scale(.76) translateY(18px); } to { opacity: 1; transform: scale(1) translateY(0); } }
   @keyframes daily-gem-rays { to { transform: rotate(360deg); } }
@@ -3496,6 +3510,18 @@
   .map-guide-scroll::-webkit-scrollbar { display: none; width: 0; }
   /* One phone-wide column on every screen: desktop shows the same window a phone does. */
   .map-guide-content { display: grid; gap: 15px; width: min(480px, 100%); margin: 0 auto; padding: 14px max(12px, env(safe-area-inset-right)) 18px max(12px, env(safe-area-inset-left)); }
+  /* The Next Goal and the shown map's Travel button, neutral black and white. */
+  .map-guide-goal { display: grid; gap: 6px; padding: 10px 12px; border: 1px solid rgba(255,255,255,.16); border-radius: 8px; background: rgba(0,0,0,.38); }
+  .map-guide-goal h3 { margin: 0; color: #bdbdbd; font-size: 13px; font-weight: 900; line-height: 1; }
+  .map-guide-goal p { margin: 0; }
+  .map-guide-goal p[hidden], .map-guide-travel[hidden] { display: none; }
+  .map-guide-goal-text { color: #fff; font-size: 15px; font-weight: 800; line-height: 1.3; }
+  .map-guide-goal-prestige, .map-guide-goal-power { color: #d6d6d6; font-size: 13px; font-weight: 700; line-height: 1.3; }
+  .map-guide-travel { display: grid; gap: 6px; margin-top: 2px; }
+  .map-guide-travel-button { width: 100%; height: 44px; min-height: 44px; margin: 0; padding: 0 10px; border: 2px solid #000; border-radius: 8px; background: #f2f2f2; box-shadow: 0 3px 0 #000; color: #111; font: 900 14px/1 var(--font-rounded); -webkit-text-stroke: 0; text-shadow: none; cursor: pointer; }
+  .map-guide-travel-button:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 #000; }
+  .map-guide-travel-button:disabled { background: #3a3a3a; color: #a8a8a8; box-shadow: none; cursor: default; }
+  .map-guide-travel-hint { color: #fff; font-size: 13px; font-weight: 700; line-height: 1.35; }
   .map-guide-map-frame {
     position: relative;
     justify-self: center;
@@ -3881,10 +3907,6 @@
     text-align: left;
     transform: translate(-50%, -50%);
   }
-  .game-release-notes { top: 50%; max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 32px); color: #fff; pointer-events: auto; }
-  .game-release-notes:not([open]) { display: none; }
-  .game-release-notes::backdrop { background: rgba(0,0,0,.5); }
-  .game-release-notes .window-back-footer { padding: 16px 0 0; }
   .signin-update-notice[hidden] { display: none; }
   .signin-update-notice header { padding: 0 1px 11px; border-bottom: 1px solid rgba(220, 230, 222, .2); }
   .signin-update-notice header strong { color: #fff; font-size: 11px; font-weight: 900; letter-spacing: .12em; }
@@ -4148,7 +4170,6 @@
    * text and an 11pt minimum on iOS; these selectors keep compact game labels
    * at that minimum while the semantic tokens above leave room for text scaling.
    */
-  .fps-status,
   #musicVolumeValue,
   #sfxVolumeValue,
   .account-button,
