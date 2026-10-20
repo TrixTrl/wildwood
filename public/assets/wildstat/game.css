@@ -398,6 +398,9 @@
   .fps-status { position: fixed; top: calc(var(--hud-safe-top) + var(--player-hud-visual-height) + 40px); bottom: auto; left: var(--hud-safe-left); z-index: 5; display: flex; align-items: center; gap: 7px; height: 30px; padding: 0 8px; border: 2px solid var(--hud-frame); border-radius: var(--hud-radius-small); background: var(--hud-surface); box-shadow: 0 2px 0 rgba(0,0,0,.35); color: #fff; font: 700 13px/1.25 "Wildstat Chat", sans-serif; white-space: nowrap; pointer-events: none; }
   .fps-status[hidden] { display: none; }
 
+  .dps-chasing-counter-box { position: fixed; top: calc(var(--hud-safe-top) + var(--player-hud-visual-height) + 75px); bottom: auto; left: var(--hud-safe-left); z-index: 5; display: flex; align-items: center; gap: 7px; height: 30px; padding: 0 8px; border: 2px solid var(--hud-frame); border-radius: var(--hud-radius-small); background: var(--hud-surface); box-shadow: 0 2px 0 rgba(0,0,0,.35); color: #fff; font: 700 13px/1.25 "Wildstat Chat", sans-serif; white-space: nowrap; pointer-events: none; }
+
+
   .card.settings-panel {
     position: fixed;
     inset: 0 0 var(--window-bottom-inset);

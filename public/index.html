@@ -1,365 +1,466 @@
 <!doctype html>
 <html lang="en">
+
 <head>
-<meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'self'; object-src 'none'; frame-src 'none'; form-action 'self'; script-src 'self' 'unsafe-eval'; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' data: blob:; worker-src 'self' blob:; child-src 'self' blob:; manifest-src 'self'; connect-src 'self' https://auth.spacetimedb.com https://maincloud.spacetimedb.com wss://maincloud.spacetimedb.com ws://*:3000 http://localhost:* https://localhost:* http://127.0.0.1:* https://127.0.0.1:*" />
-<meta name="referrer" content="no-referrer" />
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
-<title>WildStat</title>
-<meta name="application-name" content="WildStat" />
-<meta name="apple-mobile-web-app-title" content="WildStat" />
-<meta name="theme-color" content="#0f0f0f" />
-<meta name="description" content="Fight monsters, collect gear, and explore new worlds in WildStat, a multiplayer action RPG for your browser." />
-<meta property="og:type" content="website" />
-<meta property="og:title" content="WildStat" />
-<meta property="og:description" content="Fight monsters, collect gear, and explore new worlds in a multiplayer browser RPG." />
-<meta property="og:image" content="https://wildstatmmo.com/assets/wildstat/wildstat-social-banner-v1.jpg" />
-<meta property="og:image:width" content="1774" />
-<meta property="og:image:height" content="887" />
-<meta property="og:image:alt" content="WildStat: an archer faces a red dragon." />
-<meta name="twitter:card" content="summary_large_image" />
-<link rel="icon" href="wildstat-favicon.ico" sizes="any" />
-<link rel="icon" href="assets/wildstat/wildstat-favicon-32.png" type="image/png" sizes="32x32" />
-<link rel="apple-touch-icon" href="assets/wildstat/wildstat-apple-touch-icon.png" sizes="180x180" />
-<link rel="manifest" href="manifest.webmanifest" />
-<script src="assets/wildstat/signin-auth-detect.js"></script>
-<link rel="preload" as="image" href="assets/wildstat/wildstat-wordmark.webp" type="image/webp" fetchpriority="high" />
-<style>
-  html, body { min-height: 100vh; min-height: 100dvh; background: #000; }
-  #start, #gameUpdateGate { position: fixed; top: -2px; right: 0; bottom: auto; left: 0; width: 100vw; height: calc(100vh + 30px); height: calc(100lvh + 30px); background: #000; }
-</style>
-<link rel="preconnect" href="https://maincloud.spacetimedb.com" crossorigin />
-<link rel="stylesheet" href="assets/wildstat/game.css" />
-<link rel="stylesheet" href="assets/wildstat/guild.css" />
-<link rel="stylesheet" href="assets/wildstat/auto-farm.css" />
-<link rel="stylesheet" href="assets/wildstat/mailbox.css" />
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'none'; base-uri 'self'; object-src 'none'; frame-src 'none'; form-action 'self'; script-src 'self' 'unsafe-eval'; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' data: blob:; worker-src 'self' blob:; child-src 'self' blob:; manifest-src 'self'; connect-src 'self' https://auth.spacetimedb.com https://maincloud.spacetimedb.com wss://maincloud.spacetimedb.com ws://*:3000 http://localhost:* https://localhost:* http://127.0.0.1:* https://127.0.0.1:*" />
+  <meta name="referrer" content="no-referrer" />
+  <meta name="viewport"
+    content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+  <title>WildStat</title>
+  <meta name="application-name" content="WildStat" />
+  <meta name="apple-mobile-web-app-title" content="WildStat" />
+  <meta name="theme-color" content="#0f0f0f" />
+  <meta name="description"
+    content="Fight monsters, collect gear, and explore new worlds in WildStat, a multiplayer action RPG for your browser." />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="WildStat" />
+  <meta property="og:description"
+    content="Fight monsters, collect gear, and explore new worlds in a multiplayer browser RPG." />
+  <meta property="og:image" content="https://wildstatmmo.com/assets/wildstat/wildstat-social-banner-v1.jpg" />
+  <meta property="og:image:width" content="1774" />
+  <meta property="og:image:height" content="887" />
+  <meta property="og:image:alt" content="WildStat: an archer faces a red dragon." />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="wildstat-favicon.ico" sizes="any" />
+  <link rel="icon" href="assets/wildstat/wildstat-favicon-32.png" type="image/png" sizes="32x32" />
+  <link rel="apple-touch-icon" href="assets/wildstat/wildstat-apple-touch-icon.png" sizes="180x180" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <script src="assets/wildstat/signin-auth-detect.js"></script>
+  <link rel="preload" as="image" href="assets/wildstat/wildstat-wordmark.webp" type="image/webp" fetchpriority="high" />
+  <style>
+    html,
+    body {
+      min-height: 100vh;
+      min-height: 100dvh;
+      background: #000;
+    }
+
+    #start,
+    #gameUpdateGate {
+      position: fixed;
+      top: -2px;
+      right: 0;
+      bottom: auto;
+      left: 0;
+      width: 100vw;
+      height: calc(100vh + 30px);
+      height: calc(100lvh + 30px);
+      background: #000;
+    }
+  </style>
+  <link rel="preconnect" href="https://maincloud.spacetimedb.com" crossorigin />
+  <link rel="stylesheet" href="assets/wildstat/game.css" />
+  <link rel="stylesheet" href="assets/wildstat/guild.css" />
+  <link rel="stylesheet" href="assets/wildstat/auto-farm.css" />
+  <link rel="stylesheet" href="assets/wildstat/mailbox.css" />
 </head>
+
 <body>
-<canvas id="game"></canvas>
-<div id="sceneFade" aria-hidden="true" hidden></div>
-<div id="cutsceneOverlay" aria-hidden="true" hidden></div>
-<div id="reconnectOverlay" hidden role="status" aria-live="assertive" aria-labelledby="reconnectTitle" aria-describedby="reconnectDetail">
-  <div class="reconnect-content">
-    <strong id="reconnectTitle">RECONNECTING<span class="reconnect-ellipsis" aria-hidden="true"></span></strong>
-    <p id="reconnectDetail">Restoring your connection</p>
-    <button id="reconnectRetryBtn" type="button" hidden>RETRY NOW</button>
-  </div>
-</div>
-<div id="browserRewardedAd" role="dialog" aria-modal="true" aria-labelledby="browserRewardedAdLabel" hidden>
-  <div id="browserRewardedAdLabel" class="browser-rewarded-ad-label">AD</div>
-  <div id="browserRewardedAdTimer" class="browser-rewarded-ad-timer" aria-live="polite">00:30</div>
-</div>
-
-<div id="hud">
-  <div class="topbar">
-    <div class="player-hud-stack">
-    <div class="card player-hud-card">
-      <button id="playerHudProfileIcon" class="profile-icon profile-icon-button" type="button" aria-label="View your player profile"></button>
-      <div class="player-hud-content">
-        <div class="player-summary">
-          <div id="playerName">PLAYER</div>
-          <div id="playerPower"><span class="power-value">30</span><img class="power-icon power-icon-hud" src="assets/wildstat/icons/Icon_Battle_Candy_v2.webp" alt="Power"></div>
-        </div>
-        <div class="bar">
-          <div id="hpFill"></div>
-          <div id="hpText">30 / 30</div>
-        </div>
-      </div>
+  <canvas id="game"></canvas>
+  <div id="sceneFade" aria-hidden="true" hidden></div>
+  <div id="cutsceneOverlay" aria-hidden="true" hidden></div>
+  <div id="reconnectOverlay" hidden role="status" aria-live="assertive" aria-labelledby="reconnectTitle"
+    aria-describedby="reconnectDetail">
+    <div class="reconnect-content">
+      <strong id="reconnectTitle">RECONNECTING<span class="reconnect-ellipsis" aria-hidden="true"></span></strong>
+      <p id="reconnectDetail">Restoring your connection</p>
+      <button id="reconnectRetryBtn" type="button" hidden>RETRY NOW</button>
     </div>
-    <div id="toolbar" class="settings-wrap">
-      <button id="leaderboardBtn" class="settings-button leaderboard-button" type="button" aria-label="Open leaderboard" aria-expanded="false"><img class="toolbar-icon" src="assets/wildstat/icons/Icon_Hero.webp" alt="" aria-hidden="true"><span class="toolbar-label">Leaderboard</span></button>
-      <button id="techTreeBtn" class="settings-button tech-tree-button" type="button" aria-label="Teleport to Town"><img class="toolbar-icon" src="assets/wildstat/icons/Icon_Home.svg" alt="" aria-hidden="true"><span class="toolbar-label">Town</span></button>
-      <button id="inventoryBtn" class="settings-button inventory-button" type="button" aria-label="Open inventory" aria-expanded="false"><img class="toolbar-icon" src="assets/wildstat/icons/Icon_Inventory.webp" alt="" aria-hidden="true"><span class="toolbar-label">Inventory</span></button>
-      <button id="shopBtn" class="settings-button shop-button" type="button" aria-label="Open gem offers"><img class="toolbar-icon" src="assets/wildstat/gems/gem-icon-v2.webp" alt="" aria-hidden="true"><span class="toolbar-label">Shop</span></button>
-      <div id="fpsStatus" class="fps-status" aria-live="off" hidden><span id="gameFpsStatus">FPS: --</span><span id="latencyStatus" hidden>PING: --</span></div>
-      <div id="settingsPanel" class="settings-panel card" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden>
-        <h2 id="settingsTitle" class="window-banner window-banner--gray"><span>Settings</span></h2>
-        <div class="setting-row">
-          <span>Server</span>
-          <span id="connectionStatus" class="connection-status">Connecting</span>
-        </div>
-        <div class="setting-row">
-          <span>Latency</span>
-          <button id="latencyToggle" class="setting-toggle" type="button" aria-pressed="false">OFF</button>
-        </div>
-        <div class="setting-row">
-          <span>Attack Range</span>
-          <button id="attackRangeToggle" class="setting-toggle" type="button" aria-pressed="true">ON</button>
-        </div>
-        <div class="setting-row">
-          <span>Other Players' Fights</span>
-          <button id="remoteGhostsToggle" class="setting-toggle" type="button" aria-pressed="true">ON</button>
-        </div>
-        <div class="setting-row">
-          <span>Zoom Buttons</span>
-          <button id="cameraZoomToggle" class="setting-toggle" type="button" aria-pressed="true">ON</button>
-        </div>
-        <div class="setting-row">
-          <span>High Resolution</span>
-          <button id="highResolutionToggle" class="setting-toggle" type="button" aria-pressed="false">OFF</button>
-        </div>
-        <div class="setting-row">
-          <span>Low Performance</span>
-          <button id="lowPerformanceToggle" class="setting-toggle" type="button" aria-pressed="false">OFF</button>
-        </div>
-        <div class="setting-row">
-          <span>Stat Tracker</span>
-          <button id="statTrackerToggle" class="setting-toggle" type="button" aria-label="Stat tracker" aria-pressed="false">OFF</button>
-        </div>
-        <div class="setting-row">
-          <span>FPS Display</span>
-          <button id="fpsToggle" class="setting-toggle" type="button" aria-pressed="false">OFF</button>
-        </div>
-        <div class="setting-row setting-volume">
-          <label for="musicVolume">Music</label>
-          <div class="volume-control">
-            <input id="musicVolume" type="range" min="0" max="100" step="1" value="35" aria-label="Music volume" />
-            <output id="musicVolumeValue" for="musicVolume">35%</output>
+  </div>
+  <div id="browserRewardedAd" role="dialog" aria-modal="true" aria-labelledby="browserRewardedAdLabel" hidden>
+    <div id="browserRewardedAdLabel" class="browser-rewarded-ad-label">AD</div>
+    <div id="browserRewardedAdTimer" class="browser-rewarded-ad-timer" aria-live="polite">00:30</div>
+  </div>
+
+  <div id="hud">
+    <div class="topbar">
+      <div class="player-hud-stack">
+        <div class="card player-hud-card">
+          <button id="playerHudProfileIcon" class="profile-icon profile-icon-button" type="button"
+            aria-label="View your player profile"></button>
+          <div class="player-hud-content">
+            <div class="player-summary">
+              <div id="playerName">PLAYER</div>
+              <div id="playerPower"><span class="power-value">30</span><img class="power-icon power-icon-hud"
+                  src="assets/wildstat/icons/Icon_Battle_Candy_v2.webp" alt="Power"></div>
+            </div>
+            <div class="bar">
+              <div id="hpFill"></div>
+              <div id="hpText">30 / 30</div>
+            </div>
           </div>
         </div>
-        <div class="setting-row setting-volume">
-          <label for="sfxVolume">Sound Effects</label>
-          <div class="volume-control">
-            <input id="sfxVolume" type="range" min="0" max="100" step="1" value="35" aria-label="Sound effects volume" />
-            <output id="sfxVolumeValue" for="sfxVolume">35%</output>
+        <div id="toolbar" class="settings-wrap">
+          <button id="leaderboardBtn" class="settings-button leaderboard-button" type="button"
+            aria-label="Open leaderboard" aria-expanded="false"><img class="toolbar-icon"
+              src="assets/wildstat/icons/Icon_Hero.webp" alt="" aria-hidden="true"><span
+              class="toolbar-label">Leaderboard</span></button>
+          <button id="techTreeBtn" class="settings-button tech-tree-button" type="button"
+            aria-label="Teleport to Town"><img class="toolbar-icon" src="assets/wildstat/icons/Icon_Home.svg" alt=""
+              aria-hidden="true"><span class="toolbar-label">Town</span></button>
+          <button id="inventoryBtn" class="settings-button inventory-button" type="button" aria-label="Open inventory"
+            aria-expanded="false"><img class="toolbar-icon" src="assets/wildstat/icons/Icon_Inventory.webp" alt=""
+              aria-hidden="true"><span class="toolbar-label">Inventory</span></button>
+          <button id="shopBtn" class="settings-button shop-button" type="button" aria-label="Open gem offers"><img
+              class="toolbar-icon" src="assets/wildstat/gems/gem-icon-v2.webp" alt="" aria-hidden="true"><span
+              class="toolbar-label">Shop</span></button>
+          <div id="fpsStatus" class="fps-status" aria-live="off" hidden><span id="gameFpsStatus">FPS: --</span><span
+              id="latencyStatus" hidden>PING: --</span></div>
+          <div id="settingsPanel" class="settings-panel card" role="dialog" aria-modal="true"
+            aria-labelledby="settingsTitle" hidden>
+            <h2 id="settingsTitle" class="window-banner window-banner--gray"><span>Settings</span></h2>
+            <div class="setting-row">
+              <span>Server</span>
+              <span id="connectionStatus" class="connection-status">Connecting</span>
+            </div>
+            <div class="setting-row">
+              <span>Latency</span>
+              <button id="latencyToggle" class="setting-toggle" type="button" aria-pressed="false">OFF</button>
+            </div>
+            <div class="setting-row">
+              <span>Attack Range</span>
+              <button id="attackRangeToggle" class="setting-toggle" type="button" aria-pressed="true">ON</button>
+            </div>
+            <div class="setting-row">
+              <span>Other Players' Fights</span>
+              <button id="remoteGhostsToggle" class="setting-toggle" type="button" aria-pressed="true">ON</button>
+            </div>
+            <div class="setting-row">
+              <span>Zoom Buttons</span>
+              <button id="cameraZoomToggle" class="setting-toggle" type="button" aria-pressed="true">ON</button>
+            </div>
+            <div class="setting-row">
+              <span>High Resolution</span>
+              <button id="highResolutionToggle" class="setting-toggle" type="button" aria-pressed="false">OFF</button>
+            </div>
+            <div class="setting-row">
+              <span>Low Performance</span>
+              <button id="lowPerformanceToggle" class="setting-toggle" type="button" aria-pressed="false">OFF</button>
+            </div>
+            <div class="setting-row">
+              <span>Stat Tracker</span>
+              <button id="statTrackerToggle" class="setting-toggle" type="button" aria-label="Stat tracker"
+                aria-pressed="false">OFF</button>
+            </div>
+            <div class="setting-row">
+              <span>FPS Display</span>
+              <button id="fpsToggle" class="setting-toggle" type="button" aria-pressed="false">OFF</button>
+            </div>
+            <div class="setting-row setting-volume">
+              <label for="musicVolume">Music</label>
+              <div class="volume-control">
+                <input id="musicVolume" type="range" min="0" max="100" step="1" value="35" aria-label="Music volume" />
+                <output id="musicVolumeValue" for="musicVolume">35%</output>
+              </div>
+            </div>
+            <div class="setting-row setting-volume">
+              <label for="sfxVolume">Sound Effects</label>
+              <div class="volume-control">
+                <input id="sfxVolume" type="range" min="0" max="100" step="1" value="35"
+                  aria-label="Sound effects volume" />
+                <output id="sfxVolumeValue" for="sfxVolume">35%</output>
+              </div>
+            </div>
+            <div class="setting-row">
+              <span>Chat</span>
+              <button id="chatToggle" class="setting-toggle" type="button" aria-pressed="true">ON</button>
+            </div>
+            <div class="setting-row">
+              <span>Fullscreen</span>
+              <button id="fullscreenToggle" class="setting-toggle" type="button">Enter</button>
+            </div>
+            <div id="developerSettingsRow" class="setting-row developer-settings-row" hidden>
+              <span>Developer</span>
+              <button id="devAuditBtn" class="setting-toggle dev-audit-button" type="button"
+                aria-label="Open developer tools" aria-expanded="false" hidden>Open Tools</button>
+            </div>
+            <div class="setting-row account-row">
+              <span>Account</span>
+              <button id="accountButton" class="setting-toggle account-button" type="button">Sign In</button>
+            </div>
+            <div id="accountStatus" class="account-status">Guest · Device Save</div>
+            <div class="setting-legal"><a href="terms.html">Terms of Service</a></div>
+            <div class="setting-reset">
+              <button id="resetProgressBtn" class="setting-toggle danger" type="button">Reset Save</button>
+            </div>
+            <footer class="window-back-footer">
+              <button id="closeSettingsBtn" class="window-back-button" type="button"
+                aria-label="Back from settings">Back</button>
+            </footer>
+          </div>
+          <div id="inventoryPanel" class="inventory-panel card" role="dialog" aria-labelledby="inventoryTitle" hidden>
+            <h2 id="inventoryTitle" class="window-banner window-banner--brown"><span>Inventory</span></h2>
+            <div class="inventory-tabs" role="tablist" aria-label="Inventory view">
+              <button id="inventoryEquipmentTab" class="inventory-tab is-active" type="button" role="tab"
+                aria-selected="true" aria-controls="inventoryContent">Equipment</button>
+              <button id="inventoryCosmeticsTab" class="inventory-tab" type="button" role="tab" aria-selected="false"
+                aria-controls="inventoryContent" tabindex="-1">Cosmetics</button>
+              <button id="inventoryCardsTab" class="inventory-tab" type="button" role="tab" aria-selected="false"
+                aria-controls="inventoryContent" tabindex="-1">Cards</button>
+              <button id="inventoryBuildsTab" class="inventory-tab" type="button" role="tab" aria-selected="false"
+                aria-controls="inventoryContent" tabindex="-1">Builds</button>
+            </div>
+            <div id="inventoryContent" class="inventory-content" role="tabpanel"
+              aria-labelledby="inventoryEquipmentTab">
+              <section class="inventory-loadout character-loadout-preview" aria-label="Equipped items">
+                <canvas id="inventoryCharacterCanvas" class="character-preview-canvas" aria-hidden="true"></canvas>
+                <button id="equippedHeadSlot" class="equipment-slot slot-head" type="button"
+                  data-slot="head"><span>HEAD</span></button>
+                <button id="equippedChestSlot" class="equipment-slot slot-chest" type="button"
+                  data-slot="chest"><span>ARMOR</span></button>
+                <button id="equippedFeetSlot" class="equipment-slot slot-feet" type="button"
+                  data-slot="feet"><span>BOOTS</span></button>
+                <div class="inventory-character-stage" aria-label="Current character preview"></div>
+                <button id="equippedRightHandSlot" class="equipment-slot slot-right-hand" type="button"
+                  data-slot="right-hand"><span>WEAPON</span></button>
+              </section>
+              <section class="bag-section" aria-label="Bag slots">
+                <div class="inventory-section-title"><span id="inventoryCount" class="inventory-capacity">0 / 20
+                    Items</span></div>
+                <div id="inventoryItems" class="inventory-items"></div>
+              </section>
+            </div>
+            <footer class="window-back-footer">
+              <button id="closeInventoryBtn" class="window-back-button" type="button"
+                aria-label="Back from inventory">Back</button>
+            </footer>
+          </div>
+          <div id="upgradeBenchPanel" class="upgrade-bench-panel" role="group" aria-label="Slot Upgrades" hidden>
+            <div class="upgrade-bench-content">
+              <p id="upgradeBenchPrompt" class="upgrade-bench-prompt">Pick A Queue</p>
+              <div class="upgrade-bench-slots" role="group" aria-label="Upgrade Queues">
+                <button id="upgradeBenchSlot" class="inventory-item upgrade-bench-slot is-empty" type="button"
+                  aria-label="Pick A Slot For Queue 1" aria-pressed="false">
+                  <span class="inventory-item-empty-mark">+</span>
+                </button>
+                <button id="upgradeBenchSlotTwo" class="inventory-item upgrade-bench-slot is-locked" type="button"
+                  aria-label="Unlock A Second Queue For 150 Gems" aria-pressed="false">
+                  <span class="upgrade-bench-lock-symbol" aria-hidden="true">🔒</span>
+                  <span class="upgrade-bench-slot-cost"><img src="assets/wildstat/gems/gem-icon-v2.webp" alt=""
+                      aria-hidden="true" draggable="false" /><strong>150</strong></span>
+                </button>
+              </div>
+              <div id="upgradeBenchStatGain" class="upgrade-bench-stat-gain" aria-live="polite"></div>
+              <div id="upgradeBenchTimer" class="upgrade-bench-timer" role="timer" hidden></div>
+              <button id="upgradeBenchAction" class="upgrade-bench-action" type="button" disabled
+                hidden>Upgrade</button>
+              <button id="upgradeBenchSpeedUp" class="upgrade-bench-action upgrade-bench-speed-up" type="button"
+                disabled hidden>Finish Now</button>
+              <button id="upgradeBenchBack" class="upgrade-bench-back window-back-button" type="button">Back</button>
+            </div>
+            <div id="upgradeBenchPicker" class="upgrade-bench-picker" hidden>
+              <div class="upgrade-bench-picker-sheet" role="dialog" aria-modal="true"
+                aria-label="Choose A Slot To Upgrade">
+                <div class="upgrade-bench-picker-heading">Choose A Slot To Upgrade</div>
+                <div id="upgradeBenchPickerItems" class="upgrade-bench-picker-items"></div>
+                <button id="closeUpgradeBenchPickerBtn" class="upgrade-bench-picker-close window-back-button"
+                  type="button">Back</button>
+              </div>
+            </div>
+          </div>
+          <div id="duelControls" hidden>
+            <div id="duelStatus">DUEL READY</div>
           </div>
         </div>
-        <div class="setting-row">
-          <span>Chat</span>
-          <button id="chatToggle" class="setting-toggle" type="button" aria-pressed="true">ON</button>
-        </div>
-        <div class="setting-row">
-          <span>Fullscreen</span>
-          <button id="fullscreenToggle" class="setting-toggle" type="button">Enter</button>
-        </div>
-        <div id="developerSettingsRow" class="setting-row developer-settings-row" hidden>
-          <span>Developer</span>
-          <button id="devAuditBtn" class="setting-toggle dev-audit-button" type="button" aria-label="Open developer tools" aria-expanded="false" hidden>Open Tools</button>
-        </div>
-        <div class="setting-row account-row">
-          <span>Account</span>
-          <button id="accountButton" class="setting-toggle account-button" type="button">Sign In</button>
-        </div>
-        <div id="accountStatus" class="account-status">Guest · Device Save</div>
-      <div class="setting-legal"><a href="terms.html">Terms of Service</a></div>
-        <div class="setting-reset">
-          <button id="resetProgressBtn" class="setting-toggle danger" type="button">Reset Save</button>
-        </div>
-        <footer class="window-back-footer">
-          <button id="closeSettingsBtn" class="window-back-button" type="button" aria-label="Back from settings">Back</button>
-        </footer>
       </div>
-      <div id="inventoryPanel" class="inventory-panel card" role="dialog" aria-labelledby="inventoryTitle" hidden>
-        <h2 id="inventoryTitle" class="window-banner window-banner--brown"><span>Inventory</span></h2>
-        <div class="inventory-tabs" role="tablist" aria-label="Inventory view">
-          <button id="inventoryEquipmentTab" class="inventory-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="inventoryContent">Equipment</button>
-          <button id="inventoryCosmeticsTab" class="inventory-tab" type="button" role="tab" aria-selected="false" aria-controls="inventoryContent" tabindex="-1">Cosmetics</button>
-          <button id="inventoryCardsTab" class="inventory-tab" type="button" role="tab" aria-selected="false" aria-controls="inventoryContent" tabindex="-1">Cards</button>
-          <button id="inventoryBuildsTab" class="inventory-tab" type="button" role="tab" aria-selected="false" aria-controls="inventoryContent" tabindex="-1">Builds</button>
+    </div>
+    <div id="message"></div>
+    <div id="pickupLog"></div>
+    <div id="itemDropReveal" aria-live="polite" aria-atomic="true"></div>
+    <button id="minimapButton" class="minimap-button" type="button" aria-label="Open map guide" aria-controls="mapGuide"
+      aria-expanded="false"></button>
+    <div class="minimap-meta">
+      <div id="minimapMapName" class="minimap-map-name" aria-live="polite"></div>
+      <div id="minimapPlayers" class="minimap-players">players online: 0</div>
+      <button id="minimapVersion" class="minimap-version" type="button"
+        aria-label="Game alpha version v0.916.8 ~ Hallowed's Version. Open release notes">alpha v0.916.8 ~ Hallowed's
+        Version</button>
+    </div>
+    <button id="enemyRespawnAdBtn" class="respawn-ad-button" type="button" aria-label="Watch ad · +10 Gems"
+      aria-controls="enemyRespawnAdPrompt" aria-expanded="false" aria-haspopup="dialog" hidden>
+      <span class="respawn-ad-video-icon" aria-hidden="true"></span>
+      <span id="enemyRespawnAdCountdown" class="respawn-ad-countdown" aria-hidden="true" hidden></span>
+      <span id="enemyRespawnAdStatus" class="visually-hidden">WATCH AD</span>
+    </button>
+    <div id="enemyRespawnAdPrompt" class="respawn-ad-prompt" role="dialog" aria-modal="true"
+      aria-labelledby="enemyRespawnAdPromptTitle" aria-describedby="enemyRespawnAdPromptCopy" hidden>
+      <div class="respawn-ad-prompt-card">
+        <span class="respawn-ad-prompt-video" aria-hidden="true"></span>
+        <h2 id="enemyRespawnAdPromptTitle">Watch ad · +10 Gems</h2>
+        <p id="enemyRespawnAdPromptCopy">Watch a short ad for 10 Gems. One ad every 30 minutes, up to 4 a day.</p>
+        <div class="respawn-ad-prompt-actions">
+          <button id="enemyRespawnAdConfirm" class="respawn-ad-prompt-confirm" type="button">Watch Ad</button>
+          <button id="enemyRespawnAdCancel" class="respawn-ad-prompt-cancel" type="button">Not Now</button>
         </div>
-        <div id="inventoryContent" class="inventory-content" role="tabpanel" aria-labelledby="inventoryEquipmentTab">
-          <section class="inventory-loadout character-loadout-preview" aria-label="Equipped items">
-            <canvas id="inventoryCharacterCanvas" class="character-preview-canvas" aria-hidden="true"></canvas>
-            <button id="equippedHeadSlot" class="equipment-slot slot-head" type="button" data-slot="head"><span>HEAD</span></button>
-            <button id="equippedChestSlot" class="equipment-slot slot-chest" type="button" data-slot="chest"><span>ARMOR</span></button>
-            <button id="equippedFeetSlot" class="equipment-slot slot-feet" type="button" data-slot="feet"><span>BOOTS</span></button>
-            <div class="inventory-character-stage" aria-label="Current character preview"></div>
-            <button id="equippedRightHandSlot" class="equipment-slot slot-right-hand" type="button" data-slot="right-hand"><span>WEAPON</span></button>
-          </section>
-          <section class="bag-section" aria-label="Bag slots">
-            <div class="inventory-section-title"><span id="inventoryCount" class="inventory-capacity">0 / 20 Items</span></div>
-            <div id="inventoryItems" class="inventory-items"></div>
-          </section>
-        </div>
-        <footer class="window-back-footer">
-          <button id="closeInventoryBtn" class="window-back-button" type="button" aria-label="Back from inventory">Back</button>
-        </footer>
       </div>
-      <div id="upgradeBenchPanel" class="upgrade-bench-panel" role="group" aria-label="Slot Upgrades" hidden>
-        <div class="upgrade-bench-content">
-          <p id="upgradeBenchPrompt" class="upgrade-bench-prompt">Pick A Queue</p>
-          <div class="upgrade-bench-slots" role="group" aria-label="Upgrade Queues">
-            <button id="upgradeBenchSlot" class="inventory-item upgrade-bench-slot is-empty" type="button" aria-label="Pick A Slot For Queue 1" aria-pressed="false">
-              <span class="inventory-item-empty-mark">+</span>
-            </button>
-            <button id="upgradeBenchSlotTwo" class="inventory-item upgrade-bench-slot is-locked" type="button" aria-label="Unlock A Second Queue For 150 Gems" aria-pressed="false">
-              <span class="upgrade-bench-lock-symbol" aria-hidden="true">🔒</span>
-              <span class="upgrade-bench-slot-cost"><img src="assets/wildstat/gems/gem-icon-v2.webp" alt="" aria-hidden="true" draggable="false" /><strong>150</strong></span>
-            </button>
+    </div>
+    <div id="chatPanel" class="card">
+      <div class="chat-header">
+        <span>WORLD CHAT</span>
+        <div id="topMeta">
+          <div id="coopStatus">Players online: 1</div>
+          <div id="version">alpha v0.916.8 ~ Hallowed's Version</div>
+        </div>
+        <button id="chatSizeToggle" class="chat-size-toggle" type="button" aria-label="Expand chat"
+          aria-expanded="false"><span class="chat-size-icon" aria-hidden="true"></span></button>
+      </div>
+      <div id="chatMessages" aria-live="polite"></div>
+      <form id="chatForm">
+        <div id="chatReplyComposer" class="chat-reply-composer" hidden>
+          <div class="chat-reply-composer-copy">
+            <strong id="chatReplyComposerName">Replying to Player</strong>
+            <span id="chatReplyComposerPreview"></span>
           </div>
-          <div id="upgradeBenchStatGain" class="upgrade-bench-stat-gain" aria-live="polite"></div>
-          <div id="upgradeBenchTimer" class="upgrade-bench-timer" role="timer" hidden></div>
-          <button id="upgradeBenchAction" class="upgrade-bench-action" type="button" disabled hidden>Upgrade</button>
-          <button id="upgradeBenchSpeedUp" class="upgrade-bench-action upgrade-bench-speed-up" type="button" disabled hidden>Finish Now</button>
-          <button id="upgradeBenchBack" class="upgrade-bench-back window-back-button" type="button">Back</button>
+          <button id="chatReplyCancelBtn" type="button" aria-label="Cancel reply">×</button>
         </div>
-        <div id="upgradeBenchPicker" class="upgrade-bench-picker" hidden>
-          <div class="upgrade-bench-picker-sheet" role="dialog" aria-modal="true" aria-label="Choose A Slot To Upgrade">
-            <div class="upgrade-bench-picker-heading">Choose A Slot To Upgrade</div>
-            <div id="upgradeBenchPickerItems" class="upgrade-bench-picker-items"></div>
-            <button id="closeUpgradeBenchPickerBtn" class="upgrade-bench-picker-close window-back-button" type="button">Back</button>
-          </div>
+        <textarea id="chatInput" maxlength="250" rows="1" autocomplete="off" enterkeyhint="send"
+          placeholder="Say something…"></textarea>
+        <button id="chatSendBtn" class="window-back-button" type="submit">SEND</button>
+        <button id="chatBackBtn" class="chat-back-button window-back-button" type="button" hidden>Back</button>
+      </form>
+    </div>
+    <div class="hud-secondary-controls">
+      <div id="hudGemWallet" class="hud-gem-wallet" aria-label="Gem balance">
+        <img class="hud-gem-icon" src="assets/wildstat/gems/gem-icon-v2.webp" alt="" aria-hidden="true"
+          draggable="false" />
+        <strong id="hudGemBalance" class="hud-gem-balance" aria-live="polite">0</strong>
+      </div>
+    </div>
+    <div class="dps-chasing-counter-box">
+      <div id="dpsChasingCounter-dps">
+        ...
+      </div>
+      <div>
+        /
+      </div>
+      <div id="dpsChasingCounter-regen">
+        ...
+      </div>
+    </div>
+  </div>
+
+  <div id="start">
+    <button id="signInMuteButton" class="signin-mute-button" type="button" aria-label="Mute music" aria-pressed="false"
+      title="Mute music">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path class="signin-sound-speaker" d="M3 9h4l5-4v14l-5-4H3z" />
+        <path class="signin-sound-waves" d="M15 9c1.7 1.7 1.7 4.3 0 6m3-9c3.3 3.3 3.3 8.7 0 12" />
+        <path class="signin-sound-muted" d="M15.5 9.5l5 5m0-5l-5 5" />
+      </svg>
+    </button>
+    <div id="connectionPanel" class="modal connection-modal" role="status" aria-live="polite" hidden>
+      <h1 class="wildstat-wordmark-title" aria-label="WildStat">
+        <span class="wildstat-wordmark-frame" aria-hidden="true">
+          <img src="assets/wildstat/wildstat-wordmark.webp" width="2046" height="682" alt="" fetchpriority="high"
+            decoding="sync" />
+        </span>
+      </h1>
+      <div class="loading-content">
+        <p class="loading-heading">CONNECTING TO WILDSTAT</p>
+        <div class="loading-track" aria-hidden="true">
+          <div id="loadingFill" class="loading-fill"></div>
+        </div>
+        <div class="loading-status">
+          <p id="loadingDetail" class="loading-detail">Loading Connection</p>
+          <button id="connectionRetryBtn" class="secondary-button connection-retry-button" type="button" hidden>RETRY
+            NOW</button>
+          <button id="sessionTakeoverBtn" type="button" hidden>SIGN IN ANYWAY</button>
+          <p id="sessionTakeoverNote" class="session-takeover-note" hidden>This signs out the other tab.</p>
         </div>
       </div>
-      <div id="duelControls" hidden>
-        <div id="duelStatus">DUEL READY</div>
+    </div>
+    <div id="accountChoicePanel" class="modal account-choice-modal" role="dialog" aria-modal="true"
+      aria-labelledby="accountChoiceTitle">
+      <h1 id="accountChoiceTitle" class="wildstat-wordmark-title" aria-label="WildStat">
+        <span class="wildstat-wordmark-frame" aria-hidden="true">
+          <img src="assets/wildstat/wildstat-wordmark.webp" width="2046" height="682" alt="" fetchpriority="high"
+            decoding="sync" />
+        </span>
+      </h1>
+      <div class="account-note-card">
+        <p class="account-beta-note">This game is in alpha.<br>Report bugs on <a href="https://discord.gg/mcS226NbG4"
+            target="_blank" rel="noopener noreferrer">Discord</a> or with /bug</p>
+        <p class="account-move-note">WildStat has moved to <a href="https://wildstatmmo.com/">wildstatmmo.com</a></p>
+        <p id="accountCharacter" class="account-character" aria-live="polite">Character found: <strong
+            id="accountCharacterName">none</strong></p>
+        <button id="useAnotherAccountBtn" class="account-switch-button" type="button" hidden>Use Another
+          Account</button>
+      </div>
+      <button id="signInFromStartBtn" type="button">REGISTER</button>
+      <button id="continueGuestBtn" class="secondary-button" type="button">PLAY AS GUEST</button>
+      <p id="accountChoiceDetail" class="loading-detail" hidden></p>
+    </div>
+    <button id="installAppBtn" class="signin-install-button" type="button" aria-describedby="installAppHint" hidden>ADD
+      TO HOME SCREEN</button>
+    <p id="installAppHint" class="signin-install-hint" role="status" aria-live="polite" hidden></p>
+    <aside id="updateNotice" class="signin-update-notice" aria-labelledby="updateNoticeTitle" hidden>
+      <div class="signin-update-scroll" tabindex="0" role="region" aria-labelledby="updateNoticeTitle">
+        <header><strong id="updateNoticeTitle">RELEASE NOTES</strong></header>
+        <ul id="updateNoticeItems" class="signin-update-history"></ul>
+      </div>
+    </aside>
+    <button id="signinVersion" class="signin-version" type="button" aria-expanded="false" aria-controls="updateNotice"
+      aria-label="WildStat alpha version v0.916.8 ~ Hallowed's Version. Toggle release notes">alpha v0.916.8 ~
+      Hallowed's Version</button>
+    <div id="legalGatePanel" class="modal legal-gate-modal" role="dialog" aria-modal="true"
+      aria-labelledby="legalGateIntro" hidden>
+      <p id="legalGateIntro">Choose your age</p>
+      <div class="legal-age-control">
+        <output id="legalAgeOutput" class="legal-age-output" for="legalAgeSlider" aria-live="polite"></output>
+        <input id="legalAgeSlider" class="is-unset" type="range" min="1" max="100" step="1" value="50"
+          aria-label="Your age" aria-valuetext="Not selected" />
+        <div class="legal-age-limits" aria-hidden="true"><span>1</span><span>100+</span></div>
+      </div>
+      <div class="legal-gate-footer">
+        <p id="legalAgreementNotice" class="legal-agreement">By clicking Continue, you agree to the <a
+            id="legalTermsLink" href="terms.html">Terms and Conditions</a> and acknowledge the <a id="legalPrivacyLink"
+            href="privacy.html">Privacy Policy</a>.</p>
+        <button id="legalContinueBtn" type="button" aria-describedby="legalAgreementNotice" disabled>Continue</button>
+        <p id="legalGateStatus" class="legal-gate-status" role="status">Select your age to continue.</p>
       </div>
     </div>
+    <div id="newPlayerPanel" class="modal onboarding-modal" hidden>
+      <h1 class="wildstat-wordmark-title welcome-wordmark-title" aria-label="Welcome to WildStat">
+        <span class="welcome-wordmark-prefix" aria-hidden="true">WELCOME TO</span>
+        <span class="wildstat-wordmark-frame" aria-hidden="true">
+          <img src="assets/wildstat/wildstat-wordmark.webp" width="2046" height="682" alt="" fetchpriority="high"
+            decoding="sync" />
+        </span>
+      </h1>
+      <label class="onboarding-name-label" for="newPlayerNameInput">PLAYER NAME</label>
+      <input id="newPlayerNameInput" maxlength="20" autocomplete="off" spellcheck="false" />
+      <p>Defeat enemies to gain the stat shown under them. Every point is yours for good. They come back shortly, so
+        farm, get stronger, and push on to tougher maps.</p>
+      <p><span class="key">WASD</span> or <span class="key">ARROWS</span> to move. Touch and drag on mobile.</p>
+      <button id="beginAdventureBtn" type="button">BEGIN ADVENTURE</button>
     </div>
   </div>
-  <div id="message"></div>
-  <div id="pickupLog"></div>
-  <div id="itemDropReveal" aria-live="polite" aria-atomic="true"></div>
-  <button id="minimapButton" class="minimap-button" type="button" aria-label="Open map guide" aria-controls="mapGuide" aria-expanded="false"></button>
-  <div class="minimap-meta">
-    <div id="minimapMapName" class="minimap-map-name" aria-live="polite"></div>
-    <div id="minimapPlayers" class="minimap-players">players online: 0</div>
-    <button id="minimapVersion" class="minimap-version" type="button" aria-label="Game alpha version v0.916.8 ~ Hallowed's Version. Open release notes">alpha v0.916.8 ~ Hallowed's Version</button>
-  </div>
-  <button id="enemyRespawnAdBtn" class="respawn-ad-button" type="button" aria-label="Watch ad · +10 Gems" aria-controls="enemyRespawnAdPrompt" aria-expanded="false" aria-haspopup="dialog" hidden>
-    <span class="respawn-ad-video-icon" aria-hidden="true"></span>
-    <span id="enemyRespawnAdCountdown" class="respawn-ad-countdown" aria-hidden="true" hidden></span>
-    <span id="enemyRespawnAdStatus" class="visually-hidden">WATCH AD</span>
-  </button>
-  <div id="enemyRespawnAdPrompt" class="respawn-ad-prompt" role="dialog" aria-modal="true" aria-labelledby="enemyRespawnAdPromptTitle" aria-describedby="enemyRespawnAdPromptCopy" hidden>
-    <div class="respawn-ad-prompt-card">
-      <span class="respawn-ad-prompt-video" aria-hidden="true"></span>
-      <h2 id="enemyRespawnAdPromptTitle">Watch ad · +10 Gems</h2>
-      <p id="enemyRespawnAdPromptCopy">Watch a short ad for 10 Gems. One ad every 30 minutes, up to 4 a day.</p>
-      <div class="respawn-ad-prompt-actions">
-        <button id="enemyRespawnAdConfirm" class="respawn-ad-prompt-confirm" type="button">Watch Ad</button>
-        <button id="enemyRespawnAdCancel" class="respawn-ad-prompt-cancel" type="button">Not Now</button>
-      </div>
-    </div>
-  </div>
-  <div id="chatPanel" class="card">
-    <div class="chat-header">
-      <span>WORLD CHAT</span>
-      <div id="topMeta">
-        <div id="coopStatus">Players online: 1</div>
-        <div id="version">alpha v0.916.8 ~ Hallowed's Version</div>
-      </div>
-      <button id="chatSizeToggle" class="chat-size-toggle" type="button" aria-label="Expand chat" aria-expanded="false"><span class="chat-size-icon" aria-hidden="true"></span></button>
-    </div>
-    <div id="chatMessages" aria-live="polite"></div>
-    <form id="chatForm">
-      <div id="chatReplyComposer" class="chat-reply-composer" hidden>
-        <div class="chat-reply-composer-copy">
-          <strong id="chatReplyComposerName">Replying to Player</strong>
-          <span id="chatReplyComposerPreview"></span>
+
+  <div id="gameUpdateGate" hidden>
+    <div class="modal game-update-modal" role="status" aria-live="assertive">
+      <h1 class="wildstat-wordmark-title" aria-label="WildStat">
+        <span class="wildstat-wordmark-frame" aria-hidden="true">
+          <img src="assets/wildstat/wildstat-wordmark.webp" width="2046" height="682" alt="" fetchpriority="high"
+            decoding="sync" />
+        </span>
+      </h1>
+      <div class="loading-content">
+        <div class="loading-heading">
+          <h2 class="window-title">Game Updating</h2>
+          <p>SERVER UPDATE IN PROGRESS</p>
         </div>
-        <button id="chatReplyCancelBtn" type="button" aria-label="Cancel reply">×</button>
+        <div class="update-wait-track" aria-hidden="true"><span></span></div>
+        <div class="loading-status">
+          <p class="loading-detail">RECONNECTING WHEN NEW VERSION IS READY</p>
+        </div>
       </div>
-      <textarea id="chatInput" maxlength="250" rows="1" autocomplete="off" enterkeyhint="send" placeholder="Say something…"></textarea>
-      <button id="chatSendBtn" class="window-back-button" type="submit">SEND</button>
-      <button id="chatBackBtn" class="chat-back-button window-back-button" type="button" hidden>Back</button>
-    </form>
+    </div>
   </div>
-  <div class="hud-secondary-controls">
-  <div id="hudGemWallet" class="hud-gem-wallet" aria-label="Gem balance">
-    <img class="hud-gem-icon" src="assets/wildstat/gems/gem-icon-v2.webp" alt="" aria-hidden="true" draggable="false" />
-    <strong id="hudGemBalance" class="hud-gem-balance" aria-live="polite">0</strong>
-  </div>
-  </div>
-</div>
 
-<div id="start">
-  <button id="signInMuteButton" class="signin-mute-button" type="button" aria-label="Mute music" aria-pressed="false" title="Mute music">
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path class="signin-sound-speaker" d="M3 9h4l5-4v14l-5-4H3z" />
-      <path class="signin-sound-waves" d="M15 9c1.7 1.7 1.7 4.3 0 6m3-9c3.3 3.3 3.3 8.7 0 12" />
-      <path class="signin-sound-muted" d="M15.5 9.5l5 5m0-5l-5 5" />
-    </svg>
-  </button>
-  <div id="connectionPanel" class="modal connection-modal" role="status" aria-live="polite" hidden>
-    <h1 class="wildstat-wordmark-title" aria-label="WildStat">
-      <span class="wildstat-wordmark-frame" aria-hidden="true">
-        <img src="assets/wildstat/wildstat-wordmark.webp" width="2046" height="682" alt="" fetchpriority="high" decoding="sync" />
-      </span>
-    </h1>
-    <div class="loading-content">
-    <p class="loading-heading">CONNECTING TO WILDSTAT</p>
-    <div class="loading-track" aria-hidden="true"><div id="loadingFill" class="loading-fill"></div></div>
-    <div class="loading-status">
-    <p id="loadingDetail" class="loading-detail">Loading Connection</p>
-    <button id="connectionRetryBtn" class="secondary-button connection-retry-button" type="button" hidden>RETRY NOW</button>
-    <button id="sessionTakeoverBtn" type="button" hidden>SIGN IN ANYWAY</button>
-    <p id="sessionTakeoverNote" class="session-takeover-note" hidden>This signs out the other tab.</p>
-    </div>
-    </div>
-  </div>
-  <div id="accountChoicePanel" class="modal account-choice-modal" role="dialog" aria-modal="true" aria-labelledby="accountChoiceTitle">
-    <h1 id="accountChoiceTitle" class="wildstat-wordmark-title" aria-label="WildStat">
-      <span class="wildstat-wordmark-frame" aria-hidden="true">
-        <img src="assets/wildstat/wildstat-wordmark.webp" width="2046" height="682" alt="" fetchpriority="high" decoding="sync" />
-      </span>
-    </h1>
-    <div class="account-note-card">
-    <p class="account-beta-note">This game is in alpha.<br>Report bugs on <a href="https://discord.gg/mcS226NbG4" target="_blank" rel="noopener noreferrer">Discord</a> or with /bug</p>
-    <p class="account-move-note">WildStat has moved to <a href="https://wildstatmmo.com/">wildstatmmo.com</a></p>
-    <p id="accountCharacter" class="account-character" aria-live="polite">Character found: <strong id="accountCharacterName">none</strong></p>
-    <button id="useAnotherAccountBtn" class="account-switch-button" type="button" hidden>Use Another Account</button>
-    </div>
-    <button id="signInFromStartBtn" type="button">REGISTER</button>
-    <button id="continueGuestBtn" class="secondary-button" type="button">PLAY AS GUEST</button>
-    <p id="accountChoiceDetail" class="loading-detail" hidden></p>
-  </div>
-  <button id="installAppBtn" class="signin-install-button" type="button" aria-describedby="installAppHint" hidden>ADD TO HOME SCREEN</button>
-  <p id="installAppHint" class="signin-install-hint" role="status" aria-live="polite" hidden></p>
-  <aside id="updateNotice" class="signin-update-notice" aria-labelledby="updateNoticeTitle" hidden>
-    <div class="signin-update-scroll" tabindex="0" role="region" aria-labelledby="updateNoticeTitle">
-      <header><strong id="updateNoticeTitle">RELEASE NOTES</strong></header>
-      <ul id="updateNoticeItems" class="signin-update-history"></ul>
-    </div>
-  </aside>
-  <button id="signinVersion" class="signin-version" type="button" aria-expanded="false" aria-controls="updateNotice" aria-label="WildStat alpha version v0.916.8 ~ Hallowed's Version. Toggle release notes">alpha v0.916.8 ~ Hallowed's Version</button>
-  <div id="legalGatePanel" class="modal legal-gate-modal" role="dialog" aria-modal="true" aria-labelledby="legalGateIntro" hidden>
-    <p id="legalGateIntro">Choose your age</p>
-    <div class="legal-age-control">
-      <output id="legalAgeOutput" class="legal-age-output" for="legalAgeSlider" aria-live="polite"></output>
-      <input id="legalAgeSlider" class="is-unset" type="range" min="1" max="100" step="1" value="50" aria-label="Your age" aria-valuetext="Not selected" />
-      <div class="legal-age-limits" aria-hidden="true"><span>1</span><span>100+</span></div>
-    </div>
-    <div class="legal-gate-footer">
-    <p id="legalAgreementNotice" class="legal-agreement">By clicking Continue, you agree to the <a id="legalTermsLink" href="terms.html">Terms and Conditions</a> and acknowledge the <a id="legalPrivacyLink" href="privacy.html">Privacy Policy</a>.</p>
-    <button id="legalContinueBtn" type="button" aria-describedby="legalAgreementNotice" disabled>Continue</button>
-    <p id="legalGateStatus" class="legal-gate-status" role="status">Select your age to continue.</p>
-    </div>
-  </div>
-  <div id="newPlayerPanel" class="modal onboarding-modal" hidden>
-    <h1 class="wildstat-wordmark-title welcome-wordmark-title" aria-label="Welcome to WildStat">
-      <span class="welcome-wordmark-prefix" aria-hidden="true">WELCOME TO</span>
-      <span class="wildstat-wordmark-frame" aria-hidden="true">
-        <img src="assets/wildstat/wildstat-wordmark.webp" width="2046" height="682" alt="" fetchpriority="high" decoding="sync" />
-      </span>
-    </h1>
-    <label class="onboarding-name-label" for="newPlayerNameInput">PLAYER NAME</label>
-    <input id="newPlayerNameInput" maxlength="20" autocomplete="off" spellcheck="false" />
-    <p>Defeat enemies to gain the stat shown under them. Every point is yours for good. They come back shortly, so farm, get stronger, and push on to tougher maps.</p>
-    <p><span class="key">WASD</span> or <span class="key">ARROWS</span> to move. Touch and drag on mobile.</p>
-    <button id="beginAdventureBtn" type="button">BEGIN ADVENTURE</button>
-  </div>
-</div>
-
-<div id="gameUpdateGate" hidden>
-  <div class="modal game-update-modal" role="status" aria-live="assertive">
-    <h1 class="wildstat-wordmark-title" aria-label="WildStat">
-      <span class="wildstat-wordmark-frame" aria-hidden="true">
-        <img src="assets/wildstat/wildstat-wordmark.webp" width="2046" height="682" alt="" fetchpriority="high" decoding="sync" />
-      </span>
-    </h1>
-    <div class="loading-content">
-    <div class="loading-heading">
-    <h2 class="window-title">Game Updating</h2>
-    <p>SERVER UPDATE IN PROGRESS</p>
-    </div>
-    <div class="update-wait-track" aria-hidden="true"><span></span></div>
-    <div class="loading-status"><p class="loading-detail">RECONNECTING WHEN NEW VERSION IS READY</p></div>
-    </div>
-  </div>
-</div>
-
-<script src="assets/wildstat/signin-auth-shell.js"></script>
-<script id="wildstatCoopScript" src="assets/wildstat/coop-client.js" data-game-src="assets/wildstat/game.js"></script>
+  <script src="assets/wildstat/signin-auth-shell.js"></script>
+  <script id="wildstatCoopScript" src="assets/wildstat/coop-client.js" data-game-src="assets/wildstat/game.js"></script>
 </body>
+
 </html>
