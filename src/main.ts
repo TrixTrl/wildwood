@@ -555,6 +555,7 @@ import {
     equipment: () => inventory,
     research: () => research.regenerationMultiplier(),
     upgradeLevel: (itemId) => { const level = coop?.itemLevel?.(itemId); if (!level) return 0; if (typeof (level) === "number") return level; return level.tier ?? 0; },
+    playerCombat: () => playerCombat,
     ...farmProgress,
   });
   let playerCombat: PlayerCombatController;

@@ -92,7 +92,7 @@ export function createAutoFarmPanel(options: {
     + `<div class="farm-weights" role="group" aria-labelledby="autoFarmStatsLabel"></div>`
     + `<p class="farm-empty" hidden>No Enemies Here</p>`
     + `<button type="button" class="farm-switch farm-move" role="switch" data-switch="advance" aria-checked="false" aria-describedby="autoFarmBossStatus">`
-    + `<span class="farm-switch-copy"><span class="farm-switch-label">Move On</span><small id="autoFarmBossStatus" class="farm-boss-status"></small></span><span class="farm-knob" aria-hidden="true"></span></button>`
+    + `<span class="farm-switch-copy"><span class="farm-switch-label">Move On</span><div id="autoFarmBossStatus" class="farm-boss-status"></div></span><span class="farm-knob" aria-hidden="true"></span></button>`
     + powerSlider('farm-move-power', 'Move At', 'Enemy Strength', 'Move On, Boss First, Once Ready For Next Map Enemies This Many Times As Strong')
     + `<div class="farm-more">`
     + `<div class="farm-setting farm-aggro-row" hidden><span class="farm-setting-label">Chasing Groups</span><div class="farm-segment"><button type="button" class="farm-aggro-pick">Choose</button></div></div>`
