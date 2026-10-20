@@ -1,5 +1,5 @@
 import type { Readiness } from '../../../../shared/map-readiness';
-import { isWeaponItem } from '../../../../shared/items';
+import { isWeaponItem, ItemId } from '../../../../shared/items';
 import { isMeleeWeapon, weaponAttackRange } from "../../weapon-combat";
 import { WORLD } from '../../constants';
 import { monotonicNowMs } from '../../../app/trusted-clock';
@@ -26,6 +26,7 @@ import { BOSS_DAMAGE_PROFILES } from '../../boss-damage';
 import { armorDamageReduction } from '../../combat';
 import { createAutoMine, type AutoMineSource } from './auto-mine';
 import { bossAggroRange, BOSS_ZONE_PAD } from './boss-zone';
+import { playerRegenerationPerSecond } from '../reward-display';
 
 /** An attacker of another kind is fought off on the way only if it dies within this many seconds. */
 const QUICK_DEFENCE_SECONDS = 3;
@@ -166,12 +167,20 @@ export function createAutoFarmController(options: {
   bossDefinition?: () => EnemyState | BossStates[BossKind] | null;
   /** The gathering session: with it, the button runs Auto Mine in the Copper Hills and Auto Chop in Timberwood instead. */
   mining?: () => (AutoMineSource & AutoChopSource) | null | undefined;
+  equipment?: () => Pick<{
+    equippedRightHand: string; equippedLeftHand: string;
+    equippedHead: string; equippedChest: string;
+  }, "equippedHead" | "equippedChest">;
+  research?: () => number;
+  upgradeLevel?: (itemId: string) => number
 }) {
   const { player, enemies, spawnSites } = options;
   const now = options.now ?? monotonicNowMs;
   /** Auto Mine and Auto Chop steer in their own areas of the Town, where nothing is farmed; Auto Farm everywhere else. */
-  const gathering = options.mining ? { player, mapId: options.mapId, source: options.mining, storage: options.priorityStorage, identity: options.localIdentity,
-    unavailable: options.unavailable, connection: options.connection, paused: options.paused, speed: options.speed, now } : null;
+  const gathering = options.mining ? {
+    player, mapId: options.mapId, source: options.mining, storage: options.priorityStorage, identity: options.localIdentity,
+    unavailable: options.unavailable, connection: options.connection, paused: options.paused, speed: options.speed, now
+  } : null;
   const mine = gathering ? createAutoMine(gathering) : null;
   const chop = gathering ? createAutoChop(gathering) : null;
   let priority: AutoFarmPriority = readAutoFarmPriority(options.priorityStorage);
@@ -500,7 +509,8 @@ export function createAutoFarmController(options: {
    * (8 s a kill) sent players who did not yet one-shot this map's enemies into a boss they could not beat.
    */
   function readyForBoss(): { ready: boolean; line: string } {
-    const regenMultiplier = 3.07;
+    const equipment = options.equipment?.();
+    const regenMultiplier = equipment && options.upgradeLevel ? playerRegenerationPerSecond(1, equipment, options.research?.() ?? 1, options.upgradeLevel) : 1;
     const boss = options.bossDefinition?.();
     const bossPower = movePower;
     //console.log(boss);
@@ -853,7 +863,8 @@ export function createAutoFarmController(options: {
     let threat: EnemyState | null = null;
     // On the way to the boss or the next map it shoots what it passes but chases nobody. A pulled group is coming anyway.
     if (phase === 'farm') {
-      const regenMultiplier = 3.07;
+      const equipment = options.equipment?.();
+      const regenMultiplier = equipment && options.upgradeLevel ? playerRegenerationPerSecond(1, equipment, options.research?.() ?? 1, options.upgradeLevel) : 1;
       const smartTarget = smartMove({ ...player, realRegen: player.regen * regenMultiplier }, enemies, shares);
       const length = distance(smartTarget), magnitude = Math.min(1, length / Math.max(1, options.speed() * dt));
       return { x: (smartTarget.x - player.x) / length * magnitude, y: (smartTarget.y - player.y) / length * magnitude, source: 'steer' };

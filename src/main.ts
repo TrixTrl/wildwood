@@ -526,10 +526,12 @@ import {
     return null;
   };
   let farmConnection: 'ready' | 'recovering' | 'ended' = 'recovering';
-  const farmProgress = createAutoFarmProgress({ mapId: () => currentMapId, fetchBalance: mapId => coop?.mapIndexBalance?.(mapId), base: () => ({ maxHp: player.baseMaxHp, damage: player.damage, attackRate: player.attackRate, armor: player.armor, regen: player.regen }),
+  const farmProgress = createAutoFarmProgress({
+    mapId: () => currentMapId, fetchBalance: mapId => coop?.mapIndexBalance?.(mapId), base: () => ({ maxHp: player.baseMaxHp, damage: player.damage, attackRate: player.attackRate, armor: player.armor, regen: player.regen }),
     equipment: () => ({ equippedHead: inventory.equippedHead, equippedChest: inventory.equippedChest, equippedFeet: inventory.equippedFeet, equippedRightHand: inventory.equippedRightHand, equippedLeftHand: inventory.equippedLeftHand }),
     weaponSkills: () => coop?.weaponSkills?.(inventory.equippedRightHand || inventory.equippedLeftHand), research: () => researchRanks(), upgradeLevel: itemId => coop?.itemLevel?.(itemId) ?? 0, rewardMultiplier: () => researchRewardMultiplier(), minAttackInterval: () => coop?.attackCapInPlay?.(), criticalChance: () => researchCriticalChance(), criticalMultiplier: (extra = 0) => researchCriticalDamageMultiplier(soulDimension.critDamage(), (player.critRating ?? 0) + extra),
-    reflectOnly: () => Boolean(coop?.prestigeChallenge?.()?.active), mapBoss: () => proceduralBoss.boss() ?? bossStateForMap(bosses, currentMapId), portalUnlocked: portal => mapController.portalIsUnlocked(portal as never), portals: () => { const config = MAP_CONFIG[currentMapId]; return [config.portal, "secondaryPortal" in config ? config.secondaryPortal : null]; } });
+    reflectOnly: () => Boolean(coop?.prestigeChallenge?.()?.active), mapBoss: () => proceduralBoss.boss() ?? bossStateForMap(bosses, currentMapId), portalUnlocked: portal => mapController.portalIsUnlocked(portal as never), portals: () => { const config = MAP_CONFIG[currentMapId]; return [config.portal, "secondaryPortal" in config ? config.secondaryPortal : null]; }
+  });
   const autoFarm = createAutoFarmController({
     resumeStore: createAutoFarmResumeStore(),
     player, enemies, spawnSites,
@@ -550,6 +552,9 @@ import {
       return obstacles;
     },
     bossDefinition: () => proceduralBoss.boss() ?? bossStateForMap(bosses, currentMapId),
+    equipment: () => inventory,
+    research: () => research.regenerationMultiplier(),
+    upgradeLevel: (itemId) => { const level = coop?.itemLevel?.(itemId); if (!level) return 0; if (typeof (level) === "number") return level; return level.tier ?? 0; },
     ...farmProgress,
   });
   let playerCombat: PlayerCombatController;
@@ -815,9 +820,12 @@ import {
   const soulDimension = createSoulDimension({
     source: () => coop, player, inventory, enemies, spawnSites, decor, currentMapId: () => currentMapId, spawnFromSite, invalidateDepthOrder: () => worldRenderRuntime.invalidateDepthOrder(), townMap: MAP_CONFIG.town,
     strength: () => ({ dps: playerCombat.expectedDps(), maxHp: player.maxHp, armor: effectiveArmor(), regen: regenerationPerSecond() }), fullDps: () => playerCombat.expectedFullDps(), logPickup, damagePlayer: (damage, source) => playerCombat.damagePlayer(damage, source), message: showMessage, burst: spawnBurst, sendToTown: () => mapController.teleportHome(), researchCritMultiplier: researchCriticalDamageMultiplier,
-    levelUp: (level, multiplier) => runtimeHud.showProgressCompletion("Soul Level", `Lv ${level} · Rewards ${multiplier}×`, "✦", "#d9b8ff"), attackCap: () => coop?.attackCapInPlay?.(), travel: mapController.travelFromHome, clearInput: playerInput.clear, fadeToWorld: (action, ms) => session.fadeToWorld(action, ms) });
-  const guildHall = createGuildHall({ source: () => coop, player, decor, currentMapId: () => currentMapId, invalidateDepthOrder: () => worldRenderRuntime.invalidateDepthOrder(), clearInput: playerInput.clear, fadeToWorld: (action, ms) => session.fadeToWorld(action, ms),
-    travel: mapId => { autoFarm.stop("Autofarm stopped for the Guild Hall"); return mapController.teleportToMap(mapId, async () => Boolean(await coop?.changeMap?.(mapId, player.x, player.y))); } });
+    levelUp: (level, multiplier) => runtimeHud.showProgressCompletion("Soul Level", `Lv ${level} · Rewards ${multiplier}×`, "✦", "#d9b8ff"), attackCap: () => coop?.attackCapInPlay?.(), travel: mapController.travelFromHome, clearInput: playerInput.clear, fadeToWorld: (action, ms) => session.fadeToWorld(action, ms)
+  });
+  const guildHall = createGuildHall({
+    source: () => coop, player, decor, currentMapId: () => currentMapId, invalidateDepthOrder: () => worldRenderRuntime.invalidateDepthOrder(), clearInput: playerInput.clear, fadeToWorld: (action, ms) => session.fadeToWorld(action, ms),
+    travel: mapId => { autoFarm.stop("Autofarm stopped for the Guild Hall"); return mapController.teleportToMap(mapId, async () => Boolean(await coop?.changeMap?.(mapId, player.x, player.y))); }
+  });
   const { activePortal, secondaryPortal, portalIsUnlocked, startDragonPortalCutscene, startSnowlandsPortalCutscene, startLavaPortalCutscene, startInfernalPortalCutscene, startWaterPortalCutscene, startSamuraiPortalCutscene } = mapController;
 
   const bossController = createBossController({
@@ -1297,20 +1305,22 @@ import {
     onClose: () => { playerInput.clear(); },
   });
 
-  const leaderboard = createLeaderboardPanel({ e: gameElements, options: {
-    loadPage: async (board: import("../shared/leaderboard-window").LeaderboardBoard, startRank = 0, count = 100) => {
-      if (!coop) throw new Error("Not connected. Try again.");
-      return coop.loadLeaderboardPage(board, startRank, count);
-    },
-    localIdentity: () => coop?.localIdentity?.() || "",
-    isDeveloper: isDeveloperIdentity,
-    paintProfileIcon: (canvas: HTMLCanvasElement, identity: string) => paintProfileIconCanvas(canvas, coop?.profileIcon?.(identity) ?? 0, identity),
-    podiumAssetsReady: () => playerSpriteReady,
-    drawPodiumCharacter: (canvas: HTMLCanvasElement, entry: LeaderboardEntry, rank: 1 | 2 | 3) => leaderboardPodiumPreview.draw(canvas, entry, rank),
-    openProfile: (identity: string, name: string) => { void profileWindow.open(identity, name); },
-    loadPlayers: () => coop?.social?.loadPlayerDirectory(), findPlayer: (board: import("../shared/leaderboard-window").LeaderboardBoard, identity: string) => coop ? coop.findLeaderboardSpot(board, identity) : Promise.reject(new Error("Not connected. Try again.")),
-    beforeOpen: () => panels.closeAllExcept("leaderboard"),
-  } });
+  const leaderboard = createLeaderboardPanel({
+    e: gameElements, options: {
+      loadPage: async (board: import("../shared/leaderboard-window").LeaderboardBoard, startRank = 0, count = 100) => {
+        if (!coop) throw new Error("Not connected. Try again.");
+        return coop.loadLeaderboardPage(board, startRank, count);
+      },
+      localIdentity: () => coop?.localIdentity?.() || "",
+      isDeveloper: isDeveloperIdentity,
+      paintProfileIcon: (canvas: HTMLCanvasElement, identity: string) => paintProfileIconCanvas(canvas, coop?.profileIcon?.(identity) ?? 0, identity),
+      podiumAssetsReady: () => playerSpriteReady,
+      drawPodiumCharacter: (canvas: HTMLCanvasElement, entry: LeaderboardEntry, rank: 1 | 2 | 3) => leaderboardPodiumPreview.draw(canvas, entry, rank),
+      openProfile: (identity: string, name: string) => { void profileWindow.open(identity, name); },
+      loadPlayers: () => coop?.social?.loadPlayerDirectory(), findPlayer: (board: import("../shared/leaderboard-window").LeaderboardBoard, identity: string) => coop ? coop.findLeaderboardSpot(board, identity) : Promise.reject(new Error("Not connected. Try again.")),
+      beforeOpen: () => panels.closeAllExcept("leaderboard"),
+    }
+  });
 
   function closeLeaderboard() {
     leaderboard.close();
@@ -1409,7 +1419,7 @@ import {
     unlockSecondSlot: async () => coop?.unlockSecondUpgradeSlot?.(),
     unlockThirdSlot: async () => coop?.unlockThirdUpgradeSlot?.(),
     beforeOpen: () => panels.closeAllExcept("upgradeBench"), host: { open: () => smith.open("upgrade"), close: () => smith.close() },
-    setPaused: () => {},
+    setPaused: () => { },
     clearPlayerInput: playerInput.clear,
     onInventoryChanged: () => {
       if (inventory.selectedItemId && !inventory.itemIds.includes(inventory.selectedItemId)) {
@@ -1576,10 +1586,14 @@ import {
   });
 
   installGraphicsReport({ canvas: () => canvas, snapshot: performanceMonitor.snapshot, playing: () => session.isRunning(), fullRate: () => session.fullFrameRate() });
-  let refreshDailyGemBonus = () => {};
-  installStatTracker({ storage: localStorage, read: createStatTrackerSource({ coop: () => coop, player, inventory,
-    hasStarted: session.hasStarted, isLoadedFor: progress.isLoadedFor, inTutorial, researchRanks, kills: () => totalKills,
-    displayedProgress: displayedPlayerPowerProgress, attackCap: () => coop?.attackCapInPlay?.(), critParts: () => ({ ...research.criticalDamageParts(), soul: soulDimension.critDamage(), rating: player.critRating }), criticalChance: research.criticalChance }) });
+  let refreshDailyGemBonus = () => { };
+  installStatTracker({
+    storage: localStorage, read: createStatTrackerSource({
+      coop: () => coop, player, inventory,
+      hasStarted: session.hasStarted, isLoadedFor: progress.isLoadedFor, inTutorial, researchRanks, kills: () => totalKills,
+      displayedProgress: displayedPlayerPowerProgress, attackCap: () => coop?.attackCapInPlay?.(), critParts: () => ({ ...research.criticalDamageParts(), soul: soulDimension.critDamage(), rating: player.critRating }), criticalChance: research.criticalChance
+    })
+  });
   installQuestTracker({ storage: localStorage, enabled: questTracker.enabled, set: questTracker.set, ensure: () => quests.refresh(), view: () => quests.trackerView(currentMapId), hiddenHere: () => !session.hasStarted() || inTutorial() || document.body.matches(".is-cutscene, .is-replaying, .is-dueling") });
   const mailbox = createGameMailbox(gameElements.mailboxToggle, gameElements.minimapVersionEl, coop,
     () => session.hasStarted() && !inTutorial());
