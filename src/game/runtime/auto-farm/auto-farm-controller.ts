@@ -854,7 +854,7 @@ export function createAutoFarmController(options: {
     // On the way to the boss or the next map it shoots what it passes but chases nobody. A pulled group is coming anyway.
     if (phase === 'farm') {
       const regenMultiplier = 3.07;
-      const smartTarget = smartMove({ ...player, realRegen: player.regen * regenMultiplier }, enemies);
+      const smartTarget = smartMove({ ...player, realRegen: player.regen * regenMultiplier }, enemies, shares);
       const length = distance(smartTarget), magnitude = Math.min(1, length / Math.max(1, options.speed() * dt));
       return { x: (smartTarget.x - player.x) / length * magnitude, y: (smartTarget.y - player.y) / length * magnitude, source: 'steer' };
     }
