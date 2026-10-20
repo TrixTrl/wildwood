@@ -65,7 +65,7 @@ export const DAMAGE_FARM_WEIGHT = 2;
  */
 const BOSS_STAND_GAP = 40;
 /** The boss and the next map are gone to with at least this share of health, as a player heals up first. */
-export const COMMIT_HEALTH = .9;
+export const COMMIT_HEALTH = .5;
 /** How long it waits for that health before it goes anyway, if it has at least COMMIT_HEALTH_FLOOR. */
 export const COMMIT_HEALTH_WAIT_MS = 60_000;
 const COMMIT_HEALTH_FLOOR = .5;
@@ -530,8 +530,8 @@ export function createAutoFarmController(options: {
       if (enoughRegen) return { ready: false, line: `Not enough health (${formatCompactNumber(player.maxHp)}/${formatCompactNumber(hpThreshold)})` };
       if (enoughHealth) {
         const playerDps = options.playerCombat().expectedFullDps();
-        const survivalTime = player.maxHp / (regenThreshold - player.regen * regenMultiplier);
-        if (boss.maxHp / playerDps < survivalTime) return { ready: true, line: `Fighting boss based on DPS` };
+        const survivalTime = player.maxHp / (regenThreshold - (player.regen * regenMultiplier));
+        if (boss.maxHp / playerDps < survivalTime * 0.7) return { ready: true, line: `Fighting boss based on DPS` };
         return { ready: false, line: `Not enough regen (${formatCompactNumber(player.regen * regenMultiplier)}/${formatCompactNumber(regenThreshold)}) or DPS, ${formatCompactNumber(boss.maxHp / playerDps)}s kill time, ${formatCompactNumber(survivalTime)}s estimated survival time` };
       }
       return { ready: false, line: `Not enough health (${formatCompactNumber(player.maxHp)}/${formatCompactNumber(hpThreshold)}) or regen (${formatCompactNumber(player.regen * regenMultiplier)}/${formatCompactNumber(regenThreshold)})` };
@@ -552,7 +552,7 @@ export function createAutoFarmController(options: {
     if (enoughRegen) return { ready: false, line: `Not enough health (${formatCompactNumber(player.maxHp)}/${formatCompactNumber(hpThreshold)})` };
     if (enoughHealth) {
       const playerDps = options.playerCombat().expectedFullDps();
-      const survivalTime = player.maxHp / (regenThreshold - player.regen * regenMultiplier);
+      const survivalTime = player.hp / (regenThreshold - (player.regen * regenMultiplier));
       if (boss.maxHp / playerDps < survivalTime * 0.7) return { ready: true, line: `Fighting boss based on DPS` };
       return { ready: false, line: `Not enough regen (${formatCompactNumber(player.regen * regenMultiplier)}/${formatCompactNumber(regenThreshold)}) or DPS, ${formatCompactNumber(boss.maxHp / playerDps)}s kill time, ${formatCompactNumber(survivalTime)}s estimated survival time` };
     }
@@ -605,7 +605,7 @@ export function createAutoFarmController(options: {
     playerBossFightOn = null;
     if (phase === 'boss') {
       // Killed by the boss, or on the way to it: not again on this map until the build has grown.
-      bossRetryPower.set(options.mapId(), currentPower() * BOSS_RETRY_GROWTH);
+      //bossRetryPower.set(options.mapId(), currentPower() * BOSS_RETRY_GROWTH);
       phase = 'farm'; target = null; route = []; lastGoal = null; routeClock = 0; holding = false;
     }
   }
