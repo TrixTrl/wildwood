@@ -23,8 +23,7 @@ let runningFromBoss = false;
 const filtering = false;
 const filteredEnemies = ["speed", "crit"];
 
-export function smartMove(player: PlayerState & { realRegen: number }, enemies: EnemyState[]): Position {
-
+export function smartMove(player: PlayerState & { realRegen: number }, enemies: EnemyState[], shares: Readonly<Record<string, number>>): Position {
     const boss = { x: 4000, y: 4000 };
     const bossCornerDist = Math.hypot(player.x - boss.x, player.y - boss.y);
     //console.log(bossCornerDist);
@@ -37,8 +36,9 @@ export function smartMove(player: PlayerState & { realRegen: number }, enemies: 
         runningFromBoss = false;
     }
 
+    const allEnemies = enemies.filter(e => validEnemy(e));
 
-    const usableEnemies = enemies.filter(e => validEnemy(e));
+    const usableEnemies = allEnemies.filter(e => e.engaged || shares[`stat:${e.reward.type}`] > 0);
 
     const followingEnemies = usableEnemies.filter(e => e.engaged);
 
@@ -80,7 +80,7 @@ export function smartMove(player: PlayerState & { realRegen: number }, enemies: 
             position.x += vector.x * CENTER_PULL_STRENGTH * centreDist;
             position.y += vector.y * CENTER_PULL_STRENGTH * centreDist;
         }
-        for (const enemy of usableEnemies) {
+        for (const enemy of allEnemies) {
             const influence = calculateInfluence(player, enemy) ** (enemy.engaged ? 1 : 4);
             const vector = norm({ x: player.x - enemy.x, y: player.y - enemy.y });
             position.x += vector.x * influence;
@@ -111,7 +111,7 @@ export function smartMove(player: PlayerState & { realRegen: number }, enemies: 
     let closestDistance = Infinity;
     for (const enemy of followingEnemies) {
         const dist = Math.hypot(player.x - enemy.x, player.y - enemy.y);
-        if (dist < closestDistance) {
+        if ((!closestEnemy || distanceBoost(enemy, player) <= distanceBoost(closestEnemy, player)) && dist < closestDistance) {
             closestDistance = dist;
             closestEnemy = enemy;
         }
