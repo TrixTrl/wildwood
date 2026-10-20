@@ -1,4 +1,5 @@
 import { ENEMY_BASE_VALUES } from '../../../../shared/enemy-base-values';
+import { formatCompactNumber } from '../../../ui/number-format';
 import { armorDamageReduction } from '../../combat';
 import { RewardType } from '../../enemies';
 import type { PlayerState, EnemyState, Position } from '../types';
@@ -46,6 +47,9 @@ export function smartMove(player: PlayerState & { realRegen: number }, enemies: 
     for (const enemy of followingEnemies) {
         dpsFollowing += enemyDps(enemy) * (1 - armorDamageReduction(player.armor));
     }
+
+    const dpsText = document.getElementById('dpsChasingCounter-dps');
+    if (dpsText && dpsText.textContent) dpsText.textContent = `${formatCompactNumber(dpsFollowing)}DPS`;
 
     const closeEnemies = followingEnemies.filter(e => Math.hypot(player.x - e.x, player.y - e.y) < CLOSE_DPS_DISTANCE);
 
