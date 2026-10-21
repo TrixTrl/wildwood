@@ -1,4 +1,4 @@
-export const GAME_VERSION = "0.916.9";
+export const GAME_VERSION = "0.916.13";
 export const ATTACK_RANGE_VISIBLE_KEY = "wildwood-attack-range-visible-v1";
 export const LOW_PERFORMANCE_MODE_KEY = "wildwood-low-performance-mode-v1";
 export const FPS_VISIBLE_KEY = "wildwood-fps-visible-v1";
@@ -28,6 +28,15 @@ export const LAVA_PORTAL_CUTSCENE_SEEN_KEY = "wildwood-lava-portal-cutscene-v1";
 export const INFERNAL_PORTAL_CUTSCENE_SEEN_KEY = "wildwood-infernal-portal-cutscene-v1";
 export const WATER_PORTAL_CUTSCENE_SEEN_KEY = "wildwood-water-portal-cutscene-v1";
 export const SAMURAI_PORTAL_CUTSCENE_SEEN_KEY = "wildwood-samurai-portal-cutscene-v1";
+/** Every portal cutscene's seen flag, under the option names the map controller and world progression take. */
+export const PORTAL_CUTSCENE_SEEN_KEYS = {
+  dragonCutsceneSeenKey: DRAGON_PORTAL_CUTSCENE_SEEN_KEY,
+  snowlandsCutsceneSeenKey: SNOWLANDS_PORTAL_CUTSCENE_SEEN_KEY,
+  lavaCutsceneSeenKey: LAVA_PORTAL_CUTSCENE_SEEN_KEY,
+  infernalCutsceneSeenKey: INFERNAL_PORTAL_CUTSCENE_SEEN_KEY,
+  waterCutsceneSeenKey: WATER_PORTAL_CUTSCENE_SEEN_KEY,
+  samuraiCutsceneSeenKey: SAMURAI_PORTAL_CUTSCENE_SEEN_KEY,
+} as const;
 // Pixel-aligned height keeps floating HP text centered and crisp.
 /**
  * Eleven, with softened corners rather than fully rounded ends. A pill is a

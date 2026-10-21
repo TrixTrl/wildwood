@@ -1,7 +1,8 @@
 import {
   MINING_NODES, MINING_NODE_KINDS, MINING_REACH, canMineRock, miningBreakSeconds, miningRockHint, miningYield, type MiningNode,
 } from "../../../../shared/mining";
-import { REFINE_ORES } from "../../../../shared/refine";
+import { REFINE_ORES, type OreId } from "../../../../shared/refine";
+import { gatherRespawnMs } from "../../../../shared/gather-respawn";
 import { inTownHills, TOWN_FEET_OFFSET } from "../../../../shared/town";
 import { ATTACK_ANIMATION_SECONDS, ATTACK_WINDUP_SECONDS } from "../../attack-timeline";
 import type { PlayerState } from "../types";
@@ -25,8 +26,19 @@ export type MiningSource = {
   queueMiningBreak?: (nodeId: number, atMs: number) => void;
   flushMining?: () => void;
   setOnMiningRejected?: (callback: ((text: string) => void) | null) => void;
+  /** Told what a report gave beyond what its breaks showed (the server's rolls). */
+  setOnMiningExtra?: (callback: ((ores: Partial<Record<OreId, number>>) => void) | null) => void;
   serverNowMs?: () => number;
+  /** The player's research: Resource Respawn shortens how long rocks and trees take to grow back (shared/gather-respawn.ts). */
+  research?: () => { resourceRespawn?: number };
 };
+
+/** "+2 More Starshards": what a report gave beyond what the breaks showed. */
+export function moreGatheredText(oreId: OreId, count: number) {
+  const name = REFINE_ORES[oreId].name;
+  return `+${count} More ${count > 1 && !name.endsWith("Ore") ? `${name}s` : name}`;
+}
+const STARSHARD_COLOR = "#f6dcff";
 
 /** A pickaxe swing this often while mining. */
 const SWING_SECONDS = .7;
@@ -44,6 +56,8 @@ export function miningHits(seconds: number) {
 export function miningHitAt(seconds: number, index: number) {
   return Math.max(ATTACK_WINDUP_SECONDS, seconds - (miningHits(seconds) - 1 - index) * SWING_SECONDS);
 }
+/** A break the server did not take is told in plain grey: the rock is simply back to mine. */
+export const REJECTED_COLOR = "#c7ced3";
 /** A hint (Mining short of a rock, a full bag) says itself again only after this long, or for another rock. */
 const HINT_SECONDS = 6;
 /** How often the bare rocks are looked over: they only change as rocks grow back and break. */
@@ -84,14 +98,16 @@ export function createMiningRuntime(deps: {
       && session.generation === (source.sessionGeneration?.() ?? 0));
   }
 
-  function isBare(node: MiningNode, at: number) {
-    const brokenAt = deps.source()?.minedNodeAt?.(node.id) ?? null;
-    return brokenAt !== null && at - brokenAt < MINING_NODE_KINDS[node.kind].respawnSeconds * 1_000;
+  /** Whether a rock is bare: broken less than its regrowth ago, shortened by the player's Resource Respawn rank. */
+  function isBare(node: MiningNode, at: number, source: MiningSource | null | undefined, rank: number) {
+    const brokenAt = source?.minedNodeAt?.(node.id) ?? null;
+    return brokenAt !== null && at - brokenAt < gatherRespawnMs(MINING_NODE_KINDS[node.kind].respawnSeconds, rank);
   }
 
   function refreshBare(at: number) {
     miningScene.bare.clear();
-    for (const node of MINING_NODES) if (isBare(node, at)) miningScene.bare.add(node.id);
+    const source = deps.source(), rank = source?.research?.().resourceRespawn ?? 0;
+    for (const node of MINING_NODES) if (isBare(node, at, source, rank)) miningScene.bare.add(node.id);
   }
 
   /** The nearest rock in reach of the player's feet that is not bare. */
@@ -114,6 +130,7 @@ export function createMiningRuntime(deps: {
   function reset() {
     stop(); resetMiningScene(); inHills = false;
     listeningTo?.setOnMiningRejected?.(null);
+    listeningTo?.setOnMiningExtra?.(null);
     listeningTo = null; session = null; bareCheck = 0;
     hint = { text: "", at: -Infinity, rock: -1 };
   }
@@ -132,13 +149,22 @@ export function createMiningRuntime(deps: {
     source.setOnMiningRejected(text => {
       if (session !== started || !sameSession(deps.source())) return;
       bareCheck = 0;
-      deps.message?.(text, "#ff9b91");
+      deps.message?.(text, REJECTED_COLOR);
+    });
+    source.setOnMiningExtra?.(ores => {
+      if (session !== started || !sameSession(deps.source())) return;
+      for (const [oreId, count] of Object.entries(ores)) {
+        const color = oreId === "starshard" ? STARSHARD_COLOR : ORE_COLORS[oreId as keyof typeof ORE_COLORS]?.light ?? STARSHARD_COLOR;
+        if (count) deps.logPickup?.(moreGatheredText(oreId as OreId, count), color);
+      }
     });
   }
 
   function breakRock(source: MiningSource, rock: MiningNode, at: number) {
     const id = rock.id;
     source.queueMiningBreak?.(id, at);
+    // A Mysterious rock reports at once, so the Starshards the server rolls follow the break within a moment.
+    if (rock.kind === "mysterious") source.flushMining?.();
     miningScene.bare.add(id);
     stop();
     // The breaking hit fills the bar: it stays up a moment over the broken rock.
@@ -148,7 +174,7 @@ export function createMiningRuntime(deps: {
     // What it gives before the server's rolls (cards, the pickaxe's bonus): the same rule the bag counts.
     const color = ORE_COLORS[rock.ore].light, gives = miningYield(rock, 1);
     deps.logPickup?.(`+${gives[rock.ore] ?? 0} ${REFINE_ORES[rock.ore].name}`, color);
-    if (gives.starshard) deps.logPickup?.(`+${gives.starshard} Starshard`, "#f6dcff");
+    if (gives.starshard) deps.logPickup?.(`+${gives.starshard} Starshard`, STARSHARD_COLOR);
     deps.burst?.(rock.x, rock.y - 24, color, 12, 95);
   }
 

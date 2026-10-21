@@ -1,4 +1,31 @@
 export const RELEASE_NOTES: Record<string, string[]> = {
+  "0.916.13": [
+    "Soul Health enemies give 10 Health a kill",
+    "Soul Levels need less XP each, and the cap is now 50",
+    "Refined gear shows its ★10 and ★20 look on your character, not just its icon",
+    "New Utility research: Resource Respawn, so rocks and trees grow back faster",
+    "Auto Chop and Auto Mine no longer step away from a tree or rock as it grows back",
+    "Auto Farm counts your cards when judging bosses and when to move on",
+    "Guild battles use the same staff, sword and Mastery rules as duels",
+    "Profiles show power, Move Speed and Range as they really are",
+    "Other players fight monsters on your screen with their refines, cards and soul",
+    "Armor popups count Warrior Boots",
+    "Power over your head no longer drops after kills when you have crits",
+  ],
+  "0.916.12": [
+    "The Starshard and ore messages show the full amount you got",
+    "Quests finish as soon as you get the last kill",
+    "Verdant Catacombs runs smoother, and later maps no longer freeze for a moment when their monsters first appear",
+    "Long sessions no longer pile up enemy name labels from every map you visited",
+    "Some Endless bosses no longer slow the game down while on screen",
+    "Behind-the-scenes code cleanup",
+  ],
+  "0.916.11": [
+    "Mining and chopping no longer lose breaks to timing and reach checks",
+  ],
+  "0.916.10": [
+    "Fixed boots and other gear unequipping on their own",
+  ],
   "0.916.9": [
     "Fixed a weapon that looked equipped but was not, so kills trained the wrong Mastery",
     "Equipping something the server refuses now says so",
@@ -3702,6 +3729,10 @@ const RELEASE_DATES: Record<string, string> = {
 };
 
 export const RELEASE_DAYS: Record<string, string> = {
+  "0.916.13": "2026-10-20",
+  "0.916.12": "2026-10-20",
+  "0.916.11": "2026-10-20",
+  "0.916.10": "2026-10-20",
   "0.916.9": "2026-10-19",
   "0.916.8": "2026-10-19",
   "0.916.7": "2026-10-19",

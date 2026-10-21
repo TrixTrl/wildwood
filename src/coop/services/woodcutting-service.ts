@@ -1,22 +1,35 @@
 import { tables, type DbConnection } from "../../module_bindings";
 import { normalizeWoodcutting, woodcuttingGain, woodcuttingYield, woodTree } from "../../../shared/woodcutting";
 import type { OreId } from "../../../shared/refine";
-import { createGatherQueue } from "./gather-queue";
+import { createGatherQueue, createReportGains, gatherExtras, type GatherClock } from "./gather-queue";
+import { reducerEventMs } from "./reducer-event-time";
 
 type Target = { connection: DbConnection; isCurrent: () => boolean };
 type Ores = Partial<Record<OreId, number>>;
 const toMs = (at: { microsSinceUnixEpoch: bigint }) => Number(at.microsSinceUnixEpoch / 1000n);
 const U32 = 4_294_967_296;
 
-/** "2 felled trees did not count.": falls the server did not take, whose trees stand again. */
-export const woodcuttingRejectedText = (count: number) => `${count === 1 ? "A felled tree" : `${count} felled trees`} did not count.`;
+/** "2 trees stand again: those falls were not counted.": falls the server did not take. */
+export const woodcuttingRejectedText = (count: number) =>
+  count === 1 ? "A tree stands again: that fall was not counted." : `${count} trees stand again: those falls were not counted.`;
+
+/** What falls show at once, before the hatchet's bonus log, which the server rolls. */
+function shownLogs(claims: readonly { id: number }[]) {
+  const ores: Ores = {};
+  for (const claim of claims) {
+    const tree = woodTree(claim.id);
+    if (!tree) continue;
+    for (const [logId, count] of Object.entries(woodcuttingYield(tree))) ores[logId as OreId] = (ores[logId as OreId] ?? 0) + (count ?? 0);
+  }
+  return ores;
+}
 
 /**
  * This account's woodcutting, from the caller-scoped my_woodcutting and my_chopped_trees views, as mining's
  * (mining-service.ts): the Woodcutting stat and when each stump was felled. Trees fall here at once and go to the
  * server in batches (report_chopping); until it answers, the stat, the stumps and the logs read here include them.
  */
-export function createWoodcuttingRows(notify: () => void) {
+export function createWoodcuttingRows(notify: () => void, clock?: GatherClock) {
   let target: Target | null = null;
   let woodcutting = 0, treesChopped = 0;
   let felled = new Map<number, number>();
@@ -24,29 +37,36 @@ export function createWoodcuttingRows(notify: () => void) {
   let local = { felled: new Map<number, number>(), gain: 0, ores: {} as Ores };
   let counted = { base: 0, sent: 0, reported: 0 };
   let rejectedListener: ((text: string) => void) | null = null;
+  let extraListener: ((ores: Ores) => void) | null = null;
+  const gains = createReportGains(), reports = new WeakMap<readonly unknown[], object>();
 
   const queue = createGatherQueue({
+    clock,
     send(claims) {
       const current = target;
       if (!current || !current.isCurrent() || !current.connection.isActive) return null;
-      return current.connection.reducers.reportChopping({ chops: claims.map(claim => ({ treeId: claim.id, atMs: BigInt(Math.round(claim.atMs)) })) });
+      const args = gains.track({ chops: claims.map(claim => ({ treeId: claim.id, atMs: BigInt(Math.round(claim.atMs)) })) });
+      reports.set(claims, args);
+      return current.connection.reducers.reportChopping(args);
     },
     settled(claims, error) {
+      const gained = gains.take(reports.get(claims));
       if (error) { rejectedListener?.(error); return; }
+      // The hatchet's bonus logs, beyond what each fall showed.
+      const extra = gained ? gatherExtras(gained, shownLogs(claims)) : {};
+      if (Object.keys(extra).length) extraListener?.(extra);
       counted.sent += claims.length;
       const rejected = counted.sent - (treesChopped - counted.base + U32) % U32;
       if (rejected > counted.reported) rejectedListener?.(woodcuttingRejectedText(rejected - counted.reported));
       counted.reported = Math.max(counted.reported, rejected);
     },
     changed() {
-      const next = { felled: new Map<number, number>(), gain: 0, ores: {} as Ores };
-      for (const claim of queue.pending()) {
+      const pending = queue.pending(), next = { felled: new Map<number, number>(), gain: 0, ores: shownLogs(pending) };
+      for (const claim of pending) {
         const tree = woodTree(claim.id);
         if (!tree) continue;
         next.felled.set(tree.id, Math.max(next.felled.get(tree.id) ?? -Infinity, claim.atMs));
         next.gain += woodcuttingGain(tree);
-        // Before the hatchet's bonus log, which the server rolls.
-        for (const [logId, count] of Object.entries(woodcuttingYield(tree))) next.ores[logId as OreId] = (next.ores[logId as OreId] ?? 0) + (count ?? 0);
       }
       local = next;
       notify();
@@ -57,8 +77,11 @@ export function createWoodcuttingRows(notify: () => void) {
     queue.clear();
     target = { connection, isCurrent };
     woodcutting = 0; treesChopped = 0; felled = new Map();
-    const readWoodcutting = () => {
+    // A report's reply carries the server's time, which the next report's times are read against.
+    const readWoodcutting = (ctx?: unknown) => {
       if (!isCurrent()) return;
+      const serverAt = reducerEventMs(ctx);
+      if (serverAt !== null) clock?.observeServerTime?.(serverAt);
       const [row] = [...connection.db.myWoodcutting.iter()];
       woodcutting = normalizeWoodcutting(row?.woodcutting);
       treesChopped = row?.treesChopped ?? 0;
@@ -72,6 +95,7 @@ export function createWoodcuttingRows(notify: () => void) {
       notify();
     };
     connection.db.myWoodcutting.onInsert(readWoodcutting); connection.db.myWoodcutting.onUpdate(readWoodcutting); connection.db.myWoodcutting.onDelete(readWoodcutting);
+    gains.watch(connection.db.myOres);
     connection.db.myChoppedTrees.onInsert(readFelled); connection.db.myChoppedTrees.onUpdate(readFelled); connection.db.myChoppedTrees.onDelete(readFelled);
     connection.subscriptionBuilder()
       .onApplied(() => { readWoodcutting(); readFelled(); counted = { base: treesChopped, sent: 0, reported: 0 }; })
@@ -96,6 +120,8 @@ export function createWoodcuttingRows(notify: () => void) {
       flushWoodcutting: () => queue.flush(),
       /** Told when falls did not count, or a report failed. */
       setOnWoodcuttingRejected(callback: ((text: string) => void) | null) { rejectedListener = callback; },
+      /** Told what a report gave beyond what its falls showed. */
+      setOnWoodcuttingExtra(callback: ((ores: Ores) => void) | null) { extraListener = callback; },
     },
   };
 }

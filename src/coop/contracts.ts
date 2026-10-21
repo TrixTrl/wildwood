@@ -124,10 +124,10 @@ export type PlayerPrestigePerks = {
   armorCards?: number;
 };
 
-export type UpgradeBenchSlot = 1 | 2 | 3;
+export type SlotUpgradeQueue = 1 | 2 | 3;
 
 export type ActiveItemUpgrade = {
-  slot: UpgradeBenchSlot;
+  slot: SlotUpgradeQueue;
   itemId: string;
   currentLevel: number;
   targetLevel: number;
@@ -161,6 +161,8 @@ export type PlayerProfileData = {
   itemUpgradeLevels: Record<string, number>;
   /** Each first copy's refine by item id (player_item_refine); the worn items' are what stats read. +0 is missing. */
   itemRefines?: Record<string, number>;
+  /** The bonus item ids they switched off (player_bonus_toggle): profiles count stats with them left out, as the server does. */
+  bonusOff?: readonly string[];
   /** The active cards they chose by type (player_active_card), waiting ones included; profileActiveCardIds keeps those in play. */
   activeCards?: import("../../shared/active-cards").ActiveCards;
   /** The equipped weapon's skill roll (player_worn_skill), for showing it on the profile. */

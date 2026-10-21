@@ -1,9 +1,10 @@
 import { createSessionSubscriptions } from "./session-subscriptions";
 import { PATREON_TICKER_CHANGED } from "../../../shared/patreon-ticker";
-import { questDay, questWeek } from "../../../shared/daily-quests";
+import { questDay, questWeek } from "../../../shared/weekly-quests";
 import type { Identity } from "spacetimedb";
 import { tables, type DbConnection } from "../../module_bindings";
 import { withWideDuel, withWideProgress } from "./wide-progress";
+import { reducerEventMs } from "./reducer-event-time";
 
 type RowHandler = (row: any) => void;
 
@@ -54,6 +55,8 @@ export type BaseSubscriptionHandlers = {
   removeResearch: RowHandler;
   luckResearch: RowHandler;
   removeLuckResearch: RowHandler;
+  researchRank: RowHandler;
+  removeResearchRank: RowHandler;
   activeResearch: RowHandler;
   removeActiveResearch: RowHandler;
   pausedResearch: RowHandler;
@@ -92,6 +95,8 @@ export type BaseSubscriptionHandlers = {
   removePlayerBlock: RowHandler;
   duel: RowHandler;
   removeDuel: RowHandler;
+  /** The server's time from a reply to one of our own calls (reducer-event-time.ts). */
+  serverTime?: (serverAtMs: number) => void;
 };
 
 type BaseSubscriptionHandlerSources = {
@@ -105,6 +110,7 @@ type BaseSubscriptionHandlerSources = {
     removeMotionIdentity: BaseSubscriptionHandlers["removeMotionIdentity"];
     upsertWorldStatus: BaseSubscriptionHandlers["worldStatus"];
     upsertReleaseNotice: BaseSubscriptionHandlers["releaseNotice"];
+    observeServerTime?: (serverAtMs: number) => void;
   };
   profile: {
     upsertNameTag: RowHandler;
@@ -122,6 +128,8 @@ type BaseSubscriptionHandlerSources = {
     removeResearch: BaseSubscriptionHandlers["removeResearch"];
     upsertLuckResearch: BaseSubscriptionHandlers["luckResearch"];
     removeLuckResearch: BaseSubscriptionHandlers["removeLuckResearch"];
+    upsertResearchRank: BaseSubscriptionHandlers["researchRank"];
+    removeResearchRank: BaseSubscriptionHandlers["removeResearchRank"];
     upsertActiveResearch: BaseSubscriptionHandlers["activeResearch"];
     removeActiveResearch: BaseSubscriptionHandlers["removeActiveResearch"];
     upsertPausedResearch: BaseSubscriptionHandlers["pausedResearch"];
@@ -188,6 +196,7 @@ export function createBaseSubscriptionHandlers(sources: BaseSubscriptionHandlerS
     motionFrame: presence.upsertPlayerMotionFrame,
     mapFrame: presence.upsertPlayerMapFrame,
     deathFrame: presence.upsertPlayerDeathFrame,
+    serverTime: presence.observeServerTime,
     motionIdentity: presence.upsertMotionIdentity,
     removeMotionIdentity: presence.removeMotionIdentity,
     nameTag: profile.upsertNameTag,
@@ -229,6 +238,8 @@ export function createBaseSubscriptionHandlers(sources: BaseSubscriptionHandlerS
     removeResearch: progression.removeResearch,
     luckResearch: progression.upsertLuckResearch,
     removeLuckResearch: progression.removeLuckResearch,
+    researchRank: progression.upsertResearchRank,
+    removeResearchRank: progression.removeResearchRank,
     activeResearch: progression.upsertActiveResearch,
     removeActiveResearch: progression.removeActiveResearch,
     pausedResearch: progression.upsertPausedResearch,
@@ -296,8 +307,13 @@ export function startBaseSubscription(dependencies: BaseSubscriptionDependencies
   connection.db.patreonTickerSupporters.onInsert(supporterChanged);
   connection.db.patreonTickerSupporters.onUpdate(supporterChanged);
   connection.db.patreonTickerSupporters.onDelete(supporterChanged);
-  connection.db.player.onInsert((_ctx, row) => { if (shouldHandle()) handlers.player(row); });
-  connection.db.player.onUpdate((_ctx, _oldRow, row) => { if (shouldHandle()) handlers.player(row); });
+  // Our own calls that touch the player row (entering the world, stopping) carry the server's time.
+  const serverTime = (ctx: unknown) => {
+    const at = reducerEventMs(ctx);
+    if (at !== null && dependencies.isCurrent()) handlers.serverTime?.(at);
+  };
+  connection.db.player.onInsert((ctx, row) => { serverTime(ctx); if (shouldHandle()) handlers.player(row); });
+  connection.db.player.onUpdate((ctx, _oldRow, row) => { serverTime(ctx); if (shouldHandle()) handlers.player(row); });
   connection.db.player.onDelete((_ctx, row) => {
     if (shouldHandle() && !dependencies.isPresenceSubscriptionTransitioning()) handlers.removePlayer(row);
   });
@@ -380,6 +396,9 @@ export function startBaseSubscription(dependencies: BaseSubscriptionDependencies
   connection.db.playerLuckResearch.onInsert((_ctx, row) => { if (shouldHandle()) handlers.luckResearch(row); });
   connection.db.playerLuckResearch.onUpdate((_ctx, _oldRow, row) => { if (shouldHandle()) handlers.luckResearch(row); });
   connection.db.playerLuckResearch.onDelete((_ctx, row) => { if (shouldHandle()) handlers.removeLuckResearch(row); });
+  connection.db.myResearchRanks.onInsert((_ctx, row) => { if (shouldHandle()) handlers.researchRank(row); });
+  connection.db.myResearchRanks.onUpdate((_ctx, _oldRow, row) => { if (shouldHandle()) handlers.researchRank(row); });
+  connection.db.myResearchRanks.onDelete((_ctx, row) => { if (shouldHandle()) handlers.removeResearchRank(row); });
   connection.db.activeResearch.onInsert((_ctx, row) => { if (shouldHandle()) handlers.activeResearch(row); });
   connection.db.activeResearch.onUpdate((_ctx, _oldRow, row) => { if (shouldHandle()) handlers.activeResearch(row); });
   connection.db.activeResearch.onDelete((_ctx, row) => { if (shouldHandle()) handlers.removeActiveResearch(row); });
@@ -504,6 +523,7 @@ export function startBaseSubscription(dependencies: BaseSubscriptionDependencies
       tables.playerInventory.where((bag) => bag.identity.eq(dependencies.identity)),
       tables.playerResearch.where((research) => research.identity.eq(dependencies.identity)),
       tables.playerLuckResearch.where((research) => research.identity.eq(dependencies.identity)),
+      tables.myResearchRanks,
       tables.activeResearch.where((research) => research.identity.eq(dependencies.identity)),
       tables.pausedResearch.where((research) => research.identity.eq(dependencies.identity)),
       // Whole table, not only our row: the level badge beside every name needs
@@ -567,6 +587,7 @@ export function startBaseSubscription(dependencies: BaseSubscriptionDependencies
         for (const row of connection.db.playerProgress.iter()) handlers.progress(withWideProgress(connection, row));
         for (const row of connection.db.playerResearch.iter()) handlers.research(row);
         for (const row of connection.db.playerLuckResearch.iter()) handlers.luckResearch(row);
+        for (const row of connection.db.myResearchRanks.iter()) handlers.researchRank(row);
         for (const row of connection.db.activeResearch.iter()) handlers.activeResearch(row);
         if (![...connection.db.activeResearch.iter()].some(row => row.identity.toHexString() === dependencies.identity.toHexString())) handlers.removeActiveResearch({ identity: dependencies.identity });
         for (const row of connection.db.pausedResearch.iter()) handlers.pausedResearch(row);

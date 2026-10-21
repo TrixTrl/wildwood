@@ -235,17 +235,6 @@ export const ChatReactionUnlock = __t.object("ChatReactionUnlock", {
 });
 export type ChatReactionUnlock = __Infer<typeof ChatReactionUnlock>;
 
-export const CombatProgressCheckpoint = __t.object("CombatProgressCheckpoint", {
-  maxHp: __t.f64(),
-  damage: __t.f64(),
-  attackRate: __t.f64(),
-  projectileCount: __t.u32(),
-  armor: __t.f64(),
-  regen: __t.f64(),
-  enemyKills: __t.u32(),
-});
-export type CombatProgressCheckpoint = __Infer<typeof CombatProgressCheckpoint>;
-
 export const ConnectionDiagnostic = __t.object("ConnectionDiagnostic", {
   id: __t.string(),
   identity: __t.identity(),
@@ -763,17 +752,6 @@ export const LeaderboardEntryV2 = __t.object("LeaderboardEntryV2", {
 });
 export type LeaderboardEntryV2 = __Infer<typeof LeaderboardEntryV2>;
 
-export const LeaderboardPage = __t.object("LeaderboardPage", {
-  get entries() {
-    return __t.array(RankedLeaderboardPlayer);
-  },
-  startRank: __t.u32(),
-  endRank: __t.u32(),
-  localRank: __t.u32(),
-  total: __t.u32(),
-});
-export type LeaderboardPage = __Infer<typeof LeaderboardPage>;
-
 export const LeaderboardPosition = __t.object("LeaderboardPosition", {
   identity: __t.identity(),
   ranks: __t.array(__t.u32()),
@@ -1103,6 +1081,9 @@ export type MyProceduralBoss = __Infer<typeof MyProceduralBoss>;
 
 export const MyRefineResult = __t.object("MyRefineResult", {});
 export type MyRefineResult = __Infer<typeof MyRefineResult>;
+
+export const MyResearchRanks = __t.object("MyResearchRanks", {});
+export type MyResearchRanks = __Infer<typeof MyResearchRanks>;
 
 export const MyRewardKills = __t.object("MyRewardKills", {});
 export type MyRewardKills = __Infer<typeof MyRewardKills>;
@@ -2151,6 +2132,14 @@ export const PlayerResearch = __t.object("PlayerResearch", {
 });
 export type PlayerResearch = __Infer<typeof PlayerResearch>;
 
+export const PlayerResearchRank = __t.object("PlayerResearchRank", {
+  key: __t.string(),
+  identity: __t.identity(),
+  researchId: __t.string(),
+  rank: __t.u32(),
+});
+export type PlayerResearchRank = __Infer<typeof PlayerResearchRank>;
+
 export const PlayerRewardKills = __t.object("PlayerRewardKills", {
   identity: __t.identity(),
   damage: __t.u64(),
@@ -2345,19 +2334,6 @@ export const PrestigeExpansion = __t.object("PrestigeExpansion", {
 });
 export type PrestigeExpansion = __Infer<typeof PrestigeExpansion>;
 
-export const PrestigeLeaderboardPage = __t.object("PrestigeLeaderboardPage", {
-  get entries() {
-    return __t.array(RankedLeaderboardPlayer);
-  },
-  startRank: __t.u32(),
-  endRank: __t.u32(),
-  localRank: __t.u32(),
-  total: __t.u32(),
-  prestige: __t.u32(),
-  levels: __t.array(__t.u32()),
-});
-export type PrestigeLeaderboardPage = __Infer<typeof PrestigeLeaderboardPage>;
-
 export const ProceduralBoss = __t.object("ProceduralBoss", {
   mapId: __t.string(),
   encounter: __t.u64(),
@@ -2414,14 +2390,6 @@ export const PublicChatCursor = __t.object("PublicChatCursor", {
   lastId: __t.u64(),
 });
 export type PublicChatCursor = __Infer<typeof PublicChatCursor>;
-
-export const PublicChatPage = __t.object("PublicChatPage", {
-  get messages() {
-    return __t.array(ChatMessage);
-  },
-  hasMore: __t.bool(),
-});
-export type PublicChatPage = __Infer<typeof PublicChatPage>;
 
 export const PublicChatPageWithReactions = __t.object("PublicChatPageWithReactions", {
   get messages() {
@@ -2502,14 +2470,6 @@ export const ShardCoordinatorConnection = __t.object("ShardCoordinatorConnection
   token: __t.string(),
 });
 export type ShardCoordinatorConnection = __Infer<typeof ShardCoordinatorConnection>;
-
-export const SocialChatPage = __t.object("SocialChatPage", {
-  get messages() {
-    return __t.array(SocialMessage);
-  },
-  hasMore: __t.bool(),
-});
-export type SocialChatPage = __Infer<typeof SocialChatPage>;
 
 export const SocialChatPageWithReactions = __t.object("SocialChatPageWithReactions", {
   get messages() {

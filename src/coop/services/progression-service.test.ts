@@ -143,6 +143,19 @@ describe("local progression profile snapshots", () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
+  it("merges rank-table research into the research, through a player_research row arriving later and the row's removal", () => {
+    const h = setup();
+    const local = { toHexString: () => identity } as never;
+    h.service.tables.upsertResearchRank({ identity: local, researchId: "resourceRespawn", rank: 3 });
+    expect(h.service.api.research().resourceRespawn).toBe(3);
+    h.service.tables.upsertResearch({ identity: local, warcraft: 2 });
+    expect(h.service.api.research()).toMatchObject({ warcraft: 2, resourceRespawn: 3 });
+    h.service.tables.upsertResearchRank({ identity: local, researchId: "notANode", rank: 9 });
+    expect(h.service.api.research()).not.toHaveProperty("notANode");
+    h.service.tables.removeResearchRank({ identity: local, researchId: "resourceRespawn" });
+    expect(h.service.api.research()).toMatchObject({ warcraft: 2, resourceRespawn: 0 });
+  });
+
   it("removes confirmed destruction from cached and pending inventory without losing earned stats", async () => {
     const h = setup();
     const saved = { ...progress(), inventoryJson: '["samurai_hat"]', equippedHead: "samurai_hat", cosmeticHead: "samurai_hat" };
@@ -450,6 +463,41 @@ describe("server-calculated defeat batches", () => {
     } finally { vi.useRealTimers(); }
   });
 
+  it("reports the kill that finishes a quest at once, so the quest is done without waiting for the next report", async () => {
+    vi.useFakeTimers();
+    try {
+      const h = setup();
+      h.service.tables.upsertProgress({ ...progress(), identity: { toHexString: () => identity } } as never);
+      const quests = (progress: number) => JSON.stringify([
+        { mapId: "water_reach", enemy: "Tide Raider", target: 3, progress },
+        { mapId: "water_reach", enemy: "Coral Colossus", target: 50, progress: 0 },
+      ]);
+      const row = (progress: number) => ({ identity: { toHexString: () => identity }, day: 20_746, questsJson: quests(progress), bonus: 1, guildPoints: 0, guildName: "" }) as never;
+      h.service.tables.upsertDailyQuest(row(1));
+      // The server takes the report and its row shows the quest done before the answer, as a transaction does.
+      h.reportEnemyDefeats.mockImplementation(async (request: any) => {
+        const raiders = request.enemies.find((entry: any) => entry.enemy === "Tide Raider")?.count ?? 0;
+        h.service.tables.upsertDailyQuest(row(Math.min(3, 1 + raiders)));
+      });
+      h.service.recordRegularEnemyDefeat("water_reach", "Coral Colossus");
+      h.service.recordRegularEnemyDefeat("water_reach", "Tide Raider");
+      await vi.advanceTimersByTimeAsync(0);
+      expect(h.reportEnemyDefeats).not.toHaveBeenCalled();
+      h.service.recordRegularEnemyDefeat("water_reach", "Tide Raider");
+      await vi.advanceTimersByTimeAsync(0);
+      expect(h.reportEnemyDefeats).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+        mapId: "water_reach", enemies: [{ enemy: "Coral Colossus", count: 1 }, { enemy: "Tide Raider", count: 2 }],
+      }));
+      expect(h.service.api.weeklyQuests()?.quests[0].progress).toBe(3);
+      // The quest is done: later kills wait for the usual report.
+      h.service.recordRegularEnemyDefeat("water_reach", "Tide Raider");
+      h.service.recordRegularEnemyDefeat("water_reach", "Coral Colossus");
+      await vi.advanceTimersByTimeAsync(0);
+      expect(h.reportEnemyDefeats).toHaveBeenCalledOnce();
+      h.service.dispose();
+    } finally { vi.useRealTimers(); }
+  });
+
   it("saves a changed loadout on the timer even while kills wait for their report", async () => {
     vi.useFakeTimers();
     try {
@@ -705,6 +753,48 @@ describe("the server's loadout is the one shown", () => {
     expect(await h.service.drainPendingProgress()).toBe(true);
     expect(equips).toEqual([]);
     expect(h.service.api.savedProgress()?.equippedRightHand).toBe("eternal_sword");
+    h.service.dispose();
+  });
+
+  const ranger = (feet: string) => ({ ...progress(), inventoryJson: '["starter_stone","ancient_bow","ancient_ranger_boots"]',
+    equippedRightHand: "ancient_bow", equippedFeet: feet });
+
+  it("keeps boots put on from another device through a reconnect while a save is queued", () => {
+    const h = setup();
+    h.service.tables.upsertProgress(row(ranger("")));
+    // Unreported kills keep a save queued, ahead of the row.
+    h.service.api.saveProgress(saveFrom(ranger(""), { damage: 9 }));
+    h.service.tables.upsertProgress(row(ranger("ancient_ranger_boots")));
+    expect(h.service.api.savedProgress()?.equippedFeet).toBe("ancient_ranger_boots");
+    // The reconnect restores the stored save; it used to be the one from before the boots went on.
+    h.service.beginSession(false);
+    h.service.tables.upsertProgress(row(ranger("ancient_ranger_boots")));
+    expect(h.service.api.savedProgress()?.equippedFeet).toBe("ancient_ranger_boots");
+    h.service.dispose();
+  });
+
+  it("keeps boots put back on while the save that took them off is on its way", async () => {
+    const h = setup(); const equips: ServerEquip[] = [];
+    h.service.api.setOnServerEquip(equip => equips.push(equip));
+    h.service.tables.upsertProgress(row(ranger("ancient_ranger_boots")));
+    let land!: () => void;
+    // The server takes each save as sent; the first is slow to come back.
+    h.savePlayerProgress.mockImplementation(async (...args: unknown[]) => {
+      h.service.tables.upsertProgress(row(ranger((args[0] as ProgressSave).equippedFeet)));
+    });
+    h.savePlayerProgress.mockImplementationOnce(async () => {
+      await new Promise<void>(resolve => { land = resolve; });
+      h.service.tables.upsertProgress(row(ranger("")));
+    });
+    h.service.api.saveProgress(saveFrom(ranger(""), { damage: 9 }), true);
+    await vi.waitFor(() => expect(land).toBeDefined());
+    // Boots back on before the first save lands: its row is that save, not the server taking them off.
+    h.service.api.saveProgress(saveFrom(ranger("ancient_ranger_boots"), { damage: 9 }), true);
+    land();
+    expect(await h.service.drainPendingProgress()).toBe(true);
+    expect(equips).toEqual([]);
+    expect(h.savePlayerProgress).toHaveBeenLastCalledWith(expect.objectContaining({ equippedFeet: "ancient_ranger_boots" }));
+    expect(h.service.api.savedProgress()?.equippedFeet).toBe("ancient_ranger_boots");
     h.service.dispose();
   });
 });

@@ -1,11 +1,11 @@
-import { equipmentRegeneration, type ItemLevel } from "../../../shared/items";
+import type { ItemLevel } from "../../../shared/items";
 import type { RewardType } from "../../../shared/enemy-definitions";
 import type { ResearchRanks } from "../../../shared/research";
 import { effectiveRewardAmount } from "../../../shared/reward-display";
 
 type EquippedStats = {
   equippedRightHand: string; equippedLeftHand: string;
-  equippedHead: string; equippedChest: string;
+  equippedHead: string; equippedChest: string; equippedFeet?: string;
 };
 
 export function createRewardDisplay(
@@ -16,10 +16,10 @@ export function createRewardDisplay(
   const totalAmount = (type: RewardType, amount: number) => {
     const items = equipped();
     const weapon = items.equippedRightHand || items.equippedLeftHand;
-    const head = items.equippedHead, chest = items.equippedChest;
+    const head = items.equippedHead, chest = items.equippedChest, feet = items.equippedFeet ?? "";
     return effectiveRewardAmount(type, amount, statGain(), ranks(), {
-      weapon, head, chest,
-      weaponLevel: upgradeLevel(weapon), headLevel: upgradeLevel(head), chestLevel: upgradeLevel(chest), activeCards: activeCards(),
+      weapon, head, chest, feet,
+      weaponLevel: upgradeLevel(weapon), headLevel: upgradeLevel(head), chestLevel: upgradeLevel(chest), feetLevel: upgradeLevel(feet), activeCards: activeCards(),
     });
   };
   return {
@@ -27,12 +27,4 @@ export function createRewardDisplay(
     displayedAmount: (type: RewardType, amount: number) => showBase() ? amount : totalAmount(type, amount),
     displayedMultiplier: () => showBase() ? 1 : statGain(),
   };
-}
-
-export function playerRegenerationPerSecond(
-  base: number, equipped: Pick<EquippedStats, "equippedHead" | "equippedChest">,
-  researchMultiplier: number, upgradeLevel: (itemId: string) => ItemLevel,
-) {
-  const head = equipped.equippedHead, chest = equipped.equippedChest;
-  return equipmentRegeneration(base, head, chest, researchMultiplier, upgradeLevel(head), upgradeLevel(chest));
 }

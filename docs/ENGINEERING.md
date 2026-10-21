@@ -8,7 +8,11 @@ Realtime ownership and sequencing are diagrammed in `docs/realtime-data-flow.md`
 
 | Module | Responsibility |
 | --- | --- |
-| `src/main.ts` | Composition root only. It wires controllers and must stay under 1,000 lines; new behavior belongs in a typed runtime or UI module. |
+| `src/main.ts` | Composition root only. It wires controllers; new behavior belongs in a typed runtime or UI module. Its size is held by the ratchets in `src/main-boundary.test.ts` (see below). |
+| `src/game/runtime/coop-access.ts` | Null-safe reads of the coop client with the defaults the game shows before it connects; the wiring modules below take it as `coop`. |
+| `src/game/runtime/`: `player-combat-wiring.ts`, `player-controller-wiring.ts`, `game-session-wiring.ts`, `coop-session-wiring.ts`, `auto-farm/auto-farm-wiring.ts`, `duel/duel-wiring.ts`, `town-runtimes.ts`, `world-places.ts`, `displayed-power.ts` | The bands `main.ts` composes, one factory each taking one typed deps object: player combat, the local player, the game session's update order, the coop client's notifications, Auto Farm, duels, the Town's stations, the quest board, travel, Soul Dimension and guild halls, and displayed power. Objects created after a factory runs are passed as `later` getters, read only once play needs them. |
+| `src/game/runtime/render/world-render-wiring.ts`, `map-asset-loading.ts`, `player-identity-wiring.ts` | The world and frame renderers' wiring, the minimap's canvas box, map art and balance loading with neighbouring-map preloads, and players' name plates. |
+| `src/ui/`: `startup-runtime.ts`, `profile-runtime.ts`, `game-panels.ts`, `hud-runtime.ts`, `inventory-runtime.ts`, `onboarding-runtime.ts`, `game-actions-wiring.ts`, `reconnect-overlay.ts` | UI bands wired from `main.ts`: the start screen and startup coordinator, profiles, the competing windows (research, guild, leaderboard, developer panel, map guide), the HUD, gifts and mail, the bag, the tutorial, toolbar actions and Escape, and the reconnect overlay. |
 | `src/game/constants.ts` | Shared gameplay and world constants. |
 | `src/game/enemies.ts` | Enemy definitions, camp definitions, reward labels, and enemy sprite loading. |
 | `src/game/world.ts` | World decoration, road layout, and enemy spawn-site generation. |
@@ -21,10 +25,24 @@ Realtime ownership and sequencing are diagrammed in `docs/realtime-data-flow.md`
 | `src/ui/` | UI controllers and views for HUD, inventory, profiles, leaderboard, developer tools, overlays, startup, chat, and interaction bindings. |
 | `src/ui/hud.ts` | HUD and inventory DOM rendering. |
 | `src/ui/chat.ts` | Chat UI behavior. |
-| `src/wildstat-coop.ts` | Browser-facing multiplayer composition root and connection/reconnect policy; kept below 1,000 lines by a test guard. |
+| `src/wildstat-coop.ts` | Browser-facing multiplayer composition root and connection/reconnect policy; kept below 1,000 lines, with the same long-line and byte ratchets, by `src/coop/wildstat-coop-boundary.test.ts`. |
 | `src/coop/services/` | Account, base-subscription, presence, profile, progression, chat, duel, boss, and developer service ownership. See `docs/wildstat-coop-modularization.md`. |
 
 Keep static definitions and pure calculations outside `main.ts`. `main.ts` is a composition root, not a feature destination. Add a runtime/UI controller with an explicit input/output boundary, then wire it from `main.ts`. Keep mutable combat state together until it has that boundary; splitting individual functions that share hidden state creates harder coupling, not useful modularity.
+
+### Size guards on the composition roots
+
+`main.ts` is about 940 lines today and, like `wildstat-coop.ts`, must stay below 1,000. The tests hold these, and every recorded number may only go down:
+
+- **Line ratchet:** the line count stays below 1,000 and never exceeds its last recorded value.
+- **No long lines:** the count of lines over 160 characters, and over 300, never grows. New code stays under 160 characters per line.
+- **Byte budget:** the file size never grows, so code cannot be packed to dodge the line count.
+
+When wiring does not fit, extract a named module (a factory that takes its dependencies as one typed object) and wire it in one call. Do not lengthen lines, chain statements onto one line, or delete useful comments to make room. Lower the recorded numbers in the same change whenever an extraction frees space.
+
+`src/ui/game-elements-markup.test.ts` loads `public/index.html`, runs `installGameShell`, and checks every `requiredElement` and `requiredSelector` the game uses. Removing markup without removing its lookup fails there instead of on players' startup.
+
+`src/main-boot.test.ts` imports `main.ts` on that same page in linkedom, once with no coop client and once with one that never connects, and runs a few frames. A missing element, or a dependency used during construction before it is created, fails there. It does not see layout, art, or anything after a server connects.
 
 ## Required change rules
 
@@ -65,7 +83,7 @@ Boss combat runs locally in `src/game/runtime/boss/personal-bosses.ts`, which ow
 
 Consequences to keep in mind before changing boss code:
 
-- The old shared-boss server code is gone. What remains is schema only: the `damage*` / `hit_procedural_boss*` reducers are stubs that throw the update error, `prepare_procedural_boss` and the `respawn*` scheduled reducers are no-ops kept because their names are published (and each `*_respawn_schedule` table names its reducer), and the `*_boss` / `*_contribution` / `*_attack_window` / `*_result` table sets, `boss_hit_result` and the legacy procedural boss tables stay registered so the publish deletes no data. Nothing writes them except account cleanup (rename, guest merge, deletion, erasure) of old rows. Dropping them is a separate client-breaking release.
+- The old shared-boss server code is gone, along with its stub reducers and the shared-boss table sets. The legacy procedural boss tables (`procedural_boss`, `procedural_contribution`, `procedural_instance_boss`, `procedural_instance_contribution`) are still registered so the publish deletes no data; nothing writes them except account cleanup of old rows. Dropping them is a separate client-breaking release.
 - `reward*Contributor` and `applyBossRepeatableReward` are **not** dead. They still carry live reward logic reached through `bossRewardHandlers` from `reportEnemyDefeats`. Preserve them through any cleanup.
 - Schema tables are retained deliberately, not by oversight. `boss_attack_frame`, `boss_defeat_window`, `boss_map_defeat_window`, and the legacy procedural boss tables are inert because removing a populated table needs a destructive publish. See `docs/legacy-cleanup-audit-2026-08-30.md`.
 - Removing the dead reducers is a schema change that must go through the prepared rollout path with a `Compatible` preflight — never `release:live`.

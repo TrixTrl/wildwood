@@ -2,13 +2,14 @@ import {
   WOOD_STANDS, WOOD_TREE_NODES, WOODCUTTING_REACH, WOODCUTTING_RESPAWN_SECONDS, canChopTree, woodcuttingChopSeconds, woodcuttingYield, woodStandHint,
   type WoodTree,
 } from "../../../../shared/woodcutting";
-import { REFINE_ORES } from "../../../../shared/refine";
+import { REFINE_ORES, type OreId } from "../../../../shared/refine";
+import { gatherRespawnMs } from "../../../../shared/gather-respawn";
 import { inTownGrove, TOWN_FEET_OFFSET } from "../../../../shared/town";
 import { bagFullForOres, roomForOres, type BagSpace } from "../../../../shared/ore-bag";
 import type { ToolId } from "../../../../shared/tools";
 import { ATTACK_ANIMATION_SECONDS, ATTACK_WINDUP_SECONDS } from "../../attack-timeline";
 import type { PlayerState } from "../types";
-import { miningHitAt, miningHits } from "./mining-runtime";
+import { REJECTED_COLOR, miningHitAt, miningHits, moreGatheredText } from "./mining-runtime";
 import { resetWoodcuttingScene, woodcuttingScene } from "./woodcutting-scene";
 import { LOG_COLORS } from "./wood-tree-renderer";
 
@@ -25,7 +26,11 @@ export type WoodcuttingSource = {
   queueTreeChop?: (treeId: number, atMs: number) => void;
   flushWoodcutting?: () => void;
   setOnWoodcuttingRejected?: (callback: ((text: string) => void) | null) => void;
+  /** Told what a report gave beyond what its falls showed (the hatchet's bonus logs). */
+  setOnWoodcuttingExtra?: (callback: ((ores: Partial<Record<OreId, number>>) => void) | null) => void;
   serverNowMs?: () => number;
+  /** The player's research: Resource Respawn shortens how long rocks and trees take to grow back (shared/gather-respawn.ts). */
+  research?: () => { resourceRespawn?: number };
 };
 
 /** How long a felled tree's full bar stays up, so the hit that fells it is seen to fill it. */
@@ -70,14 +75,16 @@ export function createWoodcuttingRuntime(deps: {
       && session.generation === (source.sessionGeneration?.() ?? 0));
   }
 
-  function isFelled(tree: WoodTree, at: number) {
-    const choppedAt = deps.source()?.choppedTreeAt?.(tree.id) ?? null;
-    return choppedAt !== null && at - choppedAt < WOODCUTTING_RESPAWN_SECONDS * 1_000;
+  /** Whether a tree is a stump: felled less than its regrowth ago, shortened by the player's Resource Respawn rank. */
+  function isFelled(tree: WoodTree, at: number, source: WoodcuttingSource | null | undefined, respawnMs: number) {
+    const choppedAt = source?.choppedTreeAt?.(tree.id) ?? null;
+    return choppedAt !== null && at - choppedAt < respawnMs;
   }
 
   function refreshStumps(at: number) {
     woodcuttingScene.felled.clear();
-    for (const tree of WOOD_TREE_NODES) if (isFelled(tree, at)) woodcuttingScene.felled.add(tree.id);
+    const source = deps.source(), respawnMs = gatherRespawnMs(WOODCUTTING_RESPAWN_SECONDS, source?.research?.().resourceRespawn ?? 0);
+    for (const tree of WOOD_TREE_NODES) if (isFelled(tree, at, source, respawnMs)) woodcuttingScene.felled.add(tree.id);
   }
 
   /** The nearest standing tree in reach of the player's feet. */
@@ -100,6 +107,7 @@ export function createWoodcuttingRuntime(deps: {
   function reset() {
     stop(); resetWoodcuttingScene(); inGrove = false;
     listeningTo?.setOnWoodcuttingRejected?.(null);
+    listeningTo?.setOnWoodcuttingExtra?.(null);
     listeningTo = null; session = null; stumpCheck = 0;
     hint = { text: "", at: -Infinity, tree: -1 };
   }
@@ -118,7 +126,13 @@ export function createWoodcuttingRuntime(deps: {
     source.setOnWoodcuttingRejected(text => {
       if (session !== started || !sameSession(deps.source())) return;
       stumpCheck = 0;
-      deps.message?.(text, "#ff9b91");
+      deps.message?.(text, REJECTED_COLOR);
+    });
+    source.setOnWoodcuttingExtra?.(ores => {
+      if (session !== started || !sameSession(deps.source())) return;
+      for (const [logId, count] of Object.entries(ores)) {
+        if (count) deps.logPickup?.(moreGatheredText(logId as OreId, count), LOG_COLORS[logId as keyof typeof LOG_COLORS]?.face ?? CHIPS);
+      }
     });
   }
 

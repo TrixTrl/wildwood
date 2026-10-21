@@ -8,6 +8,8 @@ import { createGuildHallRows } from "./guild-hall-service";
 import { createItemRefineRows } from "./item-refine-service";
 import { createMiningRows } from "./mining-service";
 import { createWoodcuttingRows } from "./woodcutting-service";
+import type { GatherClock } from "./gather-queue";
+import { monotonicNowMs, wallClockNowMs } from "../../app/trusted-clock";
 import { createCardRows } from "./card-service";
 import { createCardShopRows } from "./card-shop-service";
 import { createBuildRows } from "./build-service";
@@ -19,7 +21,7 @@ import { createItemCollectionRows } from "./item-collection-service";
 import { createStarterChestRows } from "./starter-chest-service";
 import { itemLevelParts, type ItemLevel } from "../../../shared/items";
 import { NO_CARDS, cardStatFactors, cardTotals, type CardTotals } from "../../../shared/card-effects";
-import { BASE_CARD_SLOTS, activeCardsInPlay, type ActiveCardSlots, type ActiveCards } from "../../../shared/active-cards";
+import { BASE_CARD_SLOTS, activeCardSlots, activeCardsInPlay, type ActiveCardSlots, type ActiveCards } from "../../../shared/active-cards";
 import type { OreId } from "../../../shared/refine";
 
 type Ores = Readonly<Partial<Record<OreId, number>>>;
@@ -29,6 +31,26 @@ function oresWithPending(server: Ores, ...pending: Ores[]): Ores {
   const sum: Partial<Record<OreId, number>> = { ...server };
   for (const part of pending) for (const [oreId, count] of Object.entries(part)) sum[oreId as OreId] = (sum[oreId as OreId] ?? 0) + (count ?? 0);
   return sum;
+}
+
+type ServerClockSource = { api: { serverNowMs: () => number }; tables: { observeServerTime: (serverAtMs: number) => void } };
+/** The gathering reports' clock on the session's presence (presence-service.ts), read when used: presence is made later. */
+export function presenceGatherClock(presence: () => ServerClockSource | undefined): GatherClock {
+  return {
+    serverNowMs: () => presence()?.api.serverNowMs() ?? wallClockNowMs(),
+    monotonicNowMs,
+    observeServerTime: serverAtMs => presence()?.tables.observeServerTime(serverAtMs),
+  };
+}
+
+/** The active card slots for the perks in play, worked out again only when the perks change. */
+export function keptCardSlots(perks: () => Parameters<typeof activeCardSlots>[0]): () => ActiveCardSlots {
+  let slotsFor: Parameters<typeof activeCardSlots>[0] = null, slots = activeCardSlots(null);
+  return () => {
+    const ranks = perks();
+    if (ranks !== slotsFor) { slotsFor = ranks; slots = activeCardSlots(ranks); }
+    return slots;
+  };
 }
 
 /**
@@ -43,7 +65,9 @@ function oresWithPending(server: Ores, ...pending: Ores[]): Ores {
  */
 export function createAccountRowServices(connection: () => DbConnection | null, notify: () => void, slotTierFor: (itemId: string) => number = () => 0,
   /** Active card slots of each type in play (Card Slots perks). */
-  cardSlots: () => ActiveCardSlots = () => BASE_CARD_SLOTS) {
+  cardSlots: () => ActiveCardSlots = () => BASE_CARD_SLOTS,
+  /** The server clock the gathering reports' times are read against. */
+  gatherClock?: GatherClock) {
   const offlinePreference = createOfflineProgressPreference(connection, notify);
   const bowSkills = createBowSkills(notify);
   const adGemReward = createAdGemReward(notify);
@@ -51,8 +75,8 @@ export function createAccountRowServices(connection: () => DbConnection | null, 
   const soulDimension = createSoulDimensionRows(connection, notify);
   const guildHall = createGuildHallRows(connection, notify);
   const itemRefine = createItemRefineRows(notify, slotTierFor);
-  const mining = createMiningRows(notify);
-  const woodcutting = createWoodcuttingRows(notify);
+  const mining = createMiningRows(notify, gatherClock);
+  const woodcutting = createWoodcuttingRows(notify, gatherClock);
   const cards = createCardRows(notify);
   const cardShop = createCardShopRows(notify);
   const builds = createBuildRows(notify);
