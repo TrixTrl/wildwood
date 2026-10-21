@@ -976,7 +976,7 @@ export function createActorRenderer(options: {
         ctx.textAlign = "center";
         ctx.textBaseline = "alphabetic";
         options.outlinedSegments(labels.reward, 0, rewardY + rewardDrop(), 4);
-        options.outlinedSegments([labels.dps], 0, rewardY + rewardDrop() * 2, 4);
+        options.outlinedSegments([labels.dps], 0, rewardY + rewardDrop() * 2.5, 4);
       }
     });
   }

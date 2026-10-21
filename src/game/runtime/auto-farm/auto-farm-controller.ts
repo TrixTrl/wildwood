@@ -545,7 +545,7 @@ export function createAutoFarmController(options: {
       attacks++;
     }
     const hpThreshold = bossDamage * 2 * bossPower;
-    const regenThreshold = bossDamage / (attacks - 1) / 6 * bossPower;
+    const regenThreshold = bossDamage / (attacks - 1) / 4 * bossPower;
     const enoughHealth = player.hp > hpThreshold;
     const enoughRegen = realRegen > regenThreshold;
     if (enoughHealth && enoughRegen) return { ready: true, line: `Ready to fight boss` };
