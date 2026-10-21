@@ -9,14 +9,10 @@ import { mergeEquipmentLocks, removeEquipmentLocks } from "./equipment-locks";
 // Helpers that still live in index.ts arrive through createAccountLifecycle's
 // deps so the moved code reads exactly as it did.
 import { SenderError } from "spacetimedb/server";
-import { removePlayerJoinDate, syncPlayerJoinDate } from "./mailbox";
+import { removePlayerJoinDate, syncPlayerJoinDate } from "./player-join-date";
 import { movePausedResearch, removePausedResearch } from "./research-pause";
 import { removeStreamCursors } from "./regular-enemy-loot";
-import {
-  DEFAULT_ATTACK_INTERVAL,
-  SPACETIME_AUTH_CLIENT_ID,
-  SPACETIME_AUTH_ISSUER,
-} from "../../shared/rules";
+import { DEFAULT_ATTACK_INTERVAL } from "../../shared/rules";
 import { HOME_EXTERIOR_MAP_ID } from "../../shared/home";
 import { isTownMap } from "../../shared/town";
 import { cosmeticUnlocks } from "../../shared/cosmetic-conversion";
@@ -58,22 +54,14 @@ import { mergeSocialAccount, removeSocialAccount } from "./social-service";
 import { readPlayerProgress, deleteReplayWide } from "./wide-stats";
 import { eraseIdentityRows } from "./account-erasure";
 import { deleteLuckResearch, luckRanksFor, writeLuckRanks } from "./luck-research";
+import { deleteRankTableResearch, rankTableRanksFor, writeRankTableRanks } from "./research-rank";
 import { carryNameColor } from "./profile-look";
+import { hasSpacetimeAuthAccount } from "./session-guards";
 
 export const ACCOUNT_LINK_LIFETIME_MICROS = 600_000_000n;
 
 export function dailyGemBonusClaimReference(identity: any, dayKey: string, cycle: bigint) {
   return `daily-claim:${identity.toHexString()}:${dayKey}:${cycle}`;
-}
-
-export function hasSpacetimeAuthAccount(ctx: any) {
-  const jwt = ctx.senderAuth?.jwt;
-  return Boolean(
-    jwt &&
-    jwt.issuer === SPACETIME_AUTH_ISSUER &&
-    Array.isArray(jwt.audience) &&
-    jwt.audience.includes(SPACETIME_AUTH_CLIENT_ID),
-  );
 }
 
 export function clearExpiredAccountLinks(ctx: any) {
@@ -160,7 +148,7 @@ const PLAYER_STATE_TABLES: ReadonlySet<string> = new Set([
   "gemKillDaily", "gemKillProgress", "gemTransaction", "guildMemberQuestWeek", "guildRejoin",
   "homeReturnLocation", "leaderboardDirty", "leaderboardPosition", "leaderboardPrestigePosition", "leaderboardStanding", "loginMove",
   "offlineProgress", "patreonPreview", "playerAggroChallenge", "playerAggroChallengeParked", "playerBonusToggle", "playerNameColor",
-  "playerMining", "playerMinedNode", "playerMiningLevel", "playerWoodcutting", "playerChoppedTree", "playerWoodcuttingLevel", "playerLuckResearch", "playerCardShopPurchase", "playerWeaponMastery", "playerMasteryLevel", "playerGold", "oldGearPayout", "playerStarterWeapon", "playerCraftSkill", "playerCraftLevel", "playerTool",
+  "playerMining", "playerMinedNode", "playerMiningLevel", "playerWoodcutting", "playerChoppedTree", "playerWoodcuttingLevel", "playerLuckResearch", "playerResearchRank", "playerCardShopPurchase", "playerWeaponMastery", "playerMasteryLevel", "playerGold", "oldGearPayout", "playerStarterWeapon", "playerCraftSkill", "playerCraftLevel", "playerTool",
   "playerDailyQuest", "playerEndlessRebaseBackup", "playerFreeRespec",
   "playerOfflinePreference", "playerPrestige", "playerPrestigeChallenge",
   "playerPrestigeChallengeParked", "playerPrestigeExpansionPerk", "playerPrestigeCardPerk", "playerPrestigePerk", "playerQuestWeekTotal",
@@ -330,8 +318,9 @@ export function createAccountLifecycle(deps: AccountLifecycleDeps) {
       const nextResearch = { ...guestResearch, identity: ctx.sender, frontierMastery: 0 };
       if (accountResearch) updateSnapshotRow(ctx, "playerResearch", nextResearch);
       else insertSnapshotRow(ctx, "playerResearch", nextResearch);
-      // The guest's luck ranks come with the rest of its research.
+      // The guest's luck and rank-table ranks come with the rest of its research.
       writeLuckRanks(ctx, ctx.sender, luckRanksFor(ctx, link.guest));
+      writeRankTableRanks(ctx, ctx.sender, rankTableRanksFor(ctx, link.guest));
     }
     const guestReactionUnlock = ctx.db.chatReactionUnlock.identity.find(link.guest);
     if (guestReactionUnlock) {
@@ -524,6 +513,7 @@ export function createAccountLifecycle(deps: AccountLifecycleDeps) {
     if (guestLocation) ctx.db.playerLastLocation.identity.delete(link.guest);
     if (guestResearch) deleteSnapshotRow(ctx, "playerResearch", link.guest);
     deleteLuckResearch(ctx, link.guest);
+    deleteRankTableResearch(ctx, link.guest);
     if (guestReactionUnlock) ctx.db.chatReactionUnlock.identity.delete(link.guest);
     if (guestActiveResearch) ctx.db.activeResearch.identity.delete(link.guest);
     removePausedResearch(ctx, link.guest);

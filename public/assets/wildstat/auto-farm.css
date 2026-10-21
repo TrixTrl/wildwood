@@ -808,7 +808,6 @@
 .smith-sheet .smith-ores { margin: 0 14px 12px; color: var(--muted); text-align: center; font-size: 13px; line-height: 1.4; }
 /* Where ore comes from: the Copper Hills, and the Smith's free pickaxe until it is taken. */
 .smith-sheet .smith-mining { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px; margin: 0 14px 12px; color: var(--muted); font-size: 13px; text-align: center; }
-.smith-sheet .smith-mining .smith-pickaxe, .smith-sheet .smith-mining .smith-hatchet, .smith-sheet .smith-mining .smith-staff { flex: 0 0 auto; height: 38px; min-height: 38px; font-size: 14px; }
 /* The gear filters as chips: the one shown white. */
 .smith-sheet .smith-filters { display: flex; flex-wrap: nowrap; gap: 4px; margin: 0 14px 10px; }
 .smith-sheet .smith-filters .inventory-filter { flex: 1 1 auto; min-height: 32px; padding: 0 6px; border: 1px solid rgba(255,255,255,.16); border-radius: 999px; background: #141414; color: #c7c7c7; font: 800 13px/1 var(--font-rounded); }
@@ -885,7 +884,6 @@
 .smith-sheet .craft-grade-step { flex: none; width: 34px; height: 34px; padding: 0; border: 1px solid rgba(255,255,255,.18); border-radius: 8px; background: rgba(255,255,255,.06); color: #fff; font-size: 18px; font-weight: 900; line-height: 1; }
 .smith-sheet .craft-grade-step:disabled { opacity: .35; }
 .smith-sheet .craft-grade-name { min-width: 64px; color: #fff; font-size: 14px; font-weight: 900; text-align: center; white-space: nowrap; }
-.smith-sheet .craft-stars { flex: none; font-size: 14px; font-weight: 900; line-height: 20px; }
 .smith-sheet .craft-materials { display: flex; flex-wrap: wrap; gap: 2px 10px; margin: 0; padding: 0; list-style: none; }
 .smith-sheet .craft-material { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .smith-sheet .craft-material.is-short { color: #fff; font-weight: 900; }
@@ -902,33 +900,33 @@
 .smith-sheet .smith-views .inventory-filter, .smith-sheet .smith-shown .inventory-filter { position: relative; min-width: 86px; min-height: 34px; padding: 0 14px; border: 0; border-radius: 999px; color: #b3b3b3; font: 900 14px/1 var(--font-rounded); letter-spacing: .02em; }
 .smith-sheet .smith-shown .inventory-filter { min-width: 0; min-height: 30px; padding: 0 12px; font-size: 13px; }
 .smith-sheet .smith-views .inventory-filter[aria-pressed="true"], .smith-sheet .smith-shown .inventory-filter[aria-pressed="true"] { background: #fff; color: #111; border-bottom: 0; text-shadow: none; -webkit-text-stroke: 0; }
-.smith-sheet .smith-upgrade-dot { position: absolute; top: 5px; right: 8px; width: 8px; height: 8px; border: 1px solid #fff; border-radius: 50%; background: #e63d3d; }
-.smith-sheet .smith-upgrade-dot[hidden] { display: none; }
+.smith-sheet .smith-buy-dot { position: absolute; top: 5px; right: 8px; width: 8px; height: 8px; border: 1px solid #fff; border-radius: 50%; background: #e63d3d; }
+.smith-sheet .smith-buy-dot[hidden] { display: none; }
 /* Four tabs share the bar at phone width. */
 .smith-sheet .smith-views .inventory-filter { min-width: 70px; padding: 0 12px; }
-/* Slot Upgrades (upgrade-bench-controller.ts) on the Upgrade tab, under its heading: the bench window laid flat in the sheet, in its colors. */
-.smith-sheet .upgrade-bench-panel { position: static; inset: auto; z-index: auto; display: block; margin: 0; padding: 14px 12px; overflow: visible; border-radius: 12px; background: rgba(255,255,255,.05); }
-.smith-sheet .upgrade-bench-panel[hidden] { display: none; }
-.smith-sheet .upgrade-bench-content { width: 100%; margin: 0 auto; }
-.smith-sheet .upgrade-bench-prompt { font-size: 15px; }
-.smith-sheet .inventory-item.upgrade-bench-slot { border-color: rgba(255,255,255,.16); background: #141414; }
-.smith-sheet .inventory-item.upgrade-bench-slot.is-active { background: #1f1f1f; }
-.smith-sheet .inventory-item.upgrade-bench-slot.is-selected { border-color: #fff; box-shadow: inset 0 0 0 1px #fff; }
-.smith-sheet .upgrade-bench-slot .inventory-item-empty-mark { color: #bdbdbd; }
-.smith-sheet .upgrade-bench-track-name, .smith-sheet .upgrade-bench-stat-gain, .smith-sheet .upgrade-bench-stat-row strong,
-.smith-sheet .upgrade-bench-slot-cost, .smith-sheet .upgrade-bench-picker-stat, .smith-sheet .upgrade-bench-picker-title strong { font-size: 13px; }
-.smith-sheet .upgrade-bench-slot > .inventory-upgrade-level { font-size: 13px; line-height: 15px; }
-.smith-sheet .upgrade-bench-stat-row span, .smith-sheet .upgrade-bench-picker-stat span:last-child { color: #fff; }
-.smith-sheet .upgrade-bench-timer { color: #fff; font-size: 14px; }
-.smith-sheet .upgrade-bench-action { width: min(220px, 100%); border-color: #5a3c00; background: linear-gradient(#ffe07a, #e2a628); box-shadow: 0 3px 0 #5a3c00; font-size: 15px; }
-.smith-sheet .upgrade-bench-action.is-cancel { border-color: #492020; background: linear-gradient(#cf6868, #953c3c); box-shadow: 0 3px 0 #431d1d; }
-.smith-sheet .upgrade-bench-action.upgrade-bench-speed-up { border-color: #65354f; background: linear-gradient(#d86f9f, #a84573); box-shadow: 0 3px 0 #53243d; }
-.smith-sheet .upgrade-bench-action:disabled { border-color: rgba(255,255,255,.18); background: rgba(255,255,255,.08); box-shadow: none; color: var(--muted); }
-/* The slot list covers the whole window, as it did the bench's. */
-.smith-sheet .upgrade-bench-picker { position: fixed; z-index: 5; }
-.smith-sheet .upgrade-bench-picker-sheet { background: var(--window-surface); }
-.smith-sheet .upgrade-bench-picker-heading { font-size: 15px; letter-spacing: 0; }
-.smith-sheet .upgrade-bench-picker-item { height: auto; min-height: 72px; border-color: rgba(255,255,255,.12); background: #141414; }
+/* Slot Upgrades (slot-upgrades-controller.ts) on the Upgrade tab, under its heading: the old standalone window laid flat in the sheet, in its colors. */
+.smith-sheet .slot-upgrades-panel { position: static; inset: auto; z-index: auto; display: block; margin: 0; padding: 14px 12px; overflow: visible; border-radius: 12px; background: rgba(255,255,255,.05); }
+.smith-sheet .slot-upgrades-panel[hidden] { display: none; }
+.smith-sheet .slot-upgrades-content { width: 100%; margin: 0 auto; }
+.smith-sheet .slot-upgrades-prompt { font-size: 15px; }
+.smith-sheet .inventory-item.slot-upgrades-queue { border-color: rgba(255,255,255,.16); background: #141414; }
+.smith-sheet .inventory-item.slot-upgrades-queue.is-active { background: #1f1f1f; }
+.smith-sheet .inventory-item.slot-upgrades-queue.is-selected { border-color: #fff; box-shadow: inset 0 0 0 1px #fff; }
+.smith-sheet .slot-upgrades-queue .inventory-item-empty-mark { color: #bdbdbd; }
+.smith-sheet .slot-upgrades-slot-name, .smith-sheet .slot-upgrades-stat-gain, .smith-sheet .slot-upgrades-stat-row strong,
+.smith-sheet .slot-upgrades-queue-cost, .smith-sheet .slot-upgrades-picker-stat, .smith-sheet .slot-upgrades-picker-title strong { font-size: 13px; }
+.smith-sheet .slot-upgrades-queue > .inventory-upgrade-level { font-size: 13px; line-height: 15px; }
+.smith-sheet .slot-upgrades-stat-row span, .smith-sheet .slot-upgrades-picker-stat span:last-child { color: #fff; }
+.smith-sheet .slot-upgrades-timer { color: #fff; font-size: 14px; }
+.smith-sheet .slot-upgrades-action { width: min(220px, 100%); border-color: #5a3c00; background: linear-gradient(#ffe07a, #e2a628); box-shadow: 0 3px 0 #5a3c00; font-size: 15px; }
+.smith-sheet .slot-upgrades-action.is-cancel { border-color: #492020; background: linear-gradient(#cf6868, #953c3c); box-shadow: 0 3px 0 #431d1d; }
+.smith-sheet .slot-upgrades-action.slot-upgrades-speed-up { border-color: #65354f; background: linear-gradient(#d86f9f, #a84573); box-shadow: 0 3px 0 #53243d; }
+.smith-sheet .slot-upgrades-action:disabled { border-color: rgba(255,255,255,.18); background: rgba(255,255,255,.08); box-shadow: none; color: var(--muted); }
+/* The slot list covers the whole window, as it did the old standalone window's. */
+.smith-sheet .slot-upgrades-picker { position: fixed; z-index: 5; }
+.smith-sheet .slot-upgrades-picker-sheet { background: var(--window-surface); }
+.smith-sheet .slot-upgrades-picker-heading { font-size: 15px; letter-spacing: 0; }
+.smith-sheet .slot-upgrades-picker-item { height: auto; min-height: 72px; border-color: rgba(255,255,255,.12); background: #141414; }
 /* A section's heading in a view: its name, and a count on the right. */
 .smith-sheet .smith-section-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: 0 16px 8px; }
 .smith-sheet .smith-section-head strong { color: #fff; font: 900 15px/18px var(--font-rounded); }
@@ -1029,11 +1027,7 @@
 .cards-tab { display: grid; grid-column: 1; grid-row: 1 / span 2; align-content: start; gap: 6px; container-type: inline-size; min-width: 0; padding: 0 7px 7px; }
 .cards-tab-count { display: block; margin: 0 auto 4px; }
 /* Active cards, at the top above the zones: a row per type, four slots each; empty is dashed, locked is dim. */
-.cards-active { display: grid; gap: 6px; margin: -7px -7px 2px; padding: 6px 8px 8px; border-bottom: 1px solid rgba(255,255,255,.12); background: #0c0c0c; }
-.cards-active-title { margin: 0; color: #fff; font: 900 15px/18px var(--font-rounded); text-align: center; }
 .cards-active-row { display: grid; gap: 3px; }
-.cards-active-head { display: flex; justify-content: space-between; align-items: baseline; color: #fff; font: 900 14px/17px var(--font-rounded); }
-.cards-active-head span { color: #b3b3b3; font-size: 13px; }
 .cards-slot-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .cards-slot { display: grid; grid-template-rows: minmax(0, 1fr) auto; justify-items: center; align-items: center; min-height: 48px; padding: 3px 2px; border: 2px dashed rgba(255,255,255,.25); border-radius: 8px; background: #161616; color: #b3b3b3; font: 800 13px/15px var(--font-rounded); cursor: pointer; }
 .cards-slot.is-filled { border-style: solid; border-color: #8f9aa3; color: #fff; }
@@ -1052,22 +1046,6 @@
 .cards-zone-count { color: #b3b3b3; font: 800 13px/16px var(--font-rounded); white-space: nowrap; }
 .cards-zone-chevron::before { content: "▸"; display: inline-block; color: #d0d0d0; transition: transform .15s; }
 .cards-zone.is-open .cards-zone-chevron::before { transform: rotate(90deg); }
-.cards-zone-list { display: grid; gap: 4px; padding: 6px; }
-.cards-zone-list[hidden] { display: none; }
-.cards-row { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 56px; padding: 6px 8px; border: 1px solid rgba(255,255,255,.1); border-radius: 8px; background: #121212; color: #fff; text-align: left; cursor: pointer; }
-.cards-row.is-elite { border-color: rgba(180,140,255,.45); }
-.cards-row.is-boss { border-color: rgba(242,193,78,.55); }
-.cards-row.is-active { border-color: rgba(255,255,255,.6); background: rgba(255,255,255,.08); }
-.cards-row.is-unfound { opacity: .72; }
-.cards-row-art { width: 36px; height: 45px; border-radius: 4px; background: center / cover no-repeat #0d0d0d; }
-.cards-row-text { display: grid; gap: 2px; min-width: 0; }
-.cards-row-text strong { font: 900 14px/17px var(--font-rounded); }
-.cards-row.is-elite .cards-row-text strong { color: #c9adff; }
-.cards-row.is-boss .cards-row-text strong { color: #f2c14e; }
-.cards-row-odds { color: #d5d5d5; font: 800 13px/16px var(--font-rounded); overflow-wrap: anywhere; }
-.cards-row-side { display: grid; justify-items: end; gap: 2px; }
-.cards-row-count { color: #fff; font: 900 14px/17px var(--font-rounded); }
-.cards-row-active { padding: 1px 6px; border: 1px solid rgba(255,255,255,.6); border-radius: 999px; color: #fff; font: 800 13px/16px var(--font-rounded); white-space: nowrap; }
 /* The Cards tab's two views: Equip (pick a type, its slots, a card, the cards of that type) and Cards (tiles by zone). */
 .cards-views-bar { display: flex; justify-content: center; margin: -4px 0 6px; }
 .cards-views-bar .cards-views { display: inline-flex; gap: 0; padding: 3px; border: 1px solid rgba(255,255,255,.12); border-radius: 999px; background: #0d0d0d; overflow: visible; }
@@ -1226,7 +1204,6 @@ html.text-outline-shadow .inventory-stack-count { text-shadow: 1px 0 0 #080b08, 
 @keyframes card-found-pop { 0% { opacity: 0; transform: scale(.2) rotate(-10deg); } 55% { opacity: 1; transform: scale(1.12) rotate(2deg); } 100% { opacity: 1; transform: scale(1) rotate(0); } }
 @keyframes card-found-shine { 0% { transform: translateX(-170%) skewX(-18deg); } 40%, 100% { transform: translateX(400%) skewX(-18deg); } }
 @keyframes card-found-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-@keyframes card-found-blink { to { opacity: .45; } }
 @media (prefers-reduced-motion: reduce) {
   .card-found, .card-found * { animation-duration: .01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; }
 }
