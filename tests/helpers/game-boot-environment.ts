@@ -81,6 +81,7 @@ const DOM_CLASSES = [
 export function stubGameBootEnvironment() {
   const { window, document } = parseHTML(entryHtml);
   installGameShell(document);
+  indexIds(document);
   const frames: FrameRequestCallback[] = [];
   const view = window as unknown as Record<string, unknown>;
   const canvasPrototype = (window as unknown as { HTMLCanvasElement: { prototype: Record<string, unknown> } }).HTMLCanvasElement.prototype;
@@ -89,6 +90,7 @@ export function stubGameBootEnvironment() {
   };
   const elementPrototype = (window as unknown as { Element: { prototype: Record<string, unknown> } }).Element.prototype;
   elementPrototype.getBoundingClientRect ??= () => ({ x: 0, y: 0, left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 });
+  installDialogs(window);
   const globals: Record<string, unknown> = {
     window, document, self: window,
     localStorage: memoryStorage(), sessionStorage: memoryStorage(),
@@ -120,6 +122,50 @@ export function stubGameBootEnvironment() {
     }
   }
   return { window, document, runFrames };
+}
+
+/**
+ * getElementById at a browser's speed: linkedom walks the whole page for every
+ * lookup. The element last found for an id is kept while it is still in the
+ * page under that id; anything else is looked up afresh.
+ */
+function indexIds(document: Document) {
+  const walk = document.getElementById.bind(document);
+  const found = new Map<string, HTMLElement>();
+  document.getElementById = (id: string) => {
+    const kept = found.get(id);
+    if (kept && kept.id === id && kept.isConnected) return kept;
+    const element = walk(id);
+    if (element) found.set(id, element); else found.delete(id);
+    return element;
+  };
+}
+
+/**
+ * linkedom's <dialog> is a plain element: open/showModal/show/close as the
+ * browser gives them, by the open attribute.
+ */
+function installDialogs(window: unknown) {
+  const prototype = (window as { HTMLElement: { prototype: Record<string, unknown> } }).HTMLElement.prototype;
+  if ("showModal" in prototype) return;
+  type Node = HTMLElement & { returnValue?: string };
+  const isDialog = (node: Node) => node.tagName === "DIALOG";
+  const hasOpen = (node: Node) => isDialog(node) || node.tagName === "DETAILS";
+  Object.defineProperty(prototype, "open", {
+    configurable: true,
+    get(this: Node) { return hasOpen(this) ? this.hasAttribute("open") : undefined; },
+    set(this: Node, value: boolean) { if (!hasOpen(this)) return; if (value) this.setAttribute("open", ""); else this.removeAttribute("open"); },
+  });
+  prototype.showModal = function showModal(this: Node) { if (isDialog(this)) this.setAttribute("open", ""); };
+  prototype.show = function show(this: Node) { if (isDialog(this)) this.setAttribute("open", ""); };
+  prototype.close = function close(this: Node, returnValue?: string) {
+    if (!isDialog(this) || !this.hasAttribute("open")) return;
+    if (returnValue !== undefined) this.returnValue = returnValue;
+    this.removeAttribute("open");
+    const view = (this.ownerDocument as unknown as { defaultView?: { Event: typeof Event } }).defaultView;
+    const EventClass = view?.Event ?? (window as { Event: typeof Event }).Event;
+    this.dispatchEvent(new EventClass("close"));
+  };
 }
 
 /**

@@ -44,6 +44,7 @@ import { duelStaffSkill, playerStaffSkill, playerWornStaffSkill } from "./staff-
 import { ensureWeaponSkillRoll } from "./weapon-skills";
 import { playerEquipmentCopy, pendingEquipmentOffer, createEquipmentCopies, publishItemDrop, offerDuplicateEquipment, expireEquipmentOffers, playerItemCollection, registerItemCollection } from "./equipment-copies";
 import { playerItemRefine, playerCopyRefine, playerOre, playerRefineResult, registerItemRefine } from "./item-refine";
+import { reachableStopFor } from "./door-reach";
 import { playerMining, playerMinedNode, playerMiningLevel, registerMining } from "./mining";
 import { playerWoodcutting, playerChoppedTree, playerWoodcuttingLevel, registerWoodcutting } from "./woodcutting";
 import { awardWeaponMastery, playerMasteryLevel, playerWeaponMastery, registerWeaponMastery } from "./weapon-mastery";
@@ -69,6 +70,7 @@ import { playerNameColor, registerProfileLookReducers } from "./profile-look";
 import { playerPrestige, playerPrestigePerk, prestigeExpansion, playerPrestigeExpansionPerk, playerPrestigeCardPerk, playerFreeRespec } from "./prestige-expansion";
 import { earlierTimestamp } from "./timestamp-utils";
 import { createCosmeticConversion } from "./cosmetic-conversion";
+import { playerCosmeticRefine, registerCosmeticRefine } from "./cosmetic-refine";
 import { publicChatCursor, readPublicChatPage } from "./public-chat-history";
 import { createKillGems, gemKillDaily, gemLedgerTrim } from "./kill-gems";
 import { createPrestige, statRewardMultiplierFor } from "./prestige";
@@ -185,7 +187,7 @@ import { MAINTENANCE_INTERVAL_MICROS, VIRTUAL_PLAYER_RUN_LIFETIME_MICROS, adjust
 import { autoEquip } from "./player-power";
 import { publishPlayerDeathFrame, resetProgressToDefaults, resetWholeSave, startFreshRun, respawnWithProgress, transitionPlayerMap } from "./character-reset";
 import { saveSubmittedProgress } from "./progress-save";
-import { WORLD, VALID_MAP_IDS, canonicalMapId, MAP_ARRIVALS, changePlayerMap, hasEndlessTravelAccess } from "./map-travel";
+import { WORLD, VALID_MAP_IDS, canonicalMapId, MAP_ARRIVALS, changePlayerMap, hasEndlessTravelAccess, travelOnward } from "./map-travel";
 import { startItemUpgradeFor } from "./item-upgrade-runtime";
 import { devResetDailyBonus, devCopyCombatStats, devUpdateSave } from "./dev-save-tools";
 import { setMotionInterest, setPlayerSpeed } from "./movement-requests";
@@ -215,8 +217,7 @@ const { runPendingModuleMigrations } = createModuleMigrations({
   effectivePowerForProgress, effectivePowerStatsForProgress, playerWithMotion,
   syncPlayerMotionIdentity, persistWorldLocation, transitionPlayerMap, refreshLeaderboard,
   markPlayerBalanceCurrent, playerBalanceProgress, samePlayerProgressValues,
-  resultIncludesContributor, contributedToLatestPrismshell, isVirtualPlayer, sameIdentity,
-  applyGemBalanceChange, ensureWorldStatus, ensureMaintenanceSweepSchedule,
+  resultIncludesContributor, contributedToLatestPrismshell, sameIdentity, ensureWorldStatus, ensureMaintenanceSweepSchedule,
 });
 
 // Exact-own lifecycle and physical compatibility row. Current clients never
@@ -1413,7 +1414,7 @@ const spacetimedb = schema({
   playerMotionDetailFrame,
   playerMapFrame,
   playerDeathFrame,
-  playerProfile, playerProfileSnapshot,
+  playerProfile, playerProfileSnapshot, playerCosmeticRefine,
   playerGemWallet,
   gemTransaction,
   dailyGemBonus,
@@ -3282,7 +3283,8 @@ function recordEnemyDefeatsFor(ctx: any, batch: EnemyDefeatBatch, clocks?: Defea
     enforce();
     if (!accepted.restrict && gate) {
       recordAnalyticsMilestone(ctx, "boss");
-      prestige.completeChallengeIfMet(ctx);
+      // A challenge won here moves the player itself; otherwise Onward (Warden II card) takes them to the map just opened.
+      if (!prestige.completeChallengeIfMet(ctx)) travelOnward(ctx, batch.mapId, worn);
     }
 }
 // The throttle comes before any other read; throttleKillReports says why.
@@ -3677,7 +3679,9 @@ export const prepareWorldActionPosition = spacetimedb.reducer({ x: t.f64(), y: t
     throw new SenderError("Invalid bench position");
   }
   if (activeDuelFor(ctx, ctx.sender)) throw new SenderError("Finish your duel first.");
-  const next = { ...player, x, y, moving: false, vx: 0, vy: 0, dx: 0, dy: 0, lastInputAt: ctx.timestamp };
+  // A stop, not a teleport: only where the player could have walked, as a movement packet is judged.
+  const at = reachableStopFor(ctx, player, x, y);
+  const next = { ...player, ...at, ...playerZone(at.x, at.y), moving: false, vx: 0, vy: 0, dx: 0, dy: 0, lastInputAt: ctx.timestamp };
   updateSnapshotRow(ctx, "player", next);
   syncPlayerMotion(ctx, next);
 });
@@ -3774,6 +3778,7 @@ export const { createGuild, joinGuild, leaveGuild, transferGuildLeadership, setG
   { guildService, requireGuildPlayer, requireGuildConnection, effectivePowerForProgress, isPublicDisplayNameAllowed });
 // Refining (item-refine.ts, shared/refine.ts).
 export const { refineItem, destroyOre, myItemRefines, myCopyRefines, myOres, myRefineResult } = registerItemRefine(spacetimedb, { requireControllingPlayer, activeDuelFor, inventoryForProgress, writeProgressAndPresentation });
+export const { myCosmeticRefines } = registerCosmeticRefine(spacetimedb);
 // Mining in the Copper Hills (mining.ts, shared/mining.ts).
 export const { claimPickaxe, mineNode, reportMining, myMining, myMinedNodes } = registerMining(spacetimedb, { requireControllingPlayer, activeDuelFor, inventoryForProgress });
 export const { claimHatchet, chopTree, reportChopping, myWoodcutting, myChoppedTrees } = registerWoodcutting(spacetimedb, { requireControllingPlayer, activeDuelFor, inventoryForProgress });
@@ -3790,7 +3795,7 @@ export const { buyShopCard, myCardShopPurchases } = registerCardShop(spacetimedb
 export const { buyGradeGear } = registerGradeShop(spacetimedb, { requireControllingPlayer, activeDuelFor, inventoryForProgress, restoreItemToProgress, writeProgressAndPresentation });
 // The Starter Chest by the forest spawn (starter-chest.ts).
 export const { claimStarterWeapon, myStarterWeapon } = registerStarterChest(spacetimedb, { requireControllingPlayer, activeDuelFor });
-export const { craftGradeGear, myCraftSkills } = registerCrafting(spacetimedb, { requireControllingPlayer, activeDuelFor, inventoryForProgress, restoreItemToProgress, writeProgressAndPresentation });
+export const { craftGradeItem, reforgeWeapon, craftGradeGear, myCraftSkills } = registerCrafting(spacetimedb, { requireControllingPlayer, activeDuelFor, inventoryForProgress, restoreItemToProgress, writeProgressAndPresentation });
 export const { upgradeTool, myTools } = registerTools(spacetimedb, { requireControllingPlayer, activeDuelFor });
 export const { myGuildHall, upgradeGuildHall, useGuildHallDoor } = registerGuildHall(spacetimedb, { requireGuildPlayer, requireControllingPlayer, playerWithMotion, transitionPlayerMap, persistWorldLocation });
 export const getGuildHub = spacetimedb.procedure({ afterId: t.u64() }, t.string(), (ctx, { afterId }) => ctx.withTx(tx => {

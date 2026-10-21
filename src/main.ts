@@ -97,6 +97,8 @@ import { createDuplicateLoginRuntime, createGameOverlays, createPrestigeUnlockRu
 import { formatGemAmount } from "./ui/number-format";
 import { refreshGoldCounter } from "./ui/gold-counter";
 import { createRewardDisplay } from "./game/runtime/reward-display";
+import { onwardCue } from "./game/runtime/onward-cue";
+import { bossPortalCutscenes } from "./game/runtime/boss/boss-portal-cutscenes";
 import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
 
 (() => {
@@ -127,6 +129,7 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
   const coopAccess = createCoopAccess(coop);
   if (coop) bindPlayerNameTags({
     prefix: identity => coop.playerNamePrefix(identity), revision: () => coop.playerNameTagsRevision(),
+    guildTag: identity => coop.playerGuildTag(identity),
     prestigeLevel: identity => (identity && coop.prestigeLevelFor?.(identity)) || 0,
   });
   if (coop) bindAvatarFrames(coop.applyAvatarFrame);
@@ -465,6 +468,7 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
     openTravel: portal => isSoulMap(portal.destination) ? soulDimension.openWindow() : travel.open(),
     closeTravel: () => { travel.close(); soulDimension.closeWindow(); },
     onTravelStarted: () => autoFarm.travelStarted(), travelWanted: destination => autoFarm.headingTo(destination),
+    onTravelRefused: destination => autoFarm.travelRefused(destination),
     markPortalCutsceneSeen: (cutscene) => coop?.markPortalCutsceneSeen?.(cutscene),
     mapConfig: MAP_CONFIG,
     tutorialMapId: TUTORIAL_FOREST_MAP_ID,
@@ -508,6 +512,7 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
     bosses,
     bossHazards,
     onCutsceneFinished: () => bossController.onPortalCutsceneFinished(),
+    onServerMove: (from, to) => onwardCue(coop?.activeCardStats?.().onward, from, to, showMessage),
   });
   const { questTracker, quests, travel, soulDimension, guildHall } = createWorldPlaces({
     coop: coopAccess, world: bootstrap, currentMapId: () => currentMapId, spawnFromSite, mapController, playerInput, playerCombat,
@@ -531,14 +536,7 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
     running: () => session.isRunning(),
     currentMapId: () => currentMapId,
     portalCutsceneActive: () => mapController.isCutsceneActive(),
-    portalCutscenes: {
-      dragon: { seen: worldProgression.hasSeenDragonPortalCutscene, start: mapController.startDragonPortalCutscene },
-      spider: { seen: worldProgression.hasSeenSnowlandsPortalCutscene, start: mapController.startSnowlandsPortalCutscene },
-      frostclaw: { seen: worldProgression.hasSeenLavaPortalCutscene, start: mapController.startLavaPortalCutscene },
-      magmalisk: { seen: worldProgression.hasSeenInfernalPortalCutscene, start: mapController.startInfernalPortalCutscene },
-      gloomroot: { seen: worldProgression.hasSeenWaterPortalCutscene, start: mapController.startWaterPortalCutscene },
-      tidewyrm: { seen: worldProgression.hasSeenSamuraiPortalCutscene, start: mapController.startSamuraiPortalCutscene },
-    },
+    portalCutscenes: bossPortalCutscenes(worldProgression, mapController),
     spawnBurst,
     damagePlayer: (amount) => playerCombat.damagePlayerFromBoss(amount),
     damageEnemies: (attack, amount, inside) => playerCombat.damageEnemiesFromBoss(attack, amount, inside),
@@ -684,7 +682,7 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
     beforeUpgradesOpen: () => panels.closeAllExcept("slotUpgrades"), onUpgradeFinished: progressNotices.onUpgradeFinished,
     applyEquipmentStats, saveProgress,
   });
-  const { smith, cardSeller, slotUpgrades } = town;
+  const { smith, cardSeller, gearSellers, slotUpgrades } = town;
 
   const mapGuide = createMapGuidePanel({
     coop: coopAccess, e: gameElements, currentMapId: () => currentMapId, mapName: mapId => MAP_CONFIG[mapId].name, inventory,
@@ -917,7 +915,7 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
 
   offlineProgressSummary = createCoopSessionWiring({
     coop: coopAccess, player, inventory, renderInventory, saveProgress, healthMultiplierBonus, showMessage,
-    windows: { playerSafety, profileWindow, inventory: inventoryController, smith, cardSeller }, leaderboard, runtimeHud, slotUpgrades,
+    windows: { playerSafety, profileWindow, inventory: inventoryController, smith, cardSeller, gearSellers }, leaderboard, runtimeHud, slotUpgrades,
     inTutorial, isRunning: session.isRunning, moveSpeed: () => playerStats.moveSpeed(), playerInput,
     reconcileMap: () => { if (!inTutorial()) mapController.reconcileMapFromServer(); },
     syncLifetimeKills: progress.syncLifetimeKills, refreshGemCounter, refreshMailbox: mailbox.refresh, refreshGiftsAndMail: giftsAndMail.refresh,

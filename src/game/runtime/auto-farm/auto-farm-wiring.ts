@@ -27,7 +27,7 @@ export type AutoFarmWiringDeps = {
   /** Systems created after Auto Farm, read only while it runs. */
   later: {
     session: () => { isRunning: () => boolean; isPaused: () => boolean } | undefined;
-    mapController: () => Pick<ReturnType<typeof createMapController>, "isMapTransitioning" | "isCutsceneActive" | "portalIsUnlocked">;
+    mapController: () => Pick<ReturnType<typeof createMapController>, "isMapTransitioning" | "isCutsceneActive" | "portalIsUnlocked" | "serverMovePending">;
     proceduralBoss: () => Pick<ReturnType<typeof createProceduralBossController>, "boss">;
     playerCombat: () => PlayerCombatController;
     playerStats: () => { regenerationPerSecond: () => number };
@@ -103,6 +103,7 @@ export function createAutoFarm(deps: AutoFarmWiringDeps) {
     unavailable: farmUnavailable,
     paused: () => Boolean(later.session()?.isPaused()) || deps.isArenaScene(),
     feedsOnAdds: () => later.playerCombat().feedsOnAdds(),
+    serverMovePending: () => later.mapController().serverMovePending(),
     playerCombat: () => later.playerCombat(),
     playerStats: later.playerStats,
     bossDefinition: later.bossDefinition,

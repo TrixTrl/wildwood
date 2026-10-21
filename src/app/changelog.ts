@@ -1,4 +1,43 @@
 export const RELEASE_NOTES: Record<string, string[]> = {
+  "0.916.24": [
+    "Interface outlines are a little darker again",
+  ],
+  "0.916.23": [
+    "Small balancing",
+    "Skipping the tutorial gives the same starting stats as finishing it",
+    "Tutorial Forest grass is tidier and the white specks are gone",
+    "Softer outlines and matching shadows across the interface",
+  ],
+  "0.916.22": [
+    "While You Were Away shows the gold you earned",
+    "Guild tags are hidden by default; turn them on in Settings",
+    "Profiles show the player's guild",
+    "Report and Block moved into the ⋯ menu on other players' profiles",
+    "The Smith's and the sellers' windows close when you walk away from them",
+    "Kills made just before a prestige are paid instead of lost",
+    "Auto Farm no longer keeps walking into a portal that will not let it through",
+  ],
+  "0.916.21": [
+    "The game loads a little faster",
+    "Players entering a map arrive a little away from the portal and spread out",
+    "Losing a duel no longer stops Auto Farm",
+    "Other players see your Auto Farm right after a reload",
+  ],
+  "0.916.20": [
+    "Craft always makes a new piece, so you can own more than one of the same bow",
+    "Reforge has its own Smith tab: pick which weapon to reforge",
+    "New Weapon and Armor Sellers in Town buy and sell gear; the Smith is for crafting, reforging and refining",
+    "Slot Upgrades are back at their own station",
+    "Weapon cosmetics show on any weapon",
+    "Doors open when you walk into them",
+    "Guests can sign in to an existing account from Settings → Account",
+  ],
+  "0.916.19": [
+    "Endless bosses now drop six Warden cards, one for every ten maps",
+    "Oak and Elder Trees drop two new woodcutting cards",
+    "The Warden II card carries you to the next map when you beat the boss that opens it",
+    "Cosmetics made from ★10 and ★20 gear keep the refined look",
+  ],
   "0.916.18": [
     "Enemy health bars and reward labels are sharper",
   ],
@@ -3754,6 +3793,12 @@ const RELEASE_DATES: Record<string, string> = {
 };
 
 export const RELEASE_DAYS: Record<string, string> = {
+  "0.916.24": "2026-10-21",
+  "0.916.23": "2026-10-21",
+  "0.916.22": "2026-10-21",
+  "0.916.21": "2026-10-21",
+  "0.916.20": "2026-10-21",
+  "0.916.19": "2026-10-21",
   "0.916.18": "2026-10-20",
   "0.916.17": "2026-10-20",
   "0.916.16": "2026-10-20",

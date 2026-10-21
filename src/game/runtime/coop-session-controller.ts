@@ -1,6 +1,6 @@
 import { wildstatCoop } from "../../wildstat-coop";
 import { createFrameCoalescer, type FrameCoalescerScheduler } from "./frame-coalescer";
-import { setLocalItemRefineSource } from "../local-item-refines";
+import { lookRefine, setLocalItemRefineSource } from "../local-item-refines";
 
 type CoopClient = typeof wildstatCoop;
 
@@ -14,7 +14,7 @@ export function claimCoopClient(simulatedSeconds: () => number) {
   const coop: CoopClient | null = window.wildstatCoop ?? window.wildwoodCoop ?? null;
   const gameBridge = coop?.claimGameBridge?.(simulatedSeconds) ?? null;
   // coop-client.js is a bundle of its own, so the character's refine looks read the client here.
-  setLocalItemRefineSource(itemId => coop?.itemRefine?.(itemId) ?? 0);
+  setLocalItemRefineSource(lookRefine(itemId => coop?.itemRefine?.(itemId) ?? 0, itemId => coop?.cosmeticRefine?.(itemId) ?? 0));
   // Every kill this session would be dropped without a word; say so where it can be seen.
   if (coop && !gameBridge) console.error("WildStat: kill reporting is unavailable (the game bridge was already claimed or refused).");
   return { coop, gameBridge };
@@ -27,15 +27,17 @@ export function createSessionWindowRefresh(options: {
   playerSafety: { refresh: () => void };
   profileWindow: { identity: () => string | null; render: (profile: NonNullable<ReturnType<CoopClient["playerProfile"]>>) => void };
   inventory: { render: () => void };
-  smith: { isOpen: () => boolean; render: () => void; refreshNotice?: () => void };
+  smith: { isOpen: () => boolean; render: () => void };
   cardSeller?: { isOpen: () => boolean; render: () => void };
+  gearSellers?: { isOpen: () => boolean; render: () => void; refreshNotice: () => void };
 }) {
   return () => {
     options.playerSafety.refresh();
     options.inventory.render();
     if (options.smith.isOpen()) options.smith.render();
-    options.smith.refreshNotice?.();
     if (options.cardSeller?.isOpen()) options.cardSeller.render();
+    if (options.gearSellers?.isOpen()) options.gearSellers.render();
+    options.gearSellers?.refreshNotice();
     const identity = options.profileWindow.identity();
     const profile = identity ? options.coop?.playerProfile?.(identity) : null;
     if (profile) options.profileWindow.render(profile);

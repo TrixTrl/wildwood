@@ -8,8 +8,8 @@ import { isProceduralMap, PROCEDURAL_ENTRY_BOSS, generateMap, PROCEDURAL_ENTRY_M
 import { isSoulMap, soulReturnOpenFor, worldBoundsFor, requireSoulDimensionOpen, SOUL_TOWN_PORTAL, SOUL_ARRIVAL } from "./soul-dimension";
 import { isGuildHallMap, guildHallMember, enterGuildHall } from "./guild-hall";
 import { isTownMap, TOWN_MAP_ID, TOWN_ARRIVAL, townPortalUsePoints } from "./town";
-import { CAMPAIGN_GATEWAYS, portalUsePoint, campaignLanding, endlessEntryPortal, exitPortalFor, portalExitPoint } from "../../shared/map-gateways";
-import { blockedSession, requireControllingPlayer, isDeveloperIdentity } from "./session-guards";
+import { CAMPAIGN_GATEWAYS, portalUsePoint, campaignLanding, endlessEntryPortal, exitPortalFor, portalArrival } from "../../shared/map-gateways";
+import { requireControllingPlayer, isDeveloperIdentity } from "./session-guards";
 import { activeDuelFor } from "./duel-runtime";
 import { SenderError } from "spacetimedb/server";
 import { readPlayerProgress } from "./wide-stats";
@@ -18,6 +18,9 @@ import { CAMPAIGN_UNLOCK_FIELDS, campaignMapUnlocked } from "../../shared/equipm
 import { transitionPlayerMap } from "./character-reset";
 import { persistWorldLocation } from "./presence-runtime";
 import { CAMPAIGN_MAPS } from "../../shared/campaign-registry";
+import { nextMapAfter } from "../../shared/onward";
+import { aggroChallengeActive } from "./aggro-challenge";
+import { cardStatFactors, type CardTotals } from "../../shared/card-effects";
 import { Identity } from "spacetimedb";
 
 export const WORLD = { width: WORLD_WIDTH, height: WORLD_HEIGHT };
@@ -40,7 +43,8 @@ export const MAP_ARRIVALS: Record<string, { x: number; y: number }> =
 export const MAP_PORTAL_USE_RANGE = 125;
 
 export function changePlayerMap(ctx: ModuleReducerCtx, { mapId, x, y }: { mapId: string; x: number; y: number }) {
-  if (blockedSession(ctx)) return;
+  // A restricted session is refused with its restriction, which the client shows. Returning quietly read as a
+  // move made, and the client walked on to a map the server never sent it to.
   const current = requireControllingPlayer(ctx);
   if (activeDuelFor(ctx, ctx.sender)) throw new SenderError("Finish the duel before using a portal.");
   // "Base" and "Fight" both ask for the Town (Home, retired, means the same): Base from anywhere, Fight from the Town.
@@ -71,24 +75,17 @@ export function changePlayerMap(ctx: ModuleReducerCtx, { mapId, x, y }: { mapId:
     persistWorldLocation(ctx, ctx.db.player.identity.find(ctx.sender));
     return;
   }
-  if (!VALID_MAP_IDS.has(mapId) || mapId === current.mapId) throw new SenderError("Unsupported map destination.");
+  // Already there: a portal walk that raced a move the server made itself (Onward) is done, not refused.
+  if (mapId === current.mapId) return;
+  if (!VALID_MAP_IDS.has(mapId)) throw new SenderError("Unsupported map destination.");
   if (!Number.isFinite(x) || !Number.isFinite(y)) throw new SenderError("Portal position must be finite.");
   if (x < PLAYER_RADIUS || x > worldBoundsFor(current.mapId).width - PLAYER_RADIUS || y < PLAYER_RADIUS || y > worldBoundsFor(current.mapId).height - PLAYER_RADIUS) {
     throw new SenderError("Portal position is outside the world.");
   }
   if (isSoulMap(mapId)) requireSoulDimensionOpen(ctx);
   if (isGuildHallMap(mapId)) return enterGuildHall(ctx, current, mapId, x, y, { transitionPlayerMap, persistWorldLocation });
-  const currentProgress = readPlayerProgress(ctx, ctx.sender);
-  const campaignIndex = CAMPAIGN_MAPS.findIndex(map => map.id === mapId);
-  if (campaignIndex > 0 && !campaignMapUnlocked(campaignIndex, currentProgress ?? {})) {
-    throw new SenderError(`Defeat ${CAMPAIGN_MAPS[campaignIndex - 1].bossName} before entering ${MAP_DISPLAY_NAMES[mapId]}.`);
-  }
-
-  if (isProceduralMap(mapId) && !generatedMapUnlocked(mapId,
-    ctx.db.proceduralProgress.identity.find(ctx.sender)?.completed ?? 0,
-    Boolean(currentProgress && (currentProgress.bossRewardClaims & BOSS_REWARD_CLAIM_BITS[PROCEDURAL_ENTRY_BOSS])))) {
-    throw new SenderError("Defeat the previous map's boss first.");
-  }
+  const locked = lockedReason(ctx, mapId);
+  if (locked) throw new SenderError(locked);
   // The Town's travel portal (and, for tabs from before the Town, Home's pad) reaches every map the checks above allow.
   const usePoint = (portal: { x: number; y: number; height: number }, destination: string) => ({ x: portal.x, y: portal.y - portal.height * .32, destination });
   const sourcePortals = current.mapId === HOME_EXTERIOR_MAP_ID ? [usePoint(HOME_TRAVEL_PORTAL, isSoulMap(mapId) ? "" : mapId)]
@@ -106,10 +103,46 @@ export function changePlayerMap(ctx: ModuleReducerCtx, { mapId, x, y }: { mapId:
   const portalDistance = Math.hypot(x - sourcePortal.x, y - sourcePortal.y);
   if (portalDistance > MAP_PORTAL_USE_RANGE) throw new SenderError("Move closer to the portal.");
 
-  // A campaign or Endless map lands them a step in front of its portal back (the client does the same).
-  const exit = exitPortalFor(mapId, destinationPortals(mapId), current.mapId, isTownMap(current.mapId));
-  const arrival = (exit ? portalExitPoint(exit) : null) ?? (isProceduralMap(mapId) ? generateMap(mapId).arrival : isSoulMap(mapId) ? SOUL_ARRIVAL : isTownMap(mapId) ? TOWN_ARRIVAL : MAP_ARRIVALS[mapId as keyof typeof MAP_ARRIVALS]);
-  transitionPlayerMap(ctx, current, mapId, arrival);
+  transitionPlayerMap(ctx, current, mapId, arrivalFor(mapId, current.mapId, { x, y }));
+}
+
+/** Why a campaign or Endless map is still shut to the caller, or null when it is open. */
+function lockedReason(ctx: ModuleReducerCtx, mapId: string) {
+  const currentProgress = readPlayerProgress(ctx, ctx.sender);
+  const campaignIndex = CAMPAIGN_MAPS.findIndex(map => map.id === mapId);
+  if (campaignIndex > 0 && !campaignMapUnlocked(campaignIndex, currentProgress ?? {})) {
+    return `Defeat ${CAMPAIGN_MAPS[campaignIndex - 1].bossName} before entering ${MAP_DISPLAY_NAMES[mapId]}.`;
+  }
+  if (isProceduralMap(mapId) && !generatedMapUnlocked(mapId,
+    ctx.db.proceduralProgress.identity.find(ctx.sender)?.completed ?? 0,
+    Boolean(currentProgress && (currentProgress.bossRewardClaims & BOSS_REWARD_CLAIM_BITS[PROCEDURAL_ENTRY_BOSS])))) {
+    return "Defeat the previous map's boss first.";
+  }
+  return null;
+}
+
+/**
+ * Where arriving on a map from `from` lands: on a campaign or Endless map, out of its portal back, at a point drawn
+ * from where the traveller stood (`at`) so the client lands them on the same spot.
+ */
+function arrivalFor(mapId: string, from: string, at: { x: number; y: number }) {
+  const exit = exitPortalFor(mapId, destinationPortals(mapId), from, isTownMap(from));
+  return (exit ? portalArrival(exit, at) : null) ?? (isProceduralMap(mapId) ? generateMap(mapId).arrival : isSoulMap(mapId) ? SOUL_ARRIVAL : isTownMap(mapId) ? TOWN_ARRIVAL : MAP_ARRIVALS[mapId as keyof typeof MAP_ARRIVALS]);
+}
+
+/**
+ * Onward (Warden II card, among the `worn` cards): after the caller's boss kill on `mapId` opened the next map, moves them there, landing
+ * where its portal would. Not when dead, during a duel or an Aggro run, or once they have left that map.
+ */
+export function travelOnward(ctx: ModuleReducerCtx, mapId: string, worn: CardTotals) {
+  if (!cardStatFactors(worn).onward) return false;
+  const player = ctx.db.player.identity.find(ctx.sender);
+  if (!player || player.hp <= 0 || player.mapId !== mapId) return false;
+  if (activeDuelFor(ctx, ctx.sender) || aggroChallengeActive(ctx, ctx.sender)) return false;
+  const next = nextMapAfter(mapId);
+  if (!next || !VALID_MAP_IDS.has(next) || lockedReason(ctx, next)) return false;
+  persistWorldLocation(ctx, transitionPlayerMap(ctx, player, next, arrivalFor(next, mapId, player)));
+  return true;
 }
 
 /** A campaign or Endless map's portals, as its players see them; none for the Town, Home or the Soul Dimension. */

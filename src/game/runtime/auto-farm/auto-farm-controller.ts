@@ -47,6 +47,8 @@ const BOSS_WIN_SETTLE_MS = 5_000;
  * the agro group, time to move on"); an Aggro run's chasers never stop coming, so the wait has an end.
  */
 export const MOVE_ON_FIGHT_MS = 20_000;
+/** After the server refuses a crossing, Move On farms on for this long before it tries that portal again. */
+export const MOVE_ON_REFUSED_MS = 60_000;
 /**
  * After dying to a boss (or on the way to it), it is tried again only once power has grown this much. The
  * readiness check plays the fight with nobody dodging and misses some of a boss's damage; a build it judged
@@ -152,6 +154,8 @@ export function createAutoFarmController(options: {
   nextPortal?: () => (Position & { destination: string }) | null;
   /** The portal back to the previous map. */
   previousPortal?: () => (Position & { destination: string }) | null;
+  /** The server has moved the player to another map (Onward after a boss win) that the page is yet to show: no walk to a portal. */
+  serverMovePending?: () => boolean;
   /** Whether beating this map's boss opens a locked way forward. */
   bossUnlocksNext?: () => boolean;
   /** The map that way forward leads to, while it is locked: the boss is fought once Move On would be ready for it. */
@@ -460,7 +464,12 @@ export function createAutoFarmController(options: {
   function exitPortal() {
     if (!advance || options.reflectOnly?.()) return null;
     const portal = options.nextPortal?.();
+    if (portal && refusedTrip && refusedTrip.from === options.mapId() && refusedTrip.to === portal.destination && now() < refusedTrip.until) return null;
     return portal && readyForMap(portal.destination).ready ? portal : null;
+  }
+  let refusedTrip: { from: string; to: string; until: number } | null = null;
+  function travelRefused(destination: string) {
+    refusedTrip = { from: options.mapId(), to: destination, until: now() + MOVE_ON_REFUSED_MS };
   }
 
   // ---- Fight Bosses ----
@@ -852,6 +861,11 @@ export function createAutoFarmController(options: {
     }
     if (!active || options.paused()) return manual;
     choosePhase(dt);
+    // The server's move replaces Move On's walk.
+    if (phase === 'portal' && options.serverMovePending?.()) {
+      status = 'Moving On'; route = []; lastGoal = null; routeClock = 0; holding = true; target = null;
+      return idle();
+    }
     if (phase !== 'boss' && playerBossFight()) {
       status = 'Your boss fight'; route = []; lastGoal = null; routeClock = 0; holding = true; target = null;
       return idle();
@@ -1042,7 +1056,7 @@ export function createAutoFarmController(options: {
   return {
     start, stop: (reason?: string) => { zeroWaiting = false; stop(reason); }, defeated, refresh,
     // Copies for the window: the kept ones are recounted every frame.
-    choices: () => choices().map(choice => ({ ...choice, kinds: [...choice.kinds], reward: { ...choice.reward } })), movement, travelStarted, mine, chop,
+    choices: () => choices().map(choice => ({ ...choice, kinds: [...choice.kinds], reward: { ...choice.reward } })), movement, travelStarted, travelRefused, mine, chop,
     /** Whether it is walking to the portal for this map now (Move On). */
     headingTo: (destination: string) => active && phase === 'portal' && travellingTo === destination,
     /** `waiting`: stopped for travel, and starting again on the next map with enemies. The player can still Stop it. */

@@ -1,12 +1,17 @@
 import type { WeaponSchool } from "../../../shared/weapon-mastery";
 import {
-  createCardSellerRuntime, createHomeStationTouchHandler, createSchoolWindowRuntime, createSmithRuntime, createStarterChestRuntime,
+  createCardSellerRuntime, createGearSellerRuntime, createHomeStationTouchHandler, createSchoolWindowRuntime, createSmithRuntime, createStarterChestRuntime,
 } from "../../ui/game-ui-runtime";
 import type { createGameElements } from "../../ui/game-elements";
 import { bindTownTeleportButton } from "../../ui/town-teleport-button";
 import type { createInventoryController } from "../../ui/inventory-controller";
 import { createOxShopRuntime } from "../../ui/ox-shop-controller";
 import { createSlotUpgradesController } from "../../ui/slot-upgrades-controller";
+import { closeStationsOutOfReach } from "../../ui/station-reach";
+import {
+  TOWN_ARMOR_SELLER_POSITION, TOWN_CARD_SELLER_POSITION, TOWN_CARD_SELLER_SERVER_REACH, TOWN_GEAR_SELLER_SERVER_REACH, TOWN_SMITH_POSITION,
+  TOWN_SMITH_SERVER_REACH, TOWN_WEAPON_SELLER_POSITION,
+} from "../../../shared/town";
 import { TUTORIAL_FOREST_MAP_ID, SLOT_UPGRADES_POSITION, type MapId } from "../world";
 import type { CoopAccess } from "./coop-access";
 import type { createGameBootstrap } from "./game-bootstrap";
@@ -36,7 +41,7 @@ export type TownRuntimeDeps = {
 };
 
 /**
- * The Town's stations (Ox's shop, the Smith and its slot upgrades, the Card Seller, the schools) and the forest's Starter Chest.
+ * The Town's stations (Ox's shop, the Smith, Slot Upgrades, the Card, Weapon and Armor Sellers, the schools) and the forest's Starter Chest.
  * Walking up to a station opens it; the home button closes them all before it teleports.
  */
 export function createTownRuntimes(deps: TownRuntimeDeps) {
@@ -52,6 +57,7 @@ export function createTownRuntimes(deps: TownRuntimeDeps) {
       oxShop.close();
       smith.close();
       cardSeller.close();
+      gearSellers.close();
       schools.close();
     },
     teleport: () => deps.inTutorial() ? Promise.resolve(false) : deps.teleportHome(),
@@ -60,7 +66,8 @@ export function createTownRuntimes(deps: TownRuntimeDeps) {
   });
 
   const oxShop = createOxShopRuntime({ coop: client, inventory, renderInventory: deps.renderInventory, showMessage, clearInput, inTown });
-  const smith = createSmithRuntime({ coop: client, inventory, showMessage, clearInput, inTown, equip: deps.equip, slots: () => slotUpgrades });
+  const smith = createSmithRuntime({ coop: client, inventory, showMessage, clearInput, inTown });
+  const gearSellers = createGearSellerRuntime({ coop: client, inventory, showMessage, clearInput, inTown, equip: deps.equip });
   const cardSeller = createCardSellerRuntime({ coop: client, showMessage, clearInput, inTown });
   const schools = createSchoolWindowRuntime({ coop: client, clearInput, inTown });
   const starterChest = createStarterChestRuntime({
@@ -78,6 +85,7 @@ export function createTownRuntimes(deps: TownRuntimeDeps) {
     openAfterClearingInput(() => smith.open()),
     openAfterClearingInput(() => cardSeller.open()),
     (school: WeaponSchool) => { clearInput(); schools.open(school); },
+    seller => { clearInput(); gearSellers.open(seller); },
   );
 
   const slotUpgrades = createSlotUpgradesController({
@@ -117,7 +125,6 @@ export function createTownRuntimes(deps: TownRuntimeDeps) {
     unlockSecondQueue: async () => coop.client?.unlockSecondUpgradeSlot?.(),
     unlockThirdQueue: async () => coop.client?.unlockThirdUpgradeSlot?.(),
     beforeOpen: deps.beforeUpgradesOpen,
-    host: { open: () => smith.open("upgrade"), close: () => smith.close() },
     setPaused: () => {},
     clearPlayerInput: clearInput,
     onInventoryChanged: () => {
@@ -134,10 +141,16 @@ export function createTownRuntimes(deps: TownRuntimeDeps) {
   });
 
   return {
-    oxShop, smith, cardSeller, schools, starterChest, slotUpgrades,
+    oxShop, smith, cardSeller, gearSellers, schools, starterChest, slotUpgrades,
     /** Opens a station the player walked up to, and moves the Starter Chest's prompt. */
     update() {
       updateHomeStations();
+      closeStationsOutOfReach(player, inTown() && !deps.isMapTransitioning(), [
+        [smith, TOWN_SMITH_POSITION, TOWN_SMITH_SERVER_REACH],
+        [cardSeller, TOWN_CARD_SELLER_POSITION, TOWN_CARD_SELLER_SERVER_REACH],
+        [gearSellers.sellers.weapons, TOWN_WEAPON_SELLER_POSITION, TOWN_GEAR_SELLER_SERVER_REACH],
+        [gearSellers.sellers.armor, TOWN_ARMOR_SELLER_POSITION, TOWN_GEAR_SELLER_SERVER_REACH],
+      ]);
       starterChest.update();
     },
   };
