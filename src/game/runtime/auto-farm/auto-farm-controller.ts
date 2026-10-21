@@ -531,7 +531,7 @@ export function createAutoFarmController(options: {
       if (enoughHealth) {
         const playerDps = options.playerCombat().expectedBossDps();
         const survivalTime = player.maxHp / (bossDamage - realRegen);
-        if (typeof (boss.maxHp) === "number" && boss.maxHp / playerDps < survivalTime * 0.7) return { ready: true, line: `Fighting boss based on DPS` };
+        if (typeof (boss.maxHp) === "number" && boss.maxHp / playerDps < survivalTime * 0.7 / bossPower) return { ready: true, line: `Fighting boss based on DPS` };
         return { ready: false, line: `Not enough regen (${formatCompactNumber(realRegen)}/${formatCompactNumber(regenThreshold)}) or DPS, ${formatCompactNumber((typeof (boss.maxHp) === "number" ? boss.maxHp : 0) / playerDps)}s kill time, ${formatCompactNumber(survivalTime)}s estimated survival time` };
       }
       return { ready: false, line: `Not enough health (${formatCompactNumber(player.hp)}/${formatCompactNumber(hpThreshold)}) or regen (${formatCompactNumber(realRegen)}/${formatCompactNumber(regenThreshold)})` };
@@ -553,7 +553,7 @@ export function createAutoFarmController(options: {
     if (enoughHealth) {
       const playerDps = options.playerCombat().expectedBossDps();
       const survivalTime = player.hp / (regenThreshold - (realRegen));
-      if (typeof (boss.maxHp) === "function" && boss.maxHp() / playerDps < survivalTime * 0.7) return { ready: true, line: `Fighting boss based on DPS` };
+      if (typeof (boss.maxHp) === "function" && boss.maxHp() / playerDps < survivalTime * 0.7 / bossPower) return { ready: true, line: `Fighting boss based on DPS` };
       return { ready: false, line: `Not enough regen (${formatCompactNumber(realRegen)}/${formatCompactNumber(regenThreshold)}) or DPS, ${formatCompactNumber((typeof (boss.maxHp) === "function" ? boss.maxHp() : 0) / playerDps)}s kill time, ${formatCompactNumber(survivalTime)}s estimated survival time` };
     }
     return { ready: false, line: `Not enough health (${formatCompactNumber(player.hp)}/${formatCompactNumber(hpThreshold)}) or regen (${formatCompactNumber(realRegen)}/${formatCompactNumber(regenThreshold)})` };
