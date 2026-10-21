@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createAccountService } from "./account-service";
-import { recordCarriedConnectionDiagnostic } from "./connection-diagnostic-runtime";
+import { recordCarriedConnectionDiagnostic, recordConnectionDiagnostic } from "./connection-diagnostic-runtime";
 vi.mock("./connection-diagnostic-runtime", () => ({ recordConnectionDiagnostic: vi.fn(), recordCarriedConnectionDiagnostic: vi.fn() }));
 import { createUpdateResumeStore } from "./update-resume-store";
 import { inspectSpacetimeIdToken, OidcIdTokenError } from "../security/oidc-id-token";
 import { SPACETIME_AUTH_CLIENT_ID, SPACETIME_AUTH_ISSUER } from "../../../shared/rules";
+import { createDpop, DPOP_SWITCH_KEY, type DeviceDpop } from "./account-dpop";
+import { fakeIndexedDB } from "../../../tests/helpers/fake-indexeddb";
 
 class MemoryStorage implements Storage {
   private values = new Map<string, string>();
@@ -86,6 +88,7 @@ function setup(options: {
   authCallback?: boolean;
   updateResumeMode?: "account" | "guest" | null;
   validateAccountIdToken?: (token: string, expectedNonce: string) => Promise<ReturnType<typeof inspectSpacetimeIdToken>>;
+  dpop?: DeviceDpop;
 } = {}) {
   const local = new MemoryStorage();
   const session = new MemoryStorage();
@@ -156,6 +159,7 @@ function setup(options: {
     validateAccountIdToken: options.validateAccountIdToken ?? (async (token, expectedNonce) => (
       inspectSpacetimeIdToken(token, { expectedNonce })
     )),
+    ...(options.dpop ? { dpop: () => options.dpop! } : {}),
   });
   return { assign, connect, disconnect, local, session, notify, replaceState, requestWorldEntry, restartConnectionForIdentityChange, service,
     connection, setConnection: (value: typeof connection) => { connection = value; }, setWorldEntryBlocked, handleFailure,
@@ -344,6 +348,8 @@ describe("account service startup identity selection", () => {
     const { notify, service } = setup({ authCallback: true, knownAccount: true });
 
     const restore = service.restoreKnownAccount();
+    // The request opens once the DPoP key is ready (none in this environment).
+    await vi.waitFor(() => expect(request.send).toHaveBeenCalled());
     expect(request.timeout).toBe(15_000);
     request.ontimeout?.({} as ProgressEvent);
     await restore;
@@ -449,6 +455,42 @@ describe("account service startup identity selection", () => {
     expect(connect).not.toHaveBeenCalled();
     expect(service.api.accountState().signInReady).toBe(true);
     expect(service.canConnect()).toBe(false);
+  });
+
+  it("starts a fresh visitor as a guest by default, but only once the restore has finished", async () => {
+    const { service } = setup();
+    expect(service.api.accountState()).toMatchObject({ restoring: true, guestByDefault: false });
+
+    await service.restoreKnownAccount();
+
+    expect(service.api.accountState()).toMatchObject({ restoring: false, guestByDefault: true });
+  });
+
+  it("does not start a guest by default for a known account, a stored token or a sign-in return", async () => {
+    const known = setup({ knownAccount: true });
+    await known.service.restoreKnownAccount();
+    expect(known.service.api.accountState().guestByDefault).toBe(false);
+
+    const token = setup({ accountToken: accountToken(), knownAccount: true });
+    await token.service.restoreKnownAccount();
+    expect(token.service.api.accountState().guestByDefault).toBe(false);
+
+    const returning = setup({ authCallback: true });
+    expect(returning.service.api.accountState().guestByDefault).toBe(false);
+  });
+
+  it("offers the choice on the page after Sign Out instead of starting a guest", async () => {
+    const before = setup({ accountToken: accountToken(), knownAccount: true });
+    await before.service.api.signOut();
+    const marker = before.session.getItem(`${keys.loginMoveKey}/signed_out`);
+    expect(marker).toBe("true");
+
+    const after = setup();
+    after.session.setItem(`${keys.loginMoveKey}/signed_out`, marker!);
+    await after.service.restoreKnownAccount();
+    expect(after.service.api.accountState().guestByDefault).toBe(false);
+    // Only that page: a later visit starts as a guest again.
+    expect(after.session.getItem(`${keys.loginMoveKey}/signed_out`)).toBeNull();
   });
 
   it("keeps overlapping native sign-ins on one PKCE transaction", async () => {
@@ -633,6 +675,7 @@ describe("complete account sign-out", () => {
     const { service, local, connect } = setup({ authCallback: true });
     const restoring = service.restoreKnownAccount();
     await service.api.signOut();
+    await vi.waitFor(() => expect(request.send).toHaveBeenCalled());   // opens once the DPoP key is ready
     request.onload?.({} as ProgressEvent);
     await restoring;
     expect(local.getItem(keys.accountTokenKey)).toBeNull();
@@ -735,34 +778,23 @@ describe("sign-in round trips", () => {
     stubTokenRequest(new FakeTokenRequest(200, { id_token: accountToken(), refresh_token: "grant" }));
     window.location.href = `https://wildstat.example/game?code=one&state=${state}`;
     await f.service.restoreKnownAccount();
-    expect(recordCarriedConnectionDiagnostic).toHaveBeenCalledWith("session-blocked", { detail: "sign-in-return:success:known-account:silent:42s" });
+    expect(recordCarriedConnectionDiagnostic).toHaveBeenCalledWith("session-blocked", { detail: "sign-in-return:success:known-account:silent:42s:dpop=unbound" });
     expect(f.session.getItem(keys.authTripKey)).toBeNull();
   });
-  it("follows a forced login that returned no refresh grant with one silent trip", async () => {
+  it("connects a forced login straight away, noting a missing refresh grant or offline_access scope", async () => {
     const f = setup();
     await f.service.api.signIn();
     const forced = new URL(f.assign.mock.calls[0][0]);
     expect(forced.searchParams.get("prompt")).toBe("login");
-    const returnFrom = async (url: URL, response: Record<string, unknown>) => {
-      f.session.setItem(keys.authNonceKey, "expected-nonce");
-      stubTokenRequest(new FakeTokenRequest(200, response));
-      window.location.href = `https://wildstat.example/game?code=one&state=${url.searchParams.get("state")}`;
-      await f.service.restoreKnownAccount();
-    };
-    await returnFrom(forced, { id_token: accountToken() });
-    expect(f.assign).toHaveBeenCalledTimes(2);
-    const followUp = new URL(f.assign.mock.calls[1][0]);
-    expect(followUp.searchParams.get("prompt")).toBeNull();
-    expect(JSON.parse(f.session.getItem(keys.authTripKey)!)).toMatchObject({ reason: "grant-follow-up", prompt: false });
-    expect(f.connect).not.toHaveBeenCalled();
-    expect(recordCarriedConnectionDiagnostic).toHaveBeenCalledWith("session-blocked", {
-      detail: expect.stringMatching(/^sign-in-return:success:register:prompt:\d+s:no-grant$/),
-    });
-
-    await returnFrom(followUp, { id_token: accountToken(), refresh_token: "grant" });
-    expect(f.assign).toHaveBeenCalledTimes(2);
+    f.session.setItem(keys.authNonceKey, "expected-nonce");
+    stubTokenRequest(new FakeTokenRequest(200, { id_token: accountToken(), scope: "openid profile email" }));
+    window.location.href = `https://wildstat.example/game?code=one&state=${forced.searchParams.get("state")}`;
+    await f.service.restoreKnownAccount();
+    expect(f.assign).toHaveBeenCalledOnce();
     expect(f.connect).toHaveBeenCalledOnce();
-    expect(JSON.parse(f.local.getItem(`${keys.accountTokenKey}:refresh`)!)).toMatchObject({ token: "grant" });
+    expect(recordCarriedConnectionDiagnostic).toHaveBeenCalledWith("session-blocked", {
+      detail: expect.stringMatching(/^sign-in-return:success:register:prompt:\d+s:no-grant:no-offline:dpop=unbound$/),
+    });
   });
   it("plays on without a grant rather than repeating the follow-up", async () => {
     const f = setup({ knownAccount: true });
@@ -1083,6 +1115,134 @@ describe("using another account", () => {
   });
 });
 
+describe("DPoP at the code exchange", () => {
+  afterEach(() => { vi.unstubAllGlobals(); vi.mocked(recordCarriedConnectionDiagnostic).mockClear(); });
+  function stubTokenRequests(...requests: FakeTokenRequest[]) {
+    const queue = [...requests];
+    vi.stubGlobal("XMLHttpRequest", vi.fn(function XMLHttpRequestMock() { return queue.shift(); }));
+  }
+  const dpopHeader = (request: FakeTokenRequest) => request.setRequestHeader.mock.calls.find(([name]) => name === "DPoP")?.[1];
+  it("binds the refresh token to this device when the switch is on, and says so on return", async () => {
+    const dpop = createDpop({ indexedDB: fakeIndexedDB().indexedDB, subtle: crypto.subtle });
+    const request = new FakeTokenRequest(200, { id_token: accountToken(), refresh_token: "bound-grant", token_type: "DPoP" });
+    stubTokenRequests(request);
+    const f = setup({ knownAccount: true, dpop });
+    f.local.setItem(DPOP_SWITCH_KEY, "on");
+    await f.service.api.signIn();
+    const state = f.session.getItem(keys.authStateKey)!;
+    f.session.setItem(keys.authNonceKey, "expected-nonce");
+    window.location.href = `https://wildstat.example/game?code=one&state=${state}`;
+    await f.service.restoreKnownAccount();
+    expect(dpopHeader(request)).toMatch(/^[\w-]+\.[\w-]+\.[\w-]+$/);
+    expect(JSON.parse(f.local.getItem(`${keys.accountTokenKey}:refresh`)!)).toMatchObject({ token: "bound-grant", jkt: (await dpop.key())!.jkt, dpopStore: "idb" });
+    expect(recordCarriedConnectionDiagnostic).toHaveBeenCalledWith("session-blocked", { detail: expect.stringMatching(/^sign-in-return:success:known-account:silent:\d+s:dpop=bound:idb$/) });
+  });
+  it("binds to the localStorage backup key when IndexedDB is unavailable, and says so once", async () => {
+    const request = new FakeTokenRequest(200, { id_token: accountToken(), refresh_token: "bound-grant", token_type: "DPoP" });
+    stubTokenRequests(request);
+    let local: Storage | undefined;
+    const dpop = createDpop({ indexedDB: null, subtle: crypto.subtle, backupStorage: () => local });
+    const f = setup({ authCallback: true, dpop }); local = f.local;
+    await f.service.restoreKnownAccount();
+    expect(dpopHeader(request)).toBeDefined();
+    expect(JSON.parse(f.local.getItem(`${keys.accountTokenKey}:refresh`)!)).toMatchObject({ dpopStore: "local", jkt: (await dpop.key())!.jkt });
+    expect(recordCarriedConnectionDiagnostic).toHaveBeenCalledWith("session-blocked", { detail: "dpop-key:local-fallback:no-idb" });
+  });
+  it("starts loading the device key as soon as the service starts", () => {
+    const dpop = createDpop({ indexedDB: fakeIndexedDB().indexedDB, subtle: crypto.subtle });
+    const warm = vi.spyOn(dpop, "warm");
+    setup({ dpop });
+    expect(warm).toHaveBeenCalledOnce();
+  });
+  it("signs in without DPoP when the provider refuses the proof, noting the fallback", async () => {
+    const dpop = createDpop({ indexedDB: fakeIndexedDB().indexedDB, subtle: crypto.subtle });
+    const refused = new FakeTokenRequest(400, { error: "invalid_dpop_proof" });
+    const plain = new FakeTokenRequest(200, { id_token: accountToken(), refresh_token: "plain-grant", token_type: "Bearer" });
+    stubTokenRequests(refused, plain);
+    const f = setup({ authCallback: true, dpop });
+    f.local.setItem(DPOP_SWITCH_KEY, "on");
+    await f.service.restoreKnownAccount();
+    expect(dpopHeader(refused)).toBeDefined();
+    expect(dpopHeader(plain)).toBeUndefined();
+    expect(f.service.api.accountState().notice).toBe("SIGNED IN");
+    expect(JSON.parse(f.local.getItem(`${keys.accountTokenKey}:refresh`)!).jkt).toBeUndefined();
+    expect(recordCarriedConnectionDiagnostic).toHaveBeenCalledWith("session-blocked", { detail: "dpop-fallback:exchange:invalid_dpop_proof" });
+  });
+  it("times out a stalled exchange after 15 s with DPoP on, as without it", async () => {
+    const dpop = createDpop({ indexedDB: fakeIndexedDB().indexedDB, subtle: crypto.subtle });
+    const request = new FakeTokenRequest(0, {}, false);
+    stubTokenRequests(request);
+    const f = setup({ authCallback: true, knownAccount: true, dpop });
+    const restore = f.service.restoreKnownAccount();
+    await vi.waitFor(() => expect(request.send).toHaveBeenCalled());
+    expect(dpopHeader(request)).toBeDefined();
+    expect(request.timeout).toBe(15_000);
+    request.ontimeout?.({} as ProgressEvent);
+    await restore;
+    expect(f.service.api.accountState()).toMatchObject({ authInProgress: false, notice: "SIGN-IN TIMED OUT · TRY AGAIN" });
+  });
+  it("sends no DPoP header on a browser that opted out", async () => {
+    const dpop = createDpop({ indexedDB: fakeIndexedDB().indexedDB, subtle: crypto.subtle });
+    const request = new FakeTokenRequest(200, { id_token: accountToken(), refresh_token: "grant" });
+    stubTokenRequests(request);
+    const f = setup({ authCallback: true, dpop });
+    f.local.setItem(DPOP_SWITCH_KEY, "off");
+    await f.service.restoreKnownAccount();
+    expect(dpopHeader(request)).toBeUndefined();
+    expect(f.local.getItem(`${keys.accountTokenKey}:refresh`)).not.toContain("jkt");
+  });
+});
+
+describe("an account whose refresh grant runs out", () => {
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.mocked(recordCarriedConnectionDiagnostic).mockClear(); vi.mocked(recordConnectionDiagnostic).mockClear(); });
+  const expiredToken = () => accountToken({ iat: Math.floor(Date.now() / 1000) - 7_200, exp: Math.floor(Date.now() / 1000) - 60 });
+  it("keeps a connected session playing when renewing ahead is refused", async () => {
+    vi.useFakeTimers({ now: Date.now() });
+    vi.stubGlobal("document", { hidden: false });
+    vi.stubGlobal("navigator", { onLine: true });
+    const f = setup({ accountToken: accountToken({ iat: Math.floor(Date.now() / 1000) - 3_000, exp: Math.floor(Date.now() / 1000) + 600 }), knownAccount: true, signedIn: true });
+    f.local.setItem(`${keys.accountTokenKey}:refresh`, JSON.stringify({ subject: "account-subject", token: "spent", savedAt: Date.now() - 3_000_000 }));
+    const fetch = vi.fn(async () => ({ ok: false, status: 400, json: async () => ({ error: "invalid_grant" }) }));
+    vi.stubGlobal("fetch", fetch);
+    f.service.markPlayable(true);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(recordConnectionDiagnostic).toHaveBeenCalledWith("session-blocked", { detail: expect.stringMatching(/^renew-ahead-refused:/) });
+    expect(f.disconnect).not.toHaveBeenCalled();
+    expect(f.assign).not.toHaveBeenCalled();
+    expect(f.service.api.accountState()).toMatchObject({ signedIn: true, gameSessionApproved: true });
+  });
+  it("leaves a background tab where it is, and lets it use the sign-in another tab restored once shown", async () => {
+    const page = { hidden: true };
+    vi.stubGlobal("document", page);
+    const old = expiredToken();
+    const f = setup({ accountToken: old, knownAccount: true });
+    f.service.markPlayable(true);
+    await expect(f.service.connectionToken(old)).rejects.toMatchObject({ reason: "no-grant" });
+    await expect(f.service.connectionToken(old)).rejects.toMatchObject({ reason: "no-grant" });
+    expect(f.assign).not.toHaveBeenCalled();
+    expect(f.service.canConnect()).toBe(false);
+    expect(vi.mocked(recordCarriedConnectionDiagnostic).mock.calls.filter(([, d]) => String(d?.detail).startsWith("renewal-deferred:no-grant"))).toHaveLength(1);
+    // The visible tab signed in again meanwhile.
+    const restored = accountToken();
+    f.local.setItem(keys.accountTokenKey, restored);
+    page.hidden = false;
+    expect(f.service.canConnect()).toBe(true);
+    expect(await f.service.connectionToken(old)).toBe(restored);
+    expect(f.assign).not.toHaveBeenCalled();
+  });
+  it("sends the tab the player is looking at to sign in again", async () => {
+    vi.stubGlobal("document", { hidden: false });
+    const old = expiredToken();
+    const f = setup({ accountToken: old, knownAccount: true });
+    f.service.markPlayable(true);
+    await expect(f.service.connectionToken(old)).rejects.toMatchObject({ reason: "no-grant" });
+    expect(recordCarriedConnectionDiagnostic).toHaveBeenCalledWith("session-blocked", { detail: "renewal-refused:no-grant:" });
+    expect(f.assign).toHaveBeenCalledOnce();
+    expect(JSON.parse(f.session.getItem(keys.authTripKey)!)).toMatchObject({ reason: "renewal-no-grant", prompt: false });
+  });
+});
+
 it("tells Settings an account is stored even while disconnected", () => {
   const { service } = setup({ accountToken: accountToken(), knownAccount: true });
   expect(service.api.accountState()).toMatchObject({ signedIn: false, hasAccountToken: true });
@@ -1098,8 +1258,9 @@ describe("Sign In and Register never do nothing", () => {
     await f.service.restoreKnownAccount();
     expect(f.service.api.accountState()).toMatchObject({ knownAccount: true });
     expect(f.service.api.knownCharacter()).toBe("Pilidria");
-    if (mode) expect(f.connect).toHaveBeenCalledOnce();
-    else expect(f.service.api.accountState()).toMatchObject({ signInRequired: true, notice: "SIGN-IN REQUIRED" });
+    // Either way it continues by itself, as the Sign In tap would.
+    expect(f.connect).toHaveBeenCalledOnce();
+    expect(f.service.api.accountState()).toMatchObject({ gameSessionApproved: true });
   });
 
   it("a reload after the server refused the token still offers SIGN IN to the character", async () => {
@@ -1157,5 +1318,93 @@ describe("Sign In and Register never do nothing", () => {
     expect(window.location.reload).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1_000);
     expect(window.location.reload).toHaveBeenCalledOnce();
+  });
+});
+
+describe("a stored sign-in continues by itself", () => {
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.mocked(recordCarriedConnectionDiagnostic).mockClear(); });
+  const expiredToken = () => accountToken({ iat: Math.floor(Date.now() / 1000) - 7_200, exp: Math.floor(Date.now() / 1000) - 60 });
+
+  it("connects a returning account on load with no Sign In tap and no trip", async () => {
+    const f = setup({ accountToken: accountToken(), knownAccount: true });
+    await f.service.restoreKnownAccount();
+    expect(f.connect).toHaveBeenCalledOnce();
+    expect(f.assign).not.toHaveBeenCalled();
+    expect(f.service.api.accountState()).toMatchObject({ gameSessionApproved: true, guestByDefault: false, notice: "OPENING CHARACTER" });
+    expect(f.service.canConnect()).toBe(true);
+  });
+
+  it.each([
+    ["no grant", null],
+    ["a refused grant", { ok: false, status: 400, json: async () => ({ error: "invalid_grant" }) }],
+  ])("shows the Sign In screen, without leaving for SpacetimeAuth, when %s is left", async (_, response) => {
+    vi.stubGlobal("document", { hidden: false });
+    const old = expiredToken();
+    const f = setup({ accountToken: old, knownAccount: true });
+    if (response) {
+      f.local.setItem(`${keys.accountTokenKey}:refresh`, JSON.stringify({ subject: "account-subject", token: "spent", savedAt: Date.now() }));
+      vi.stubGlobal("fetch", vi.fn(async () => response));
+    }
+    await f.service.restoreKnownAccount();
+    expect(f.service.api.accountState().gameSessionApproved).toBe(true);
+    await expect(f.service.connectionToken(old)).rejects.toMatchObject({ reason: response ? "grant-rejected" : "no-grant" });
+    expect(f.assign).not.toHaveBeenCalled();
+    expect(f.service.api.accountState()).toMatchObject({ gameSessionApproved: false, signInRequired: true, knownAccount: true, notice: "SIGN-IN REQUIRED" });
+    expect(f.service.canConnect()).toBe(false);
+    expect(recordCarriedConnectionDiagnostic).toHaveBeenCalledWith("session-blocked", { detail: expect.stringMatching(/^auto-sign-in-refused:/) });
+    // The Sign In tap then goes to SpacetimeAuth as before.
+    expect(await f.service.api.signIn()).toMatchObject({ ok: true });
+    await expect(f.service.connectionToken(old)).rejects.toMatchObject({ reason: "no-grant" });
+    expect(f.assign).toHaveBeenCalledOnce();
+  });
+
+  it("shows the Sign In screen when the server refuses the stored token, instead of reopening sign-in by itself", async () => {
+    const f = setup({ accountToken: accountToken(), knownAccount: true });
+    await f.service.restoreKnownAccount();
+    expect(f.service.onConnectError(true, new Error("Failed to verify token: HTTP 401 Unauthorized"))).toBe(true);
+    expect(f.assign).not.toHaveBeenCalled();
+    expect(f.service.api.accountState()).toMatchObject({ gameSessionApproved: false, signInRequired: true, notice: "SIGN-IN REQUIRED" });
+  });
+
+  it("goes back to signing in again by itself once the character has played", async () => {
+    vi.stubGlobal("document", { hidden: false });
+    const old = expiredToken();
+    const f = setup({ accountToken: old, knownAccount: true });
+    await f.service.restoreKnownAccount();
+    f.service.markPlayable(true);
+    await expect(f.service.connectionToken(old)).rejects.toMatchObject({ reason: "no-grant" });
+    expect(f.assign).toHaveBeenCalledOnce();
+  });
+});
+
+describe("a new visitor before the Terms", () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it("is a guest started from nothing, until they agree", async () => {
+    const f = setup();
+    await f.service.restoreKnownAccount();
+    expect(f.service.api.accountState().newVisitor).toBe(false);
+    f.service.api.continueAsGuest();
+    expect(f.service.api.accountState()).toMatchObject({ guestSessionApproved: true, newVisitor: true });
+    expect(await f.service.api.acceptLegalTerms()).toMatchObject({ ok: true });
+    expect(f.service.api.accountState().newVisitor).toBe(false);
+    const returning = setup({ guestToken: "saved-guest" });
+    returning.service.api.continueAsGuest();
+    expect(returning.service.api.accountState().newVisitor).toBe(false);
+  });
+
+  it("signs in from the Terms window without entering the world or linking the empty guest", async () => {
+    const f = setup();
+    await f.service.restoreKnownAccount();
+    f.service.api.continueAsGuest();
+    const beginAccountLink = vi.fn(async () => {});
+    f.local.setItem(keys.guestTokenKey, "fresh-guest");
+    f.setConnection({ isActive: true, disconnect: vi.fn(), reducers: { beginAccountLink } } as never);
+    expect(await f.service.api.signIn()).toMatchObject({ ok: true, redirecting: true });
+    expect(f.requestWorldEntry).not.toHaveBeenCalled();
+    expect(beginAccountLink).not.toHaveBeenCalled();
+    expect(f.session.getItem(keys.accountLinkKey)).toBeNull();
+    const url = new URL(f.assign.mock.calls[0][0]);
+    expect(url.searchParams.get("prompt")).toBe("login");
   });
 });

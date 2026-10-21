@@ -1,8 +1,8 @@
-import { createLegalGateController, legalGateElements, type LegalGateElements } from "../ui/legal-gate";
 import { markGameScript } from "./game-script-gate";
 import { enforceLatestVersion } from "../app/version";
 import { GAME_VERSION } from "../game/runtime/game-settings";
 import { createDiscordLink } from "../ui/discord-link";
+import { createLoadingProgress } from "../ui/loading-progress";
 import {
   createStartupStateMachine,
   type StartupAccountSnapshot,
@@ -29,11 +29,10 @@ type StartupAuthGateDependencies = {
   /** Use Another Account: ends the provider session, then asks which account. */
   switchAccount?: () => Promise<StartupActionResult> | StartupActionResult;
   continueAsGuest: () => Promise<StartupActionResult> | StartupActionResult;
-  legalConsentAccepted: () => boolean;
-  acceptLegalTerms: () => Promise<StartupActionResult> | StartupActionResult;
-  ageBlocked?: () => boolean;
   subscribe: (listener: () => void) => () => void;
   loadGame: () => Promise<void>;
+  /** game.js downloading from the first frame (preloadDeferredGameBundle), or null under Data Saver. */
+  gameDownload?: Promise<void> | null;
   releaseNotes?: {
     show: () => void;
     hide: () => void;
@@ -53,7 +52,6 @@ type StartupAuthElements = {
   switchAccountButton?: HTMLButtonElement | null;
   loadingDetail: HTMLElement;
   loadingFill: HTMLElement;
-  legal: LegalGateElements;
 };
 
 function startupElements(documentValue: Document): StartupAuthElements {
@@ -106,7 +104,6 @@ function startupElements(documentValue: Document): StartupAuthElements {
     switchAccountButton: documentValue.getElementById("useAnotherAccountBtn") as HTMLButtonElement | null,
     loadingDetail: requireElement("loadingDetail"),
     loadingFill: requireElement("loadingFill"),
-    legal: legalGateElements(documentValue),
   };
 }
 
@@ -120,22 +117,29 @@ export function createStartupAuthGate(
   let detached = false;
   let preparingSignIn = false;
   let preparingDetail = "Opening Sign-In…";
-  const legalGate = createLegalGateController({
-    accept: () => dependencies.acceptLegalTerms(),
-    askAge: false,
-    blocked: () => dependencies.ageBlocked?.() === true,
-    onAccepted: render,
-  }, elements.legal);
+  // The shell's share of the one loading bar is game.js: 0 to 30%. The game's own stages carry on from there.
+  const progress = createLoadingProgress(elements.loadingFill);
+  let gameDownloaded = false;
+  dependencies.gameDownload?.then(() => {
+    gameDownloaded = true;
+    if (!detached) render();
+  }, () => {
+    // The script tag fetches it again on Play and reports a real failure there.
+  });
+  /** game.js is downloading, then about to run: the shell's part of the bar. */
+  function showBundleProgress() {
+    if (gameDownloaded) progress.advance(30, 38);
+    else progress.advance(3, 30);
+  }
 
   function showLoading(detail = "Loading Your Character") {
     dependencies.releaseNotes?.hide();
     elements.start.style.display = "grid";
     elements.accountChoicePanel.classList.remove("is-signing-in");
     elements.accountChoicePanel.hidden = true;
-    legalGate.hide();
     elements.connectionPanel.hidden = false;
     elements.loadingDetail.textContent = detail;
-    elements.loadingFill.style.width = "8%";
+    showBundleProgress();
   }
 
   function showAccountChoice(detailOverride = "", interactive = true) {
@@ -145,15 +149,16 @@ export function createStartupAuthGate(
     const ready = state.signInReady !== false;
     elements.start.style.display = "grid";
     elements.connectionPanel.hidden = true;
-    legalGate.hide();
     elements.accountChoicePanel.hidden = false;
     elements.accountChoicePanel.classList.remove("is-signing-in");
     elements.accountCharacterName.textContent = name || "none";
     elements.accountCharacter.classList.toggle("is-empty", !name);
-    elements.signInButton.textContent = name || knownAccount ? "SIGN IN" : "REGISTER";
+    // A known character: one Sign In, with Play as Guest as the small way out.
+    elements.accountChoicePanel.classList.toggle("is-sign-in", Boolean(name || knownAccount));
+    elements.signInButton.textContent = name || knownAccount ? "Sign In" : "Register";
     elements.signInButton.disabled = !ready;
     elements.guestButton.disabled = false;
-    // Whenever a character is offered: SIGN IN reuses whoever the browser last signed in as.
+    // Whenever a character is offered: Sign In reuses whoever the browser last signed in as.
     if (elements.switchAccountButton) {
       elements.switchAccountButton.hidden = !(name || knownAccount) || !dependencies.switchAccount;
       elements.switchAccountButton.disabled = false;
@@ -179,14 +184,6 @@ export function createStartupAuthGate(
     if (elements.switchAccountButton) elements.switchAccountButton.disabled = true;
   }
 
-  function showLegalGate() {
-    dependencies.releaseNotes?.hide();
-    elements.start.style.display = "grid";
-    elements.connectionPanel.hidden = true;
-    elements.accountChoicePanel.hidden = true;
-    legalGate.show();
-  }
-
   function detach() {
     if (detached) return;
     detached = true;
@@ -195,7 +192,6 @@ export function createStartupAuthGate(
     elements.signInButton.removeEventListener("click", onSignIn);
     elements.guestButton.removeEventListener("click", onGuest);
     elements.switchAccountButton?.removeEventListener("click", onSwitchAccount);
-    legalGate.dispose();
     dependencies.releaseNotes?.dispose();
   }
 
@@ -211,8 +207,11 @@ export function createStartupAuthGate(
     showLoading(detail);
     detach();
     void dependencies.loadGame().then(() => {
+      // game.js now owns the bar and carries it on from here.
+      progress.stop();
       machine.dispatch({ type: "dispose" });
     }).catch((error) => {
+      progress.stop();
       console.error("WildStat game bundle failed to load:", error);
       const transition = machine.dispatch({ type: "fail-game-load", message: "Game Load Failed · Refresh to Try Again" });
       renderState(transition.state, transition.changed);
@@ -221,8 +220,9 @@ export function createStartupAuthGate(
 
   function renderState(state: StartupState, changed = true) {
     switch (state.value) {
-      case "legal-consent":
-        showLegalGate();
+      case "guest-start":
+        // A new or returning guest who has agreed: the same path as the Guest button, without the tap.
+        void onGuest();
         return;
       case "loading-game":
         if (state.status === "ready") beginGameLoading(dependencies.accountState().guestSessionApproved ? "Loading Guest Profile" : "Loading Your Character");
@@ -243,10 +243,13 @@ export function createStartupAuthGate(
         return;
       case "failed":
         showLoading(state.message);
-        elements.loadingFill.style.width = "100%";
+        progress.set(100);
         return;
       case "loading-shell":
+        showLoading("Starting WildStat");
+        return;
       case "loading-runtime":
+      case "legal-consent":
         showLoading();
         return;
       case "connection-failed":
@@ -263,9 +266,10 @@ export function createStartupAuthGate(
   }
 
   function render() {
+    // The shell never asks for the Terms (the game does, once loaded), so it reports none.
     const transition = machine.sync({
       account: dependencies.accountState(),
-      legalAccepted: dependencies.legalConsentAccepted(),
+      legalAccepted: false,
       shellReady: true,
     });
     renderState(transition.state, transition.changed);
@@ -274,7 +278,8 @@ export function createStartupAuthGate(
   function onSignIn() {
     const state = dependencies.accountState();
     const name = dependencies.knownCharacter().trim();
-    return beginSignIn(dependencies.signIn, name || state.knownAccount ? "Opening Sign-In…" : "Opening Registration…");
+    const signingIn = name || state.knownAccount;
+    return beginSignIn(dependencies.signIn, signingIn ? "Opening Sign-In…" : "Opening Registration…");
   }
 
   function onSwitchAccount() {
@@ -310,7 +315,8 @@ export function createStartupAuthGate(
   }
 
   async function onGuest() {
-    if (machine.state().value !== "account-choice") return;
+    const from = machine.state().value;
+    if (from !== "account-choice" && from !== "guest-start") return;
     renderState(machine.dispatch({
       type: "begin-account-action",
       action: "guest",
@@ -352,21 +358,25 @@ export function requestDeferredGameAssets(documentValue = document) {
 }
 
 /**
- * Starts downloading game.js while the player is still on the sign-in screen,
- * so pressing Play waits only for it to run. A hint the browser may ignore;
- * skipped under Data Saver, and once the bundle is already loading.
+ * Starts downloading game.js on the first frame, beside the Terms and Play,
+ * so Play waits only for it to run. A real fetch the script tag then reuses.
+ * Skipped under Data Saver, where game.js loads after Play, and once it is loading.
  */
-export function prefetchDeferredGameBundle(documentValue = document, saveData = Boolean((navigator as { connection?: { saveData?: boolean } }).connection?.saveData)) {
-  if (saveData || documentValue.getElementById("wildstatGameScript") || documentValue.getElementById("wildstatGamePrefetch")) return false;
+export function preloadDeferredGameBundle(documentValue = document, saveData = Boolean((navigator as { connection?: { saveData?: boolean } }).connection?.saveData)) {
+  if (saveData || documentValue.getElementById("wildstatGameScript") || documentValue.getElementById("wildstatGamePreload")) return null;
   const source = (documentValue.getElementById("wildstatCoopScript") as HTMLScriptElement | null)?.dataset.gameSrc;
-  if (!source) return false;
+  if (!source) return null;
   const link = documentValue.createElement("link");
-  link.id = "wildstatGamePrefetch";
-  link.rel = "prefetch";
+  const downloaded = new Promise<void>((resolve, reject) => {
+    link.addEventListener("load", () => resolve(), { once: true });
+    link.addEventListener("error", () => reject(new Error(`Failed to preload ${source}`)), { once: true });
+  });
+  link.id = "wildstatGamePreload";
+  link.rel = "preload";
   link.as = "script";
   link.href = source;
   documentValue.head.append(link);
-  return true;
+  return downloaded;
 }
 
 export function loadDeferredGameBundle(documentValue = document, checkForUpdate = () => enforceLatestVersion(GAME_VERSION)) {

@@ -55,7 +55,7 @@ import { createGamePanels, createMapGuidePanel } from "./ui/game-panels";
 import { createGiftsAndMail, createHudRuntime } from "./ui/hud-runtime";
 import { createReconnectOverlay, type FarmConnection } from "./ui/reconnect-overlay";
 import { createOnboardingRuntime } from "./ui/onboarding-runtime";
-import { createStartupCoordination, createStartupScreen, type StartupCoordinator } from "./ui/startup-runtime";
+import { beginNewPlayer, createStartupCoordination, createStartupScreen, type StartupCoordinator } from "./ui/startup-runtime";
 import { createPerformanceMonitor } from "./game/runtime/performance-monitor";
 import { createPresentationInterpolator } from "./game/runtime/render/presentation-interpolator";
 import { createGameBootstrap, createGameBootstrapAssets, startGameRuntime } from "./game/runtime/game-bootstrap";
@@ -300,7 +300,7 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
   });
 
   const startupScreen = createStartupScreen({
-    coop: coopAccess, progressLoaded: () => progress.isLoaded(), playerSpriteReady: () => playerSpriteReady,
+    coop: coopAccess, progressLoaded: () => progress.isLoaded(), playerSpriteReady: () => playerSpriteReady(),
     worldArtReady: () => assets.worldArtReady(), currentMapReady: startupMapAssetsReady, finishStartup,
     showUpdateNotice: showCurrentUpdateNotice, startGame, coordinator: () => startupCoordinator, showMessage,
   });
@@ -337,7 +337,7 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
     joystick: joystickEl,
     stick: stickEl,
     running: () => session.isRunning(),
-    onTapPlayer: (x, y) => (!inTutorial() || onboarding?.canOpenProfile()) ? openPlayerAtScreenPoint(x, y) : false,
+    onTapPlayer: (x, y) => !inTutorial() ? openPlayerAtScreenPoint(x, y) : false,
     onEscape: () => inTutorial() && playerProfileEl.hidden ? true : handleInputEscape(),
     desktop: {
       canMove: () => Boolean(session?.isRunning()) && !session.isPaused() && player.hp > 0 && !isArenaScene()
@@ -545,9 +545,7 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
     collideEnemies: boss => playerCombat.pushEnemiesFromBoss(boss),
   });
 
-  let playerSpriteReady = false;
   const markPlayerSpriteReady = () => {
-    playerSpriteReady = true;
     startup.refreshLoading();
     finishStartup();
   };
@@ -559,7 +557,9 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
       finishStartup();
     },
     onPlayerAppearanceAssetReady: markPlayerSpriteReady,
+    localOutfit: () => Object.values(equipmentAppearance(inventory)),
   });
+  const playerSpriteReady = bootstrapAssets.localPlayerArtReady;
   const { assets, inventoryCharacterPreview, leaderboardPodiumPreview, playerAppearanceAssets, profileCharacterPreview } = bootstrapAssets;
   const mapAssets = createMapAssetLoading({
     coop: coopAccess, assets, mapBalance, mapConfig: MAP_CONFIG, performanceMonitor,
@@ -670,7 +670,7 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
     showProgressCompletion: (kind, detail, icon, color) => runtimeHud.showProgressCompletion(kind, detail, icon, color),
     profileWindow, closeIconPicker: closeProfileIconPicker, clearInput: playerInput.clear,
     lowPerformanceMode: appShell.lowPerformanceMode, openGuildHall: () => guildHall.openWindow(),
-    assets, playerAppearanceAssets, leaderboardPodiumPreview, playerSpriteReady: () => playerSpriteReady,
+    assets, playerAppearanceAssets, leaderboardPodiumPreview,
     paintProfileIconCanvas, previewPrestigeUnlock: prestigeUnlock.preview,
     stopAutoFarm: reason => autoFarm.stop(reason), teleportToMap: mapController.teleportToMap,
     metrics: { performance: performanceMonitor, enemies, projectiles, enemyShots, particles, canvasRuntime, canvas },
@@ -778,14 +778,10 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
 
   startupCoordinator = createStartupCoordination({
     coop: coopAccess, version: GAME_VERSION, gameUpdateGate: gameUpdateGateEl, canvas, screen: startupScreen, session, progress,
-    playerSpriteReady: () => playerSpriteReady, worldArtReady: assets.worldArtReady, setGameplayPause,
+    playerSpriteReady, worldArtReady: assets.worldArtReady, setGameplayPause,
     saveBeforeUpdate: () => { saveProgress(true); coop?.syncMovementState?.(player.x, player.y, 0, 0, "keyboard", true); },
     suspendPlayerVisibility: () => playerVisibility.suspend(),
-    showNewPlayerIntro: () => {
-      recordGameplayReady();
-      if (onboarding?.required()) startGame(false);
-      else startup.showNewPlayerIntro();
-    },
+    showNewPlayerIntro: () => beginNewPlayer({ recordGameplayReady, settings: appShell, onboarding, startGame, intro: startup }),
     startGame: () => startGame(false),
   });
   finishStartup();

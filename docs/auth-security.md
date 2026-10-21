@@ -70,6 +70,53 @@ PKCE authorization request, and a deliberately invalid refresh grant returns
 was required. Actual authenticated renewal is covered by local regression tests;
 it still needs confirmation from player diagnostics after release.
 
+Player diagnostics, 2026-10-20: SpacetimeAuth refuses every refresh from 24 hours
+after sign-in (`auth_time`) on (`invalid_grant`, "grant request is invalid"),
+however often it was rotated in between. None was refused earlier.
+The game then sends the player back through SpacetimeAuth. A tab in the
+background waits until it is shown, and uses the sign-in another tab restored
+if there is one. Forced logins now return a refresh grant, so the old
+follow-up trip for a missing one is gone.
+
+## DPoP-bound refresh tokens (on for everyone since 0.916.15)
+
+The 24-hour cap looks like node-oidc-provider's rule for public clients: a
+rotated refresh token keeps only the remaining lifetime unless it is
+sender-constrained. `account-dpop.ts` binds it with DPoP (RFC 9449): one
+non-extractable ES256 key per browser profile in IndexedDB (`wildstat-dpop`),
+shared by tabs, and a signed proof on every token-endpoint request (code
+exchange and refresh), retried once with the provider's `DPoP-Nonce`.
+
+- On for every browser (`DPOP_DEFAULT_ON` in `account-dpop.ts`);
+  `localStorage["wildstat-dpop-v1"] = "off"` opts one browser out.
+- A sign-in is bound when the exchange sent a proof and the answer's
+  `token_type` is `DPoP`; the grant then stores the key's thumbprint (`jkt`).
+  A bound grant is always refreshed with a proof from that key, even after an
+  opt-out. A missing or different key means sign in again. Unbound grants
+  keep refreshing without DPoP until the next sign-in.
+- The key starts loading when the game loads, after waking WebKit's
+  IndexedDB (it can hang on the first request until `indexedDB.databases()`
+  is polled), so a sign-in return usually finds it ready.
+- Backup key: where IndexedDB is missing, fails, or is not ready within
+  1.75 s at sign-in, an extractable ES256 key is kept as a JWK in localStorage
+  (`wildstat-dpop-backup-key-v1`) and used instead
+  (`dpop-key:local-fallback:<why>`). Page script can read it, the same
+  exposure as the refresh token already in localStorage, so the
+  non-extractable IndexedDB key is preferred for every new sign-in. A grant
+  stays on the key it was bound to (`dpopStore` beside `jkt`), whichever store
+  holds it.
+- A sign-in waits at most 2 s for a key before its token request. DPoP never
+  keeps a player out: no key in time (`key-slow`), no WebCrypto, a refused
+  proof, or a request that fails only with the header all fall back to a
+  plain exchange (`dpop-fallback:exchange:*`). The last two also pause DPoP
+  on that browser for a week.
+- Only the ID token is used (for SpacetimeDB); nothing sends the access token,
+  so no resource request needs a proof.
+- Diagnostics: `dpop=bound:idb|bound:local|unbound|off` on sign-in returns
+  and refusals, and
+  `renewal-chain:days=N;...;dpop=...` once per day a chain keeps renewing.
+  A `renewal-chain:days=1;...;dpop=bound:*` row is the proof it works.
+
 ## Static-hosting policy limits
 
 GitHub Pages does not provide project-controlled response headers. WildStat

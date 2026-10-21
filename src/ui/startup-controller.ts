@@ -2,6 +2,7 @@ import { requiredElement } from "../game/runtime/dom";
 import { appendPlayerGenderIcon } from "./player-gender";
 import type { PlayerGender } from "../../shared/player-gender";
 import { createLegalGateController } from "./legal-gate";
+import { createLoadingProgress } from "./loading-progress";
 
 type AccountState = {
   signedIn?: boolean;
@@ -11,6 +12,8 @@ type AccountState = {
   /** Registration needs no connection; only a saved guest waits for the server (account-service). */
   signInReady?: boolean;
   knownAccount?: boolean;
+  /** A guest started from nothing on this page, before the Terms: the window offers Sign In. */
+  newVisitor?: boolean;
   notice?: string;
   connectionIssue?: { message: string } | null;
 };
@@ -69,35 +72,49 @@ export function createStartupController(dependencies: StartupDependencies) {
   const signInButton = requiredElement<HTMLButtonElement>("signInFromStartBtn");
   const guestButton = requiredElement<HTMLButtonElement>("continueGuestBtn");
   const switchAccountButton = document.getElementById("useAnotherAccountBtn") as HTMLButtonElement | null;
-  const legalGatePanel = requiredElement("legalGatePanel");
   const newPlayerPanel = requiredElement("newPlayerPanel");
   const playerNameInput = requiredElement<HTMLInputElement>("newPlayerNameInput");
   const beginAdventureButton = requiredElement("beginAdventureBtn");
+  const consentSignInButton = document.getElementById("consentSignInBtn") as HTMLButtonElement | null;
+  const progress = createLoadingProgress(loadingFill);
 
-  const stageDurationMs = 200;
+  // Long enough to read a label that flashes past, short enough not to be the wait itself.
+  const stageDurationMs = 80;
   let loadingSequence: LoadingSequenceState = { value: "loading", stage: 0, shownAt: null };
   let stageTimer: number | null = null;
 
   function pauseLoading() {
     if (stageTimer !== null) window.clearTimeout(stageTimer);
     stageTimer = null;
+    progress.stop();
     if (loadingSequence.value === "loading") loadingSequence.shownAt = null;
   }
   const legalGate = createLegalGateController({
     accept: dependencies.acceptLegalTerms,
-    onAccepted: dependencies.onLegalAccepted,
+    onAccepted: () => {
+      if (consentSignInButton) consentSignInButton.hidden = true;
+      dependencies.onLegalAccepted();
+    },
     askAge: false,
     blocked: () => dependencies.ageBlocked?.() === true,
+    keepOpen: true,
   });
+  /** The Terms window, once open, stays over the loaded screen until the game or another screen replaces it. */
+  let termsOpen = false;
+  function hideTerms() {
+    termsOpen = false;
+    legalGate.hide();
+  }
 
   function showConnecting() {
     pauseLoading();
+    progress.set(0);
     loadingSequence = { value: "loading", stage: 0, shownAt: null };
     accountChoicePanel.classList.remove("is-signing-in");
     start.style.display = "grid";
     connectionPanel.hidden = false;
     accountChoicePanel.hidden = true;
-    legalGatePanel.hidden = true;
+    hideTerms();
     newPlayerPanel.hidden = true;
     sessionTakeoverButton.hidden = true;
     sessionTakeoverButton.disabled = false;
@@ -113,10 +130,10 @@ export function createStartupController(dependencies: StartupDependencies) {
     start.style.display = "grid";
     connectionPanel.hidden = false;
     accountChoicePanel.hidden = true;
-    legalGatePanel.hidden = true;
+    hideTerms();
     newPlayerPanel.hidden = true;
     loadingDetail.textContent = loadingDescriptionCase(dependencies.accountState()?.notice || "Logged In on Another Tab");
-    loadingFill.style.width = "100%";
+    progress.set(100);
     sessionTakeoverButton.hidden = false;
     sessionTakeoverNote.hidden = false;
     connectionRetryButton.hidden = true;
@@ -135,11 +152,13 @@ export function createStartupController(dependencies: StartupDependencies) {
     if (characterFound) appendPlayerGenderIcon(accountCharacterName, dependencies.knownCharacterGender());
     accountCharacter.classList.toggle("is-empty", !characterFound);
     signInButton.hidden = false;
-    signInButton.textContent = characterFound || knownAccount ? "SIGN IN" : "REGISTER";
+    // A known character: one Sign In, with Play as Guest as the small way out.
+    accountChoicePanel.classList.toggle("is-sign-in", characterFound || knownAccount);
+    signInButton.textContent = characterFound || knownAccount ? "Sign In" : "Register";
     signInButton.disabled = actionPending || !accountOptionsReady;
     guestButton.hidden = false;
     guestButton.disabled = actionPending;
-    // Whenever a character is offered: SIGN IN reuses whoever the browser last signed in as.
+    // Whenever a character is offered: Sign In reuses whoever the browser last signed in as.
     if (switchAccountButton) {
       switchAccountButton.hidden = !(characterFound || knownAccount) || !dependencies.switchAccount;
       switchAccountButton.disabled = actionPending || !accountOptionsReady;
@@ -156,13 +175,19 @@ export function createStartupController(dependencies: StartupDependencies) {
     start.style.display = "grid";
     connectionPanel.hidden = true;
     accountChoicePanel.hidden = false;
-    legalGatePanel.hidden = true;
+    hideTerms();
     newPlayerPanel.hidden = true;
     connectionRetryButton.hidden = true;
     dependencies.onShowAccountChoice();
   }
 
   function showAccountAction(action: "sign-in" | "guest" | "takeover", detail: string) {
+    if (action === "sign-in" && termsOpen) {
+      // Sign In from the Terms window: its progress shows there.
+      legalGate.notice(loadingDescriptionCase(detail));
+      if (consentSignInButton) consentSignInButton.disabled = true;
+      return;
+    }
     if (action === "takeover") {
       showConnecting();
       loadingDetail.textContent = detail;
@@ -177,7 +202,8 @@ export function createStartupController(dependencies: StartupDependencies) {
     start.style.display = "grid";
     connectionPanel.hidden = false;
     accountChoicePanel.hidden = true;
-    legalGatePanel.hidden = true;
+    // Accepted and starting, or a failed start to retry: the window stays until the game replaces it.
+    if (!termsOpen) hideTerms();
     newPlayerPanel.hidden = true;
     sessionTakeoverButton.hidden = true;
     sessionTakeoverNote.hidden = true;
@@ -193,7 +219,8 @@ export function createStartupController(dependencies: StartupDependencies) {
     state.shownAt ??= performance.now();
     const [label, ready, percent] = stages[state.stage] ?? ["Starting WildStat", true, 100];
     loadingDetail.textContent = label;
-    loadingFill.style.width = `${percent}%`;
+    // What the earlier stages finished is shown; this one creeps until it is done too.
+    progress.advance(stages[state.stage - 1]?.[2] ?? 0, percent);
     if (!ready || stageTimer !== null) return;
     // Real work proceeds normally; only the visible presentation is paced.
     const timer = window.setTimeout(() => {
@@ -206,6 +233,7 @@ export function createStartupController(dependencies: StartupDependencies) {
         refreshLoading();
       } else {
         loadingSequence = { value: "complete" };
+        progress.set(100);
         dependencies.onLoadingComplete();
       }
     }, Math.max(0, stageDurationMs - (performance.now() - state.shownAt)));
@@ -218,12 +246,11 @@ export function createStartupController(dependencies: StartupDependencies) {
     start.style.display = "grid";
     connectionPanel.hidden = false;
     accountChoicePanel.hidden = true;
-    legalGatePanel.hidden = true;
+    hideTerms();
     newPlayerPanel.hidden = true;
     sessionTakeoverButton.hidden = true;
     sessionTakeoverNote.hidden = true;
     loadingDetail.textContent = loadingDescriptionCase(message);
-    loadingFill.style.width = "12%";
     connectionRetryButton.hidden = false;
     connectionRetryButton.disabled = false;
   }
@@ -235,19 +262,28 @@ export function createStartupController(dependencies: StartupDependencies) {
     start.style.display = "grid";
     connectionPanel.hidden = true;
     accountChoicePanel.hidden = true;
-    legalGatePanel.hidden = true;
+    hideTerms();
     newPlayerPanel.hidden = false;
     connectionRetryButton.hidden = true;
     requestAnimationFrame(() => playerNameInput.focus());
   }
 
+  /** The Terms window over the loaded screen: loading has finished, and Play enters the world. */
   function showLegalGate() {
     pauseLoading();
     accountChoicePanel.classList.remove("is-signing-in");
     start.style.display = "grid";
-    connectionPanel.hidden = true;
+    connectionPanel.hidden = false;
     accountChoicePanel.hidden = true;
+    if (!termsOpen) legalGate.notice("");
+    termsOpen = true;
     legalGate.show();
+    // Only a new visitor's guest can still become a sign-in; anyone else has chosen already.
+    if (consentSignInButton) {
+      consentSignInButton.hidden = !dependencies.accountState()?.newVisitor || dependencies.ageBlocked?.() === true;
+      consentSignInButton.disabled = false;
+    }
+    loadingDetail.textContent = "Ready to Play";
     newPlayerPanel.hidden = true;
     sessionTakeoverButton.hidden = true;
     sessionTakeoverNote.hidden = true;
@@ -264,27 +300,34 @@ export function createStartupController(dependencies: StartupDependencies) {
   }
 
   function beginSignIn(action: () => ReturnType<StartupDependencies["signIn"]>, characterFound: boolean) {
+    const fromTerms = termsOpen;
     dependencies.onAccountActionStarted(
       "sign-in",
       characterFound ? "OPENING SIGN-IN…" : "OPENING REGISTRATION…",
     );
+    const failed = (detail: string) => {
+      // The window comes back with Play and Sign In, and says what happened.
+      if (fromTerms) legalGate.notice("Sign-In Failed · Try Again");
+      dependencies.onAccountActionFailed(detail);
+    };
     void (async () => {
       try {
         const result = await action();
         if (result?.ok === false) {
-          dependencies.onAccountActionFailed(characterFound
+          failed(characterFound
             ? "SIGN-IN FAILED · TRY AGAIN OR USE GUEST LOGIN"
             : "REGISTRATION FAILED · TRY AGAIN OR USE GUEST LOGIN");
           return;
         }
         if (!result?.redirecting) dependencies.onAccountActionCompleted();
       } catch {
-        dependencies.onAccountActionFailed("SIGN-IN FAILED · TRY AGAIN OR USE GUEST LOGIN");
+        failed("SIGN-IN FAILED · TRY AGAIN OR USE GUEST LOGIN");
       }
     })();
   }
 
   signInButton.addEventListener("click", () => beginSignIn(dependencies.signIn, Boolean(dependencies.knownCharacter())));
+  consentSignInButton?.addEventListener("click", () => beginSignIn(dependencies.signIn, true));
   switchAccountButton?.addEventListener("click", () => {
     if (dependencies.switchAccount) beginSignIn(dependencies.switchAccount, true);
   });
@@ -328,7 +371,7 @@ export function createStartupController(dependencies: StartupDependencies) {
     if (event.key === "Enter") beginAdventure();
   });
   return {
-    hideStart: () => { pauseLoading(); start.style.display = "none"; },
+    hideStart: () => { pauseLoading(); hideTerms(); start.style.display = "none"; },
     isLoadingSequenceComplete: () => loadingSequence.value === "complete",
     refreshLoading,
     showAccountChoice,

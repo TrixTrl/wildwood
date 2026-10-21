@@ -29,12 +29,32 @@ describe("startup state derivation", () => {
     })).toEqual({ value: "verifying-sign-in" });
   });
 
-  it("loads the game bundle only after identity and legal approval", () => {
-    expect(deriveStartupState("auth-shell", {
+  it("loads the game bundle once an identity is chosen, without stopping for the Terms", () => {
+    for (const legalAccepted of [true, false]) {
+      expect(deriveStartupState("auth-shell", {
+        account: { guestSessionApproved: true },
+        legalAccepted,
+        shellReady: true,
+      })).toEqual({ value: "loading-game", status: "ready" });
+    }
+  });
+
+  it("opens the Terms window only once the loading before it has run to the end", () => {
+    const account = { guestSessionApproved: true, newVisitor: true };
+    const before = { ...runtimeBase, legalAccepted: false, account };
+    expect(deriveStartupState("game-runtime", before)).toEqual({ value: "loading-runtime" });
+    expect(deriveStartupState("game-runtime", { ...before, consentReady: true })).toEqual({ value: "legal-consent" });
+    // Nothing playable before the Terms, even with the character's rows somehow ready.
+    expect(deriveStartupState("game-runtime", { ...before, consentReady: true, runtimeReady: true, startupKind: "new" })).toEqual({ value: "legal-consent" });
+    expect(deriveStartupState("game-runtime", { ...before, consentReady: true, legalAccepted: true, runtimeReady: true, startupKind: "new" })).toEqual({ value: "new-player" });
+  });
+
+  it("shows a lost connection ahead of the Terms window, so Retry is reachable", () => {
+    expect(deriveStartupState("game-runtime", {
+      ...runtimeBase, legalAccepted: false, consentReady: true,
       account: { guestSessionApproved: true },
-      legalAccepted: true,
-      shellReady: true,
-    })).toEqual({ value: "loading-game", status: "ready" });
+      connectionIssue: { message: "World sync timed out" },
+    })).toEqual({ value: "connection-failed", message: "World sync timed out" });
   });
 
   it("waits for runtime readiness before choosing the character path", () => {
@@ -72,6 +92,48 @@ describe("startup state derivation", () => {
       account: { gameSessionApproved: true },
       started: true,
     })).toEqual({ value: "running" });
+  });
+});
+
+describe("guest by default", () => {
+  const shell = { legalAccepted: false, shellReady: true };
+
+  it("starts a new visitor's guest straight away, with no Terms step and no account choice in the shell", () => {
+    expect(deriveStartupState("auth-shell", { ...shell, account: { guestByDefault: true } })).toEqual({ value: "guest-start" });
+    expect(deriveStartupState("auth-shell", { ...shell, legalAccepted: true, account: { guestByDefault: true } })).toEqual({ value: "guest-start" });
+  });
+
+  it("chooses nothing until the account restore has finished", () => {
+    expect(deriveStartupState("auth-shell", { ...shell, account: { restoring: true } })).toEqual({ value: "loading-shell" });
+  });
+
+  it("keeps sign-in returns, conflicts and known accounts on their own paths", () => {
+    expect(deriveStartupState("auth-shell", { ...shell, account: { guestByDefault: true, returningFromSignIn: true } })).toEqual({ value: "verifying-sign-in" });
+    expect(deriveStartupState("auth-shell", { ...shell, account: { guestByDefault: true, sessionConflict: true } })).toEqual({ value: "session-conflict" });
+    // A known account, a stored token or a sign-out just now: the account service reports no guest default.
+    expect(deriveStartupState("auth-shell", { ...shell, account: { guestByDefault: false } })).toEqual({ value: "account-choice", detail: "" });
+  });
+
+  it("leaves the running game's own account recovery alone", () => {
+    expect(deriveStartupState("game-runtime", { ...runtimeBase, account: { guestByDefault: true } })).toEqual({ value: "account-choice", detail: "" });
+  });
+
+  it("allows Sign In from the Terms window, and returns to the window if it fails", () => {
+    const machine = createStartupStateMachine("game-runtime");
+    machine.sync({ ...runtimeBase, legalAccepted: false, consentReady: true, account: { guestSessionApproved: true, newVisitor: true } });
+    expect(machine.state()).toEqual({ value: "legal-consent" });
+    expect(machine.dispatch({ type: "begin-account-action", action: "guest", detail: "" }).changed).toBe(false);
+    expect(machine.dispatch({ type: "begin-account-action", action: "sign-in", detail: "Opening Sign-In…" }).state).toEqual({ value: "account-action", action: "sign-in", detail: "Opening Sign-In…" });
+    expect(machine.dispatch({ type: "fail-account-action", detail: "SIGN-IN FAILED" }).state).toEqual({ value: "legal-consent" });
+  });
+
+  it("falls back to the account choice after a failed guest start instead of retrying it", () => {
+    const machine = createStartupStateMachine("auth-shell");
+    const snapshot = { ...shell, legalAccepted: true, account: { guestByDefault: true } };
+    expect(machine.sync(snapshot).state).toEqual({ value: "guest-start" });
+    machine.dispatch({ type: "begin-account-action", action: "guest", detail: "Loading Guest Profile" });
+    expect(machine.dispatch({ type: "fail-account-action", detail: "GUEST LOGIN FAILED" }).state).toEqual({ value: "account-choice", detail: "GUEST LOGIN FAILED" });
+    expect(machine.sync(snapshot).state).toEqual({ value: "account-choice", detail: "" });
   });
 });
 
