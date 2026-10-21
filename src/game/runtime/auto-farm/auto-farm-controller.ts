@@ -529,7 +529,7 @@ export function createAutoFarmController(options: {
       if (enoughHealth && enoughRegen) return { ready: true, line: `Ready to fight boss` };
       if (enoughRegen) return { ready: false, line: `Not enough health (${formatCompactNumber(player.hp)}/${formatCompactNumber(hpThreshold)})` };
       if (enoughHealth) {
-        const playerDps = options.playerCombat().expectedBossDps();
+        const playerDps = options.playerCombat().expectedBossDps() / bossPower;
         const survivalTime = player.maxHp / (bossDamage - realRegen);
         if (typeof (boss.maxHp) === "number" && boss.maxHp / playerDps < survivalTime * 0.7 / bossPower) return { ready: true, line: `Fighting boss based on DPS` };
         return { ready: false, line: `Not enough regen (${formatCompactNumber(realRegen)}/${formatCompactNumber(regenThreshold)}) or DPS, ${formatCompactNumber((typeof (boss.maxHp) === "number" ? boss.maxHp : 0) / playerDps)}s kill time, ${formatCompactNumber(survivalTime)}s estimated survival time` };
@@ -551,8 +551,8 @@ export function createAutoFarmController(options: {
     if (enoughHealth && enoughRegen) return { ready: true, line: `Ready to fight boss` };
     if (enoughRegen) return { ready: false, line: `Not enough health (${formatCompactNumber(player.hp)}/${formatCompactNumber(hpThreshold)})` };
     if (enoughHealth) {
-      const playerDps = options.playerCombat().expectedBossDps();
-      const survivalTime = player.hp / (regenThreshold - (realRegen));
+      const playerDps = options.playerCombat().expectedBossDps() / bossPower;
+      const survivalTime = player.hp / (regenThreshold - realRegen);
       if (typeof (boss.maxHp) === "function" && boss.maxHp() / playerDps < survivalTime * 0.7 / bossPower) return { ready: true, line: `Fighting boss based on DPS` };
       return { ready: false, line: `Not enough regen (${formatCompactNumber(realRegen)}/${formatCompactNumber(regenThreshold)}) or DPS, ${formatCompactNumber((typeof (boss.maxHp) === "function" ? boss.maxHp() : 0) / playerDps)}s kill time, ${formatCompactNumber(survivalTime)}s estimated survival time` };
     }
