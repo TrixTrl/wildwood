@@ -449,7 +449,7 @@ export function createActorRenderer(options: {
         { text: amountText, color: "#ffffff" },
         { text: " ", color: "#ffffff" },
         { text: reward.type === "speed" ? "Atk Speed" : reward.type === "crit" ? "Crit Multiplier" : rewardStatLabel(reward), color: REWARD_DATA[reward.type].color },
-      ], "top"),
+      ], "top")),
       dps: createLabelBitmap([{ text: dps != -1 ? `DPS ${formatCompactNumber(dps)}` : `???`, color: "#ffffff" }], "top"),
     };
   }

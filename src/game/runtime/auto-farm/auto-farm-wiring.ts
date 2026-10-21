@@ -1,7 +1,7 @@
 import { leaderboardEligible } from "../../../../shared/leaderboard-window";
 import { createAutoFarmResumeStore } from "../../../app/auto-farm-resume";
 import type { MapId } from "../../world";
-import { bossStateForMap } from "../boss/boss-registry";
+import { BossDefinition, BossKind, bossStateForMap, BossStates } from "../boss/boss-registry";
 import type { createProceduralBossController } from "../boss/procedural-boss-controller";
 import type { CoopAccess } from "../coop-access";
 import type { createGameBootstrap } from "../game-bootstrap";
@@ -11,6 +11,9 @@ import type { createResearchController } from "../research-controller";
 import { aggroPullCamps, forcedAggroGroups } from "./aggro-picks";
 import { createAutoFarmProgress } from "./auto-farm-build";
 import { createAutoFarmController } from "./auto-farm-controller";
+import { PlayerCombatController } from "../player-combat-controller";
+import { PlayerController } from "../../../module_bindings/types";
+import { EnemyState } from "../types";
 
 type FarmConnection = "ready" | "recovering" | "ended";
 
@@ -26,10 +29,12 @@ export type AutoFarmWiringDeps = {
     session: () => { isRunning: () => boolean; isPaused: () => boolean } | undefined;
     mapController: () => Pick<ReturnType<typeof createMapController>, "isMapTransitioning" | "isCutsceneActive" | "portalIsUnlocked">;
     proceduralBoss: () => Pick<ReturnType<typeof createProceduralBossController>, "boss">;
-    playerCombat: () => { feedsOnAdds: () => boolean };
+    playerCombat: () => PlayerCombatController;
+    playerStats: () => { regenerationPerSecond: () => number };
     research: () => Pick<ReturnType<typeof createResearchController>, "ranks" | "rewardMultiplier" | "criticalChance" | "criticalDamageMultiplier">;
     soulCritDamage: () => number;
     rewardContext: () => RewardLabelContext;
+    bossDefinition: () => EnemyState | BossDefinition | null;
   };
 };
 
@@ -98,6 +103,9 @@ export function createAutoFarm(deps: AutoFarmWiringDeps) {
     unavailable: farmUnavailable,
     paused: () => Boolean(later.session()?.isPaused()) || deps.isArenaScene(),
     feedsOnAdds: () => later.playerCombat().feedsOnAdds(),
+    playerCombat: () => later.playerCombat(),
+    playerStats: later.playerStats,
+    bossDefinition: later.bossDefinition,
     speed: deps.moveSpeed,
     obstacles: () => {
       const obstacles = mapPortals().flatMap(portal => portal

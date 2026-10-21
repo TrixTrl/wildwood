@@ -66,7 +66,7 @@ import { createCanvasRuntime, gameplayBottomInset } from "./game/runtime/render/
 import { PORTAL_CUTSCENE_SEEN_KEYS, APP_SHELL_STORAGE_KEYS, GAME_VERSION, MUSIC_VOLUME_KEY, SFX_VOLUME_KEY } from "./game/runtime/game-settings";
 import { createWorldProgressionController } from "./game/runtime/world-progression-controller";
 import { createBossController } from "./game/runtime/boss/boss-controller";
-import { BOSSES, BOSS_KINDS } from "./game/runtime/boss/boss-registry";
+import { BOSSES, BOSS_KINDS, bossForMap } from "./game/runtime/boss/boss-registry";
 import { createMapController } from "./game/runtime/map-controller";
 import { createPlayerInputController } from "./game/runtime/player-input-controller";
 import { createAutoFarmPanel } from "./ui/auto-farm-panel";
@@ -185,8 +185,10 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
     collections: [enemies, projectiles, enemyShots, ...BOSS_KINDS.map((kind) => bossHazards[kind]), particles, damageNumbers],
   });
   // The live player's final stats (shared/player-stats.ts): max health's bonus, regen and move speed are read from here.
-  const playerStats = createPlayerStatsRuntime({ player, inventory, source: () => coop, soul: () => soulDimension.inPlay(),
-    tailwind: () => playerCombat?.tailwind() ?? 0, isDueling: () => isDueling() });
+  const playerStats = createPlayerStatsRuntime({
+    player, inventory, source: () => coop, soul: () => soulDimension.inPlay(),
+    tailwind: () => playerCombat?.tailwind() ?? 0, isDueling: () => isDueling()
+  });
   const { healthMultiplierBonus, regenerationPerSecond } = playerStats;
   const LEGACY_SAVE_KEY = "wildwood-player-progress-v1";
   const respawnMemory = createRespawnMemory(localStorage, coopAccess.identity);
@@ -221,7 +223,7 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
     currentMapId = mapId;
     WORLD.w = mapId === ONBOARDING_MAP_ID ? ONBOARDING_WORLD.width : worldBoundsFor(mapId).width;
     WORLD.h = mapId === ONBOARDING_MAP_ID ? ONBOARDING_WORLD.height : worldBoundsFor(mapId).height;
-    void mapAssets.prepare(mapId).catch(() => {});
+    void mapAssets.prepare(mapId).catch(() => { });
     mapAssets.preloadAdjacent(mapId);
     // The button always leaves the current map, so it names the destination: Town, or Fight in the Town.
     paintTownTeleportButton(gameElements.townButton, mapId);
@@ -235,7 +237,7 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
     const serverMapId = coopAccess.localState()?.mapId;
     if (!serverMapId) return false;
     const mapId = serverMapId in MAP_CONFIG ? serverMapId as MapId : currentMapId;
-    void mapAssets.prepare(mapId).catch(() => {});
+    void mapAssets.prepare(mapId).catch(() => { });
     return assets.mapAssetsReady(mapId) && mapBalance.ready(mapId);
   }
 
@@ -357,8 +359,9 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
     connection: () => farmConnection,
     later: {
       session: () => session, mapController: () => mapController, proceduralBoss: () => proceduralBoss,
-      playerCombat: () => playerCombat, research: () => research, soulCritDamage: () => soulDimension.critDamage(),
+      playerCombat: () => playerCombat, playerStats: () => playerStats, research: () => research, soulCritDamage: () => soulDimension.critDamage(),
       rewardContext: () => rewardLabelContext(),
+      bossDefinition: () => proceduralBoss.boss() ? proceduralBoss.boss() : bossForMap(currentMapId),
     },
   });
   let playerCombat: ReturnType<typeof createPlayerCombat>;
@@ -638,7 +641,7 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
   });
   const prestigeUnlock = createPrestigeUnlockRuntime({
     coop, expanded: expansionNotice.unlocked, showMessage, runPrestige, playing: () => session?.hasStarted() && !inTutorial(),
-    blocked: () => session.isPaused(), pause: () => {},
+    blocked: () => session.isPaused(), pause: () => { },
   });
   const duplicateLogin = createDuplicateLoginRuntime({
     coop, started: () => session?.hasStarted(), pause: (paused: boolean) => setGameplayPause("duplicate-login", paused),
@@ -742,14 +745,20 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
   installGraphicsReport({
     canvas: () => canvas, snapshot: performanceMonitor.snapshot, playing: () => session.isRunning(), fullRate: () => session.fullFrameRate(),
   });
-  installStatTracker({ storage: localStorage, read: createStatTrackerSource({ coop: () => coop, player, inventory,
-    hasStarted: session.hasStarted, isLoadedFor: progress.isLoadedFor, inTutorial, researchRanks, kills: () => totalKills,
-    displayedProgress: displayedPlayerPowerProgress, attackCap: coopAccess.attackCap,
-    critParts: () => ({ ...research.criticalDamageParts(), soul: soulDimension.critDamage(), rating: player.critRating }),
-    criticalChance: research.criticalChance }) });
-  installQuestTracker({ storage: localStorage, enabled: questTracker.enabled, set: questTracker.set, ensure: () => quests.refresh(),
+  installStatTracker({
+    storage: localStorage, read: createStatTrackerSource({
+      coop: () => coop, player, inventory,
+      hasStarted: session.hasStarted, isLoadedFor: progress.isLoadedFor, inTutorial, researchRanks, kills: () => totalKills,
+      displayedProgress: displayedPlayerPowerProgress, attackCap: coopAccess.attackCap,
+      critParts: () => ({ ...research.criticalDamageParts(), soul: soulDimension.critDamage(), rating: player.critRating }),
+      criticalChance: research.criticalChance
+    })
+  });
+  installQuestTracker({
+    storage: localStorage, enabled: questTracker.enabled, set: questTracker.set, ensure: () => quests.refresh(),
     view: () => quests.trackerView(currentMapId),
-    hiddenHere: () => !session.hasStarted() || inTutorial() || document.body.matches(".is-cutscene, .is-replaying, .is-dueling") });
+    hiddenHere: () => !session.hasStarted() || inTutorial() || document.body.matches(".is-cutscene, .is-replaying, .is-dueling")
+  });
   const giftsAndMail = createGiftsAndMail({
     coop: coopAccess, e: gameElements, playing: () => session.hasStarted() && !inTutorial(), guildPanel: () => guildPanel, showMessage,
   });

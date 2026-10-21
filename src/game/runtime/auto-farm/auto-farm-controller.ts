@@ -21,12 +21,11 @@ import { isSoulMap, SOUL_STAT_DETAILS, type SoulStatId } from '../../../../share
 import { soulStatOfCampName } from '../../soul-world';
 import { createAutoChop, type AutoChopSource } from './auto-chop';
 import { smartMove } from './auto-farm-kite';
-import { BossKind, BossStates } from '../boss/boss-registry';
+import { BossDefinition, BossKind, BossStates } from '../boss/boss-registry';
 import { BOSS_DAMAGE_PROFILES } from '../../boss-damage';
 import { armorDamageReduction } from '../../combat';
 import { createAutoMine, type AutoMineSource } from './auto-mine';
 import { bossAggroRange, BOSS_ZONE_PAD } from './boss-zone';
-import { playerRegenerationPerSecond } from '../reward-display';
 import { PlayerCombatController } from '../player-combat-controller';
 
 /** An attacker of another kind is fought off on the way only if it dies within this many seconds. */
@@ -165,16 +164,17 @@ export function createAutoFarmController(options: {
   reportDeath?: (detail: string) => void;
   /** Whether a kill of this reward gives nothing now, the stat at its cap: the "Capped" its label shows (reward-labels.ts). */
   rewardCapped?: (reward: FarmReward, soul: SoulStatId | null) => boolean;
-  bossDefinition?: () => (EnemyState | BossStates[BossKind]) & { bossKind?: BossKind, damage?: number } | null;
+  bossDefinition: () => (EnemyState | BossDefinition) & { bossKind?: string, damage?: number } | null;
   /** The gathering session: with it, the button runs Auto Mine in the Copper Hills and Auto Chop in Timberwood instead. */
   mining?: () => (AutoMineSource & AutoChopSource) | null | undefined;
-  equipment?: () => Pick<{
+  /*equipment?: () => Pick<{
     equippedRightHand: string; equippedLeftHand: string;
     equippedHead: string; equippedChest: string;
   }, "equippedHead" | "equippedChest">;
   research?: () => number;
-  upgradeLevel?: (itemId: string) => number;
+  upgradeLevel?: (itemId: string) => number;*/
   playerCombat: () => PlayerCombatController;
+  playerStats: () => { regenerationPerSecond: () => number };
 }) {
   const { player, enemies, spawnSites } = options;
   const now = options.now ?? monotonicNowMs;
@@ -511,8 +511,7 @@ export function createAutoFarmController(options: {
    * (8 s a kill) sent players who did not yet one-shot this map's enemies into a boss they could not beat.
    */
   function readyForBoss(): { ready: boolean; line: string } {
-    const equipment = options.equipment?.();
-    const regenMultiplier = equipment && options.upgradeLevel ? playerRegenerationPerSecond(1, equipment, options.research?.() ?? 1, options.upgradeLevel) : 1;
+    const regenMultiplier = options.playerStats().regenerationPerSecond();
     const boss = options.bossDefinition?.();
     const bossPower = movePower;
     //console.log(boss);
@@ -531,7 +530,7 @@ export function createAutoFarmController(options: {
       if (enoughHealth) {
         const playerDps = options.playerCombat().expectedFullDps();
         const survivalTime = player.maxHp / (regenThreshold - (player.regen * regenMultiplier));
-        if (boss.maxHp / playerDps < survivalTime * 0.7) return { ready: true, line: `Fighting boss based on DPS` };
+        if (typeof (boss.maxHp) === "number" && boss.maxHp / playerDps < survivalTime * 0.7) return { ready: true, line: `Fighting boss based on DPS` };
         return { ready: false, line: `Not enough regen (${formatCompactNumber(player.regen * regenMultiplier)}/${formatCompactNumber(regenThreshold)}) or DPS, ${formatCompactNumber(boss.maxHp / playerDps)}s kill time, ${formatCompactNumber(survivalTime)}s estimated survival time` };
       }
       return { ready: false, line: `Not enough health (${formatCompactNumber(player.maxHp)}/${formatCompactNumber(hpThreshold)}) or regen (${formatCompactNumber(player.regen * regenMultiplier)}/${formatCompactNumber(regenThreshold)})` };
@@ -553,7 +552,7 @@ export function createAutoFarmController(options: {
     if (enoughHealth) {
       const playerDps = options.playerCombat().expectedFullDps();
       const survivalTime = player.hp / (regenThreshold - (player.regen * regenMultiplier));
-      if (boss.maxHp / playerDps < survivalTime * 0.7) return { ready: true, line: `Fighting boss based on DPS` };
+      if (typeof (boss.maxHp) === "function" && boss.maxHp() / playerDps < survivalTime * 0.7) return { ready: true, line: `Fighting boss based on DPS` };
       return { ready: false, line: `Not enough regen (${formatCompactNumber(player.regen * regenMultiplier)}/${formatCompactNumber(regenThreshold)}) or DPS, ${formatCompactNumber(boss.maxHp / playerDps)}s kill time, ${formatCompactNumber(survivalTime)}s estimated survival time` };
     }
     return { ready: false, line: `Not enough health (${formatCompactNumber(player.maxHp)}/${formatCompactNumber(hpThreshold)}) or regen (${formatCompactNumber(player.regen * regenMultiplier)}/${formatCompactNumber(regenThreshold)})` };
@@ -875,8 +874,7 @@ export function createAutoFarmController(options: {
     let threat: EnemyState | null = null;
     // On the way to the boss or the next map it shoots what it passes but chases nobody. A pulled group is coming anyway.
     if (phase === 'farm') {
-      const equipment = options.equipment?.();
-      const regenMultiplier = equipment && options.upgradeLevel ? playerRegenerationPerSecond(1, equipment, options.research?.() ?? 1, options.upgradeLevel) : 1;
+      const regenMultiplier = options.playerStats().regenerationPerSecond();
       const smartTarget = smartMove({ ...player, realRegen: player.regen * regenMultiplier }, enemies, shares);
       const length = distance(smartTarget), magnitude = Math.min(1, length / Math.max(1, options.speed() * dt));
       return { x: (smartTarget.x - player.x) / length * magnitude, y: (smartTarget.y - player.y) / length * magnitude, source: 'steer' };
