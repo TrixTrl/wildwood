@@ -409,7 +409,7 @@ export function createActorRenderer(options: {
         const amount = capped ? "Capped" : stat === "critDamage" ? `+${+(detail.reward * multiplier * 100).toFixed(1)}%` : soulRewardText(stat, multiplier);
         return [{ text: `${amount} `, color: "#ffffff" }, { text: detail.label, color: detail.color }];
       }),
-      dps: createLabelBitmap([{ text: "DPS not implemented yet", color: "#ffffff" }], "top"),
+      dps: { text: "DPS not implemented yet", color: "#ffffff" },
     };
   }
 
@@ -976,7 +976,7 @@ export function createActorRenderer(options: {
         ctx.textAlign = "center";
         ctx.textBaseline = "alphabetic";
         options.outlinedSegments(labels.reward, 0, rewardY + rewardDrop(), 4);
-        options.outlinedSegments(labels.dps, 0, rewardY + rewardDrop() * 2, 4);
+        options.outlinedSegments([labels.dps], 0, rewardY + rewardDrop() * 2, 4);
       }
     });
   }
