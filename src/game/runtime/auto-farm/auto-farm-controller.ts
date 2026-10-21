@@ -511,7 +511,7 @@ export function createAutoFarmController(options: {
    * (8 s a kill) sent players who did not yet one-shot this map's enemies into a boss they could not beat.
    */
   function readyForBoss(): { ready: boolean; line: string } {
-    const regenMultiplier = options.playerStats().regenerationPerSecond();
+    const realRegen = options.playerStats().regenerationPerSecond();
     const boss = options.bossDefinition?.();
     const bossPower = movePower;
     //console.log(boss);
@@ -520,20 +520,21 @@ export function createAutoFarmController(options: {
       boss.bossKind = "dragon";
     }
     if (!boss?.bossKind) {
-      const bossDamage = boss.damage ? (boss.damage * (1 - armorDamageReduction(player.armor))) : 300;
-      const hpThreshold = bossDamage * 2 * bossPower;
-      const regenThreshold = bossDamage / 2 * bossPower;
+      if (!boss.damage) return { ready: false, line: `Boss damage missing` };
+      const bossDamage = boss.damage * (1 - armorDamageReduction(player.armor)) * ((1.0 / 1.6) * 0.3 + (1.0 / 6.0));
+      const hpThreshold = bossDamage * 3 * bossPower;
+      const regenThreshold = bossDamage * bossPower;
       const enoughHealth = player.hp > hpThreshold;
-      const enoughRegen = player.regen * regenMultiplier > regenThreshold;
+      const enoughRegen = realRegen > regenThreshold;
       if (enoughHealth && enoughRegen) return { ready: true, line: `Ready to fight boss` };
       if (enoughRegen) return { ready: false, line: `Not enough health (${formatCompactNumber(player.hp)}/${formatCompactNumber(hpThreshold)})` };
       if (enoughHealth) {
-        const playerDps = options.playerCombat().expectedFullDps();
-        const survivalTime = player.maxHp / (regenThreshold - (player.regen * regenMultiplier));
+        const playerDps = options.playerCombat().expectedBossDps();
+        const survivalTime = player.maxHp / (bossDamage - realRegen);
         if (typeof (boss.maxHp) === "number" && boss.maxHp / playerDps < survivalTime * 0.7) return { ready: true, line: `Fighting boss based on DPS` };
-        return { ready: false, line: `Not enough regen (${formatCompactNumber(player.regen * regenMultiplier)}/${formatCompactNumber(regenThreshold)}) or DPS, ${formatCompactNumber((typeof (boss.maxHp) === "number" ? boss.maxHp : 0) / playerDps)}s kill time, ${formatCompactNumber(survivalTime)}s estimated survival time` };
+        return { ready: false, line: `Not enough regen (${formatCompactNumber(realRegen)}/${formatCompactNumber(regenThreshold)}) or DPS, ${formatCompactNumber((typeof (boss.maxHp) === "number" ? boss.maxHp : 0) / playerDps)}s kill time, ${formatCompactNumber(survivalTime)}s estimated survival time` };
       }
-      return { ready: false, line: `Not enough health (${formatCompactNumber(player.hp)}/${formatCompactNumber(hpThreshold)}) or regen (${formatCompactNumber(player.regen * regenMultiplier)}/${formatCompactNumber(regenThreshold)})` };
+      return { ready: false, line: `Not enough health (${formatCompactNumber(player.hp)}/${formatCompactNumber(hpThreshold)}) or regen (${formatCompactNumber(realRegen)}/${formatCompactNumber(regenThreshold)})` };
     }
     let bossDamage = 0;
     let highestAttack = 0;
@@ -546,16 +547,16 @@ export function createAutoFarmController(options: {
     const hpThreshold = bossDamage * 2 * bossPower;
     const regenThreshold = bossDamage / (attacks - 1) / 6 * bossPower;
     const enoughHealth = player.hp > hpThreshold;
-    const enoughRegen = player.regen * regenMultiplier > regenThreshold;
+    const enoughRegen = realRegen > regenThreshold;
     if (enoughHealth && enoughRegen) return { ready: true, line: `Ready to fight boss` };
     if (enoughRegen) return { ready: false, line: `Not enough health (${formatCompactNumber(player.hp)}/${formatCompactNumber(hpThreshold)})` };
     if (enoughHealth) {
-      const playerDps = options.playerCombat().expectedFullDps();
-      const survivalTime = player.hp / (regenThreshold - (player.regen * regenMultiplier));
+      const playerDps = options.playerCombat().expectedBossDps();
+      const survivalTime = player.hp / (regenThreshold - (realRegen));
       if (typeof (boss.maxHp) === "function" && boss.maxHp() / playerDps < survivalTime * 0.7) return { ready: true, line: `Fighting boss based on DPS` };
-      return { ready: false, line: `Not enough regen (${formatCompactNumber(player.regen * regenMultiplier)}/${formatCompactNumber(regenThreshold)}) or DPS, ${formatCompactNumber((typeof (boss.maxHp) === "function" ? boss.maxHp() : 0) / playerDps)}s kill time, ${formatCompactNumber(survivalTime)}s estimated survival time` };
+      return { ready: false, line: `Not enough regen (${formatCompactNumber(realRegen)}/${formatCompactNumber(regenThreshold)}) or DPS, ${formatCompactNumber((typeof (boss.maxHp) === "function" ? boss.maxHp() : 0) / playerDps)}s kill time, ${formatCompactNumber(survivalTime)}s estimated survival time` };
     }
-    return { ready: false, line: `Not enough health (${formatCompactNumber(player.hp)}/${formatCompactNumber(hpThreshold)}) or regen (${formatCompactNumber(player.regen * regenMultiplier)}/${formatCompactNumber(regenThreshold)})` };
+    return { ready: false, line: `Not enough health (${formatCompactNumber(player.hp)}/${formatCompactNumber(hpThreshold)}) or regen (${formatCompactNumber(realRegen)}/${formatCompactNumber(regenThreshold)})` };
     /*
     const readiness = options.bossReady ? cachedReady(`boss:${options.mapId()}:${bossPower}`, () => options.bossReady!(bossPower)) : null;
     if (readiness === undefined) return { ready: false, line: 'Reading Boss' };
@@ -875,7 +876,7 @@ export function createAutoFarmController(options: {
     // On the way to the boss or the next map it shoots what it passes but chases nobody. A pulled group is coming anyway.
     if (phase === 'farm') {
       const regenMultiplier = options.playerStats().regenerationPerSecond();
-      const smartTarget = smartMove({ ...player, realRegen: player.regen * regenMultiplier }, enemies, shares);
+      const smartTarget = smartMove({ ...player, realRegen: regenMultiplier }, enemies, shares);
       const length = distance(smartTarget), magnitude = Math.min(1, length / Math.max(1, options.speed() * dt));
       return { x: (smartTarget.x - player.x) / length * magnitude, y: (smartTarget.y - player.y) / length * magnitude, source: 'steer' };
     }
