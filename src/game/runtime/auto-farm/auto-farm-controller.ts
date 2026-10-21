@@ -164,7 +164,7 @@ export function createAutoFarmController(options: {
   reportDeath?: (detail: string) => void;
   /** Whether a kill of this reward gives nothing now, the stat at its cap: the "Capped" its label shows (reward-labels.ts). */
   rewardCapped?: (reward: FarmReward, soul: SoulStatId | null) => boolean;
-  bossDefinition: () => (EnemyState | BossDefinition) & { bossKind?: string, damage?: number } | null;
+  bossDefinition: () => (EnemyState | BossDefinition) & { kind?: string, damage?: number } | null;
   /** The gathering session: with it, the button runs Auto Mine in the Copper Hills and Auto Chop in Timberwood instead. */
   mining?: () => (AutoMineSource & AutoChopSource) | null | undefined;
   /*equipment?: () => Pick<{
@@ -516,10 +516,10 @@ export function createAutoFarmController(options: {
     const bossPower = movePower;
     //console.log(boss);
     if (!boss) return { ready: false, line: `Boss definition missing` };
-    if (!boss?.bossKind && !boss.damage) {
+    /*if (!boss?.bossKind && !boss.damage) {
       boss.bossKind = "dragon";
-    }
-    if (!boss?.bossKind) {
+    }*/
+    if (!boss.kind) {
       if (!boss.damage) return { ready: false, line: `Boss damage missing` };
       const bossDamage = boss.damage * (1 - armorDamageReduction(player.armor)) * ((1.0 / 1.6) * 0.3 + (1.0 / 6.0));
       const hpThreshold = bossDamage * 3 * bossPower;
@@ -539,9 +539,9 @@ export function createAutoFarmController(options: {
     let bossDamage = 0;
     let highestAttack = 0;
     let attacks = 0;
-    for (const attack in BOSS_DAMAGE_PROFILES[boss.bossKind as BossKind]) {
-      bossDamage += (BOSS_DAMAGE_PROFILES as { [key: string]: { [key: string]: number } })[boss.bossKind][attack] * (1 - armorDamageReduction(player.armor));
-      highestAttack = Math.max(highestAttack, (BOSS_DAMAGE_PROFILES as { [key: string]: { [key: string]: number } })[boss.bossKind][attack] * (1 - armorDamageReduction(player.armor)));
+    for (const attack in BOSS_DAMAGE_PROFILES[boss.kind as BossKind]) {
+      bossDamage += (BOSS_DAMAGE_PROFILES as { [key: string]: { [key: string]: number } })[boss.kind][attack] * (1 - armorDamageReduction(player.armor));
+      highestAttack = Math.max(highestAttack, (BOSS_DAMAGE_PROFILES as { [key: string]: { [key: string]: number } })[boss.kind][attack] * (1 - armorDamageReduction(player.armor)));
       attacks++;
     }
     const hpThreshold = bossDamage * 2 * bossPower;
