@@ -1432,7 +1432,10 @@
     position: fixed;
     /* Below the minimap and its online and version lines: on a short narrow
        phone 20% of the height put the reward toast on top of them. */
-    top: max(20%, calc(var(--hud-safe-top, 0px) + var(--hud-map-size) + 44px));
+    --pickup-anchor: max(15%, calc(var(--hud-safe-top, 0px) + var(--hud-map-size) + 44px));
+    /* Bottom-anchored one toast below the anchor: the newest lands where the
+       first one did and pushes older ones up. */
+    top: calc(var(--pickup-anchor) + 38px);
     left: 50%;
     bottom: auto;
     /* Developer Tools allows combat behind it; keep earned rewards visible. */
@@ -1441,7 +1444,7 @@
     justify-items: center;
     gap: 8px;
     width: min(440px, calc(100vw - 24px));
-    transform: translateX(-50%);
+    transform: translate(-50%, -100%);
     pointer-events: none;
   }
 
@@ -1913,9 +1916,6 @@
   .chat-line { display: grid; grid-template-columns: 29px minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 2px 6px; align-items: start; overflow-wrap: anywhere; }
   .chat-message-content { min-width: 0; }
   .chat-profile-icon { grid-column: 1; grid-row: 1 / 3; display: block; width: 29px; height: 29px; margin: 0; border: 1px solid #000; border-radius: 4px; background-color: #fff; background-repeat: no-repeat; background-size: var(--profile-portrait-sheet-size) var(--profile-portrait-sheet-size); background-clip: padding-box; cursor: pointer; -webkit-text-stroke: 0; text-shadow: none; }
-  body.is-loading-game-assets .profile-icon,
-  body.is-loading-game-assets .profile-icon-choice,
-  .chat-profile-icon { background-image: url("../../assets/wildstat/profile-portraits-grid-v2-alpha.webp"); }
   .chat-profile-icon:focus-visible, canvas.leaderboard-profile-icon:focus-visible { outline: 2px solid var(--green); outline-offset: 1px; }
   .chat-time { grid-column: 3; grid-row: 1; color: var(--muted); font-size: 10px; line-height: 1.25; text-align: right; white-space: nowrap; }
   .chat-name { grid-column: 2; grid-row: 1; display: flex; align-items: center; gap: 4px; min-width: 0; margin: 0; padding: 0; overflow: hidden; border: 0; border-radius: 0; background: transparent; color: var(--gold); font-family: var(--player-name-font); font-size: 11.25px; font-weight: 900; line-height: 1.25; text-align: left; white-space: nowrap; cursor: default; }
@@ -2005,7 +2005,7 @@
   .stat-reward-toast {
     --stat-reward-accent: var(--green);
     display: grid;
-    grid-template-columns: 21px minmax(0, auto) auto 14px;
+    grid-template-columns: minmax(0, auto) auto;
     align-items: center;
     column-gap: 6px;
     width: max-content;
@@ -2046,38 +2046,6 @@
 
   .stat-reward-label { color: #fff; white-space: nowrap; }
   .stat-reward-value { color: var(--green); white-space: nowrap; font-variant-numeric: tabular-nums; }
-
-  .stat-reward-arrow {
-    position: relative;
-    width: 14px;
-    height: 20px;
-    filter: drop-shadow(0 2px 0 #143516);
-    -webkit-text-stroke: 0;
-    text-shadow: none;
-  }
-
-  .stat-reward-arrow::before {
-    position: absolute;
-    left: 5px;
-    bottom: 1px;
-    width: 5px;
-    height: 12px;
-    border-radius: 1px;
-    background: var(--green);
-    content: "";
-  }
-
-  .stat-reward-arrow::after {
-    position: absolute;
-    top: 1px;
-    left: 1px;
-    width: 0;
-    height: 0;
-    border-right: 6px solid transparent;
-    border-bottom: 7px solid var(--green);
-    border-left: 6px solid transparent;
-    content: "";
-  }
 
   @keyframes floatout {
     0% { opacity: 0; transform: translateY(10px) scale(.95); }
@@ -2366,8 +2334,7 @@
 
   .modal.connection-modal,
   .modal.account-choice-modal,
-  .modal.game-update-modal,
-  .modal.legal-gate-modal {
+  .modal.game-update-modal {
     position: fixed;
     top: 50vh;
     top: 50lvh;
@@ -2386,13 +2353,13 @@
 
   /* A large landscape screen grows the startup panels with its height, so the logo and loading bar keep their size against it. */
   @media (min-aspect-ratio: 4/3) and (min-height: 900px) {
-    .modal.connection-modal, .modal.account-choice-modal, .modal.game-update-modal, .modal.legal-gate-modal { transform: translate(-50%, -50%) scale(1.25); }
+    .modal.connection-modal, .modal.account-choice-modal, .modal.game-update-modal { transform: translate(-50%, -50%) scale(1.25); }
   }
   @media (min-aspect-ratio: 4/3) and (min-height: 1200px) {
-    .modal.connection-modal, .modal.account-choice-modal, .modal.game-update-modal, .modal.legal-gate-modal { transform: translate(-50%, -50%) scale(1.6); }
+    .modal.connection-modal, .modal.account-choice-modal, .modal.game-update-modal { transform: translate(-50%, -50%) scale(1.6); }
   }
   @media (min-aspect-ratio: 4/3) and (min-height: 1600px) {
-    .modal.connection-modal, .modal.account-choice-modal, .modal.game-update-modal, .modal.legal-gate-modal { transform: translate(-50%, -50%) scale(2.1); }
+    .modal.connection-modal, .modal.account-choice-modal, .modal.game-update-modal { transform: translate(-50%, -50%) scale(2.1); }
   }
 
 
@@ -2413,22 +2380,25 @@
     text-align: center;
   }
 
-  .modal.legal-gate-modal {
-    border: 0;
-    display: grid;
-    grid-template-rows: minmax(90px, 1fr) auto minmax(150px, 1fr);
-    justify-items: center;
-    padding: 24px clamp(18px, 6vw, 34px);
-    overflow-y: auto;
-    text-align: center;
+  /* The Terms window: once loading has finished, over the start screen, in the game's window look (as chat's age check). */
+  #legalGatePanel { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); overflow-y: auto; background: rgba(0, 0, 0, .55); }
+  .modal.legal-gate { display: grid; justify-items: center; gap: 12px; width: var(--game-window-width); margin: 0; padding: 20px 16px 10px; border-color: #080808; background: var(--window-surface); text-align: center; }
+  .legal-gate #legalGateIntro { margin: 0; color: #fff; font-size: 22px; font-weight: 900; line-height: 1.15; }
+  .legal-gate :is(.legal-agreement, .legal-gate-status) { width: auto; max-width: 340px; margin: 0; color: #d6d6d6; font-size: 13px; font-weight: 700; letter-spacing: 0; line-height: 1.4; text-align: center; }
+  .legal-gate .legal-gate-status:empty { display: none; }
+  .legal-gate .legal-gate-status.is-blocked { color: #ff9b91; }
+  .legal-gate #legalContinueBtn { width: min(300px, 100%); margin: 0; transform: none; }
+  .legal-gate #legalContinueBtn:active:not(:disabled) { transform: translateY(2px); }
+  .legal-gate .consent-sign-in {
+    display: block; min-height: 44px; margin: 0 auto; padding: 8px 14px;
+    border: 0; background: none; box-shadow: none; color: #d6d6d6;
+    font-size: 13px; font-weight: 800; letter-spacing: 0; text-decoration: underline; text-underline-offset: 3px; text-shadow: none;
   }
-
-  .legal-gate-modal #legalGateIntro {
-    align-self: start;
-    margin: 16px 0 0;
-    color: #fff;
-    font-size: 20px;
-    font-weight: 800;
+  .legal-gate .consent-sign-in:disabled { opacity: .5; }
+  /* A landscape phone: a shorter Play, so the whole window fits without scrolling. */
+  @media (max-height: 520px) {
+    .modal.legal-gate { gap: 8px; padding-top: 14px; }
+    .legal-gate #legalContinueBtn { min-height: 52px; }
   }
 
   .legal-age-output {
@@ -2512,21 +2482,21 @@
     display: block;
     width: min(330px, 100%);
     margin: 22px auto 0;
-    color: #c9d1ca;
-    font-size: 11px;
+    color: #d6d6d6;
+    font-size: 13px;
     font-weight: 700;
     line-height: 1.4;
     text-align: left;
   }
 
-  .legal-agreement a { color: #9af080; text-underline-offset: 2px; }
+  .legal-agreement a { color: #fff; text-underline-offset: 2px; }
 
 
   .legal-gate-status {
     min-height: 1.4em;
     margin: 9px 0 0;
-    color: #89958c;
-    font-size: 9px;
+    color: #a0a0a0;
+    font-size: 13px;
     font-weight: 800;
     line-height: 1.4;
   }
@@ -2768,6 +2738,28 @@
 
   .account-choice-modal button.account-switch-button[hidden] { display: none; }
 
+  /* A known character: Sign In is the one choice, Play as Guest the small way out. */
+  .account-choice-modal.is-sign-in #continueGuestBtn {
+    display: block;
+    width: auto;
+    min-height: 44px;
+    margin: 8px auto 0;
+    padding: 8px 14px;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    color: #d6d6d6;
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1.3;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-shadow: none;
+    transform: none;
+  }
+
+  .account-choice-modal.is-sign-in #continueGuestBtn:active:not(:disabled) { box-shadow: none; transform: translateY(1px); }
+
   .account-sign-in-hint span {
     display: block;
     margin-top: 3px;
@@ -2889,8 +2881,8 @@
     width: 8%;
     height: 100%;
     border-radius: inherit;
-    background: linear-gradient(90deg, #34be39, #86f45d, #34be39);
-    transition: width .2s cubic-bezier(.22, 1, .36, 1);
+    background: linear-gradient(90deg, #bdbdbd, #fff, #bdbdbd);
+    transition: width .25s linear;
   }
 
   .loading-detail {
@@ -4517,19 +4509,6 @@
   .onboarding-tutorial button[hidden] { display: none; }
   .is-onboarding #hud { visibility: hidden; pointer-events: none; }
   .is-onboarding #pickupLog { visibility: visible; }
-  /* The profile lesson is the one step that needs the HUD, so it comes back
-     for that step alone and can be tapped. */
-  .is-onboarding.is-onboarding-profile #hud { visibility: visible; pointer-events: auto; }
-  /* A white arrow with a heavy black outline, under the portrait it points at.
-     Its position is written from the portrait's own box each frame. */
-  /* Sits below the portrait and points up at it. The left/top written by the
-     tutorial are the arrow's own top-left corner, already centred there. */
-  .onboarding-pointer { position: fixed; z-index: 36; width: 38px; height: 46px; pointer-events: none; animation: onboarding-pointer-bob 1s ease-in-out infinite alternate; }
-  .onboarding-pointer[hidden] { display: none; }
-  .onboarding-pointer svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 3px 4px rgba(0,0,0,.55)); }
-  .onboarding-pointer path { fill: #fff; stroke: #000; stroke-width: 6; stroke-linejoin: round; paint-order: stroke fill; }
-  @keyframes onboarding-pointer-bob { from { transform: translateY(6px); } to { transform: translateY(0); } }
-  @media (prefers-reduced-motion: reduce) { .onboarding-pointer { animation: none; } }
   @media (max-height: 480px) { .onboarding-tutorial header { padding-top: 0; gap: 4px; } .onboarding-instruction { font-size: 20px; } }
   .onboarding-progress { width: 76px; height: 3px; margin: 0 auto; border-radius: 3px; background: #ffffff35; overflow: hidden; }
   .onboarding-progress::before { content: ""; display: block; width: var(--lesson-progress, 25%); height: 100%; border-radius: inherit; background: #fff; transition: width .3s ease; }
@@ -4581,7 +4560,6 @@
   z-index: 100000;
 }
 
-.stat-reward-toast.is-capped .stat-reward-arrow { visibility: hidden; }
 
 .player-visibility-toggle { position: relative; }
 .player-visibility-countdown { position: absolute; right: 0; bottom: 0; font-size: 11px; line-height: 1; color: white; text-shadow: 0 1px 2px #000, 1px 0 2px #000; pointer-events: none; }

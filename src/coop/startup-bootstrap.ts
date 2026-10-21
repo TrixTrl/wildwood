@@ -4,7 +4,8 @@ import { AUDIO_UNSYNCED_KEY, MUSIC_VOLUME_KEY } from "../game/runtime/game-setti
 import {
   createStartupAuthGate,
   loadDeferredGameBundle,
-  prefetchDeferredGameBundle,
+  preloadDeferredGameBundle,
+  requestDeferredGameAssets,
   type StartupAccountState,
   type StartupActionResult,
 } from "./startup-auth-gate";
@@ -21,17 +22,17 @@ type StartupBootstrapDependencies = {
   signIn: () => Promise<StartupActionResult> | StartupActionResult;
   switchAccount?: () => Promise<StartupActionResult> | StartupActionResult;
   continueAsGuest: () => Promise<StartupActionResult> | StartupActionResult;
-  legalConsentAccepted: () => boolean;
-  acceptLegalTerms: () => Promise<StartupActionResult> | StartupActionResult;
-  ageBlocked?: () => boolean;
   subscribe: (listener: () => void) => () => void;
   beginTelemetryStage?: (stage: "game-bundle") => StartupStageTimer;
 };
 
-/** Keeps the account/consent shell independent from the deferred game bundle. */
+/** Keeps the account shell independent from the deferred game bundle. The game asks for the Terms once loaded. */
 /** Whether game.js, as the bootstrap loaded it, is the script running: see game-script-gate.ts. */
 export { runningAsGameScript } from "./game-script-gate";
 export function startStartupBootstrap(dependencies: StartupBootstrapDependencies) {
+  // First, before any account work: game.js and the game's first artwork start downloading.
+  const gameDownload = preloadDeferredGameBundle();
+  if (gameDownload) requestDeferredGameAssets();
   const artworkReveal = startStartupArtworkReveal();
   let gameBundleRequested = false;
   const installControl = createStartupInstallControl();
@@ -58,11 +59,10 @@ export function startStartupBootstrap(dependencies: StartupBootstrapDependencies
       }
     },
     releaseNotes,
+    gameDownload,
   }).start();
   // A usable sign-in shell is healthy even when offline; never gate OTA health on server login.
   requestAnimationFrame(() => signalNativeBootReady());
-  const whenIdle = window.requestIdleCallback ?? ((callback: () => void) => window.setTimeout(callback, 2_000));
-  whenIdle(() => { if (!gameBundleRequested) prefetchDeferredGameBundle(); });
 
   void Promise.resolve()
     .then(() => dependencies.restoreKnownAccount())

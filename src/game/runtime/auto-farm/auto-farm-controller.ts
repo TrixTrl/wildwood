@@ -522,18 +522,18 @@ export function createAutoFarmController(options: {
     if (!boss?.bossKind) {
       const bossDamage = boss.damage ? (boss.damage * (1 - armorDamageReduction(player.armor))) : 300;
       const hpThreshold = bossDamage * 2 * bossPower;
-      const regenThreshold = bossDamage / 3 * bossPower;
-      const enoughHealth = player.maxHp > hpThreshold;
+      const regenThreshold = bossDamage / 2 * bossPower;
+      const enoughHealth = player.hp > hpThreshold;
       const enoughRegen = player.regen * regenMultiplier > regenThreshold;
       if (enoughHealth && enoughRegen) return { ready: true, line: `Ready to fight boss` };
-      if (enoughRegen) return { ready: false, line: `Not enough health (${formatCompactNumber(player.maxHp)}/${formatCompactNumber(hpThreshold)})` };
+      if (enoughRegen) return { ready: false, line: `Not enough health (${formatCompactNumber(player.hp)}/${formatCompactNumber(hpThreshold)})` };
       if (enoughHealth) {
         const playerDps = options.playerCombat().expectedFullDps();
         const survivalTime = player.maxHp / (regenThreshold - (player.regen * regenMultiplier));
         if (typeof (boss.maxHp) === "number" && boss.maxHp / playerDps < survivalTime * 0.7) return { ready: true, line: `Fighting boss based on DPS` };
-        return { ready: false, line: `Not enough regen (${formatCompactNumber(player.regen * regenMultiplier)}/${formatCompactNumber(regenThreshold)}) or DPS, ${formatCompactNumber(boss.maxHp / playerDps)}s kill time, ${formatCompactNumber(survivalTime)}s estimated survival time` };
+        return { ready: false, line: `Not enough regen (${formatCompactNumber(player.regen * regenMultiplier)}/${formatCompactNumber(regenThreshold)}) or DPS, ${formatCompactNumber((typeof (boss.maxHp) === "number" ? boss.maxHp : 0) / playerDps)}s kill time, ${formatCompactNumber(survivalTime)}s estimated survival time` };
       }
-      return { ready: false, line: `Not enough health (${formatCompactNumber(player.maxHp)}/${formatCompactNumber(hpThreshold)}) or regen (${formatCompactNumber(player.regen * regenMultiplier)}/${formatCompactNumber(regenThreshold)})` };
+      return { ready: false, line: `Not enough health (${formatCompactNumber(player.hp)}/${formatCompactNumber(hpThreshold)}) or regen (${formatCompactNumber(player.regen * regenMultiplier)}/${formatCompactNumber(regenThreshold)})` };
     }
     let bossDamage = 0;
     let highestAttack = 0;
@@ -545,17 +545,17 @@ export function createAutoFarmController(options: {
     }
     const hpThreshold = bossDamage * 2 * bossPower;
     const regenThreshold = bossDamage / (attacks - 1) / 6 * bossPower;
-    const enoughHealth = player.maxHp > hpThreshold;
+    const enoughHealth = player.hp > hpThreshold;
     const enoughRegen = player.regen * regenMultiplier > regenThreshold;
     if (enoughHealth && enoughRegen) return { ready: true, line: `Ready to fight boss` };
-    if (enoughRegen) return { ready: false, line: `Not enough health (${formatCompactNumber(player.maxHp)}/${formatCompactNumber(hpThreshold)})` };
+    if (enoughRegen) return { ready: false, line: `Not enough health (${formatCompactNumber(player.hp)}/${formatCompactNumber(hpThreshold)})` };
     if (enoughHealth) {
       const playerDps = options.playerCombat().expectedFullDps();
       const survivalTime = player.hp / (regenThreshold - (player.regen * regenMultiplier));
       if (typeof (boss.maxHp) === "function" && boss.maxHp() / playerDps < survivalTime * 0.7) return { ready: true, line: `Fighting boss based on DPS` };
-      return { ready: false, line: `Not enough regen (${formatCompactNumber(player.regen * regenMultiplier)}/${formatCompactNumber(regenThreshold)}) or DPS, ${formatCompactNumber(boss.maxHp / playerDps)}s kill time, ${formatCompactNumber(survivalTime)}s estimated survival time` };
+      return { ready: false, line: `Not enough regen (${formatCompactNumber(player.regen * regenMultiplier)}/${formatCompactNumber(regenThreshold)}) or DPS, ${formatCompactNumber((typeof (boss.maxHp) === "function" ? boss.maxHp() : 0) / playerDps)}s kill time, ${formatCompactNumber(survivalTime)}s estimated survival time` };
     }
-    return { ready: false, line: `Not enough health (${formatCompactNumber(player.maxHp)}/${formatCompactNumber(hpThreshold)}) or regen (${formatCompactNumber(player.regen * regenMultiplier)}/${formatCompactNumber(regenThreshold)})` };
+    return { ready: false, line: `Not enough health (${formatCompactNumber(player.hp)}/${formatCompactNumber(hpThreshold)}) or regen (${formatCompactNumber(player.regen * regenMultiplier)}/${formatCompactNumber(regenThreshold)})` };
     /*
     const readiness = options.bossReady ? cachedReady(`boss:${options.mapId()}:${bossPower}`, () => options.bossReady!(bossPower)) : null;
     if (readiness === undefined) return { ready: false, line: 'Reading Boss' };

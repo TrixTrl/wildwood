@@ -1,4 +1,23 @@
 export const RELEASE_NOTES: Record<string, string[]> = {
+  "0.916.16": [
+    "Name plates are back to nearly their old size, with sharper names and numbers",
+    "New stat popups push older ones up instead of stacking down the screen",
+    "Stat popups show just the stat and the amount",
+  ],
+  "0.916.15": [
+    "Signed-in players go straight into the game, and new players see the Terms once loading finishes",
+    "Faster loading: profile pictures and other players' gear load after you enter the world",
+    "Icons and art load from cache on return visits",
+    "Smaller, evenly spaced name plates over players and enemies",
+    "The tutorial skips the portrait step and goes straight from moving to your first fight",
+    "Reward popups sit a little higher on screen",
+  ],
+  "0.916.14": [
+    "New players start right away: agree and press Play, and sign in or save your progress any time from Settings",
+    "The game starts downloading as soon as the page opens, and loading is faster",
+    "Background tabs no longer jump to the sign-in page when your sign-in needs renewing",
+    "The attack range ring is light only, and starts off for new players",
+  ],
   "0.916.13": [
     "Soul Health enemies give 10 Health a kill",
     "Soul Levels need less XP each, and the cap is now 50",
@@ -3729,6 +3748,9 @@ const RELEASE_DATES: Record<string, string> = {
 };
 
 export const RELEASE_DAYS: Record<string, string> = {
+  "0.916.16": "2026-10-20",
+  "0.916.15": "2026-10-20",
+  "0.916.14": "2026-10-20",
   "0.916.13": "2026-10-20",
   "0.916.12": "2026-10-20",
   "0.916.11": "2026-10-20",

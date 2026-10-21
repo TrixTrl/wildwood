@@ -7,6 +7,12 @@ export type StartupAccountSnapshot = {
   authInProgress?: boolean;
   returningFromSignIn?: boolean;
   sessionConflict?: boolean;
+  /** The account restore has not finished, so whether to start a guest is not known yet. */
+  restoring?: boolean;
+  /** A visitor with no account, no sign-in under way and no sign-out just now: starts as a guest. */
+  guestByDefault?: boolean;
+  /** That guest, started on this page from nothing and not yet past the Terms: they may sign in instead. */
+  newVisitor?: boolean;
 };
 
 export type StartupSnapshot = {
@@ -15,6 +21,8 @@ export type StartupSnapshot = {
   legalAccepted: boolean;
   shellReady: boolean;
   runtimeReady?: boolean;
+  /** Everything that loads without a character has loaded: the Terms window may open over it. */
+  consentReady?: boolean;
   started?: boolean;
   startupKind?: "new" | "returning" | null;
 };
@@ -23,6 +31,7 @@ export type StartupState =
   | { value: "loading-shell" }
   | { value: "account-choice"; detail: string }
   | { value: "account-action"; action: "sign-in" | "guest" | "takeover"; detail: string }
+  | { value: "guest-start" }
   | { value: "verifying-sign-in" }
   | { value: "legal-consent" }
   | { value: "loading-game"; status: "ready" | "loading" }
@@ -76,22 +85,31 @@ export function deriveStartupState(mode: StartupMachineMode, snapshot: StartupSn
   if (account?.sessionConflict) return { value: "session-conflict" };
   if (!hasApprovedGameSession(account)) {
     if (account?.authInProgress || account?.returningFromSignIn) return { value: "verifying-sign-in" };
-    return snapshot.shellReady
-      ? { value: "account-choice", detail: "" }
-      : { value: "loading-shell" };
+    if (!snapshot.shellReady) return { value: "loading-shell" };
+    // Only the shell starts a guest by itself. The Terms come once the game has loaded.
+    if (mode === "auth-shell" && account?.restoring) return { value: "loading-shell" };
+    if (mode === "auth-shell" && account?.guestByDefault) return { value: "guest-start" };
+    return { value: "account-choice", detail: "" };
   }
   if (snapshot.started) return { value: "running" };
-  if (!snapshot.legalAccepted) {
-    return snapshot.shellReady ? { value: "legal-consent" } : { value: "loading-shell" };
-  }
+  // The shell never stops for the Terms: the game loads first, then asks.
   if (mode === "auth-shell") return { value: "loading-game", status: "ready" };
   if (snapshot.connectionIssue) {
     return { value: "connection-failed", message: snapshot.connectionIssue.message };
   }
+  // Nothing playable before the Terms: world entry waits for them (the server requires it too).
+  if (!snapshot.legalAccepted) return snapshot.consentReady ? { value: "legal-consent" } : { value: "loading-runtime" };
   if (!snapshot.runtimeReady) return { value: "loading-runtime" };
   if (snapshot.startupKind === "new") return { value: "new-player" };
   if (snapshot.startupKind === "returning") return { value: "entering-game" };
   return { value: "loading-runtime" };
+}
+
+/** Guest from the choice or the automatic guest start; Sign In from the choice or the Terms window. */
+function actionAllowed(state: StartupState, action: "sign-in" | "guest" | "takeover") {
+  if (action === "takeover") return state.value === "session-conflict";
+  if (state.value === "account-choice") return true;
+  return action === "guest" ? state.value === "guest-start" : state.value === "legal-consent";
 }
 
 /**
@@ -102,6 +120,13 @@ export function deriveStartupState(mode: StartupMachineMode, snapshot: StartupSn
 export function createStartupStateMachine(mode: StartupMachineMode) {
   let state: StartupState = { value: "loading-shell" };
   let lastSnapshot: StartupSnapshot | null = null;
+  /** After an automatic guest start fails, the page offers the choice instead of retrying it. */
+  let guestStartFailed = false;
+
+  function derive(snapshot: StartupSnapshot): StartupState {
+    const derived = deriveStartupState(mode, snapshot);
+    return derived.value === "guest-start" && guestStartFailed ? { value: "account-choice", detail: "" } : derived;
+  }
 
   function commit(next: StartupState): StartupTransition {
     const previous = state;
@@ -111,7 +136,7 @@ export function createStartupStateMachine(mode: StartupMachineMode) {
 
   function sync(snapshot: StartupSnapshot) {
     lastSnapshot = snapshot;
-    const derived = deriveStartupState(mode, snapshot);
+    const derived = derive(snapshot);
     if (state.value === "failed" || state.value === "updating" || state.value === "disposed") {
       return commit(state);
     }
@@ -133,20 +158,17 @@ export function createStartupStateMachine(mode: StartupMachineMode) {
     if (state.value === "disposed") return commit(state);
     switch (event.type) {
       case "begin-account-action":
-        if (
-          event.action === "takeover"
-            ? state.value !== "session-conflict"
-            : state.value !== "account-choice"
-        ) return commit(state);
+        if (!actionAllowed(state, event.action)) return commit(state);
         return commit({ value: "account-action", action: event.action, detail: event.detail });
       case "complete-account-action":
         if (state.value !== "account-action") return commit(state);
-        return lastSnapshot ? commit(deriveStartupState(mode, lastSnapshot)) : commit({ value: "loading-shell" });
+        return lastSnapshot ? commit(derive(lastSnapshot)) : commit({ value: "loading-shell" });
       case "fail-account-action":
         if (state.value !== "account-action") return commit(state);
+        if (state.action === "guest") guestStartFailed = true;
         if (!lastSnapshot) return commit({ value: "account-choice", detail: event.detail });
         {
-          const derived = deriveStartupState(mode, lastSnapshot);
+          const derived = derive(lastSnapshot);
           return commit(derived.value === "account-choice"
             ? { value: "account-choice", detail: event.detail }
             : derived);
@@ -168,7 +190,7 @@ export function createStartupStateMachine(mode: StartupMachineMode) {
       case "update-cleared":
         // Only a refusal with no newer build behind it; a real update reloads.
         if (state.value !== "updating" || state.version) return commit(state);
-        return lastSnapshot ? commit(deriveStartupState(mode, lastSnapshot)) : commit({ value: "loading-shell" });
+        return lastSnapshot ? commit(derive(lastSnapshot)) : commit({ value: "loading-shell" });
       case "dispose":
         return commit({ value: "disposed" });
     }
