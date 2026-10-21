@@ -522,7 +522,7 @@ export function createAutoFarmController(options: {
     if (!boss?.bossKind) {
       const bossDamage = boss.damage ? (boss.damage * (1 - armorDamageReduction(player.armor))) : 300;
       const hpThreshold = bossDamage * 2 * bossPower;
-      const regenThreshold = bossDamage / 3 * bossPower;
+      const regenThreshold = bossDamage / 2 * bossPower;
       const enoughHealth = player.hp > hpThreshold;
       const enoughRegen = player.regen * regenMultiplier > regenThreshold;
       if (enoughHealth && enoughRegen) return { ready: true, line: `Ready to fight boss` };

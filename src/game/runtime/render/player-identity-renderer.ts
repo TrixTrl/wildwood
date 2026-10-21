@@ -483,13 +483,13 @@ export function createPlayerIdentityRenderer(options: {
         const prefixWidth = measurePlateText(DEVELOPER_BADGE, PLATE_TEXT_PX).width;
         options.outlinedText(DEVELOPER_BADGE, textLeft, baseline, "#ffd85b", NAME_STROKE);
         options.outlinedText(displayName.slice(DEVELOPER_BADGE.length), textLeft + prefixWidth, baseline, color, NAME_STROKE);
-      } else if (displayName.startsWith(alteredDeveloperPrefix)) {
-      const playerName = displayName.slice(alteredDeveloperPrefix.length);
-      const prefixWidth = ctx.measureText(alteredDeveloperPrefix).width;
-      ctx.textAlign = "left";
-      options.outlinedText(alteredDeveloperPrefix, textLeft, nameBottom, "#912cef", 4);
-      options.outlinedText(playerName, textLeft + prefixWidth, nameBottom, color, 4);
-    } {
+      } else if (displayName.startsWith(ALTERED_DEVELOPER_BADGE)) {
+        const playerName = displayName.slice(ALTERED_DEVELOPER_BADGE.length);
+        const prefixWidth = ctx.measureText(ALTERED_DEVELOPER_BADGE).width;
+        ctx.textAlign = "left";
+        options.outlinedText(ALTERED_DEVELOPER_BADGE, textLeft, baseline, "#912cef", 4);
+        options.outlinedText(playerName, textLeft + prefixWidth, baseline, color, 4);
+      } {
         options.outlinedText(displayName, textLeft, baseline, color, NAME_STROKE);
       }
       if (badge) {
