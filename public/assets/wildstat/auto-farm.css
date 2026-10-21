@@ -190,10 +190,10 @@
 .farm-weight input[type="range"]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: var(--farm-track); }
 .farm-weight input[type="range"]::-moz-range-track { height: 6px; border-radius: 3px; background: var(--farm-track); }
 .farm-weight input[type="range"]::-webkit-slider-thumb {
-  box-sizing: border-box; width: 22px; height: 22px; margin-top: -8px; border: 3px solid #000; border-radius: 50%; background: #f2f2f2;
+  box-sizing: border-box; width: 22px; height: 22px; margin-top: -8px; border: 3px solid var(--ui-outline); border-radius: 50%; background: #f2f2f2;
   appearance: none; -webkit-appearance: none;
 }
-.farm-weight input[type="range"]::-moz-range-thumb { box-sizing: border-box; width: 22px; height: 22px; border: 3px solid #000; border-radius: 50%; background: #f2f2f2; }
+.farm-weight input[type="range"]::-moz-range-thumb { box-sizing: border-box; width: 22px; height: 22px; border: 3px solid var(--ui-outline); border-radius: 50%; background: #f2f2f2; }
 .farm-weight input[type="range"]:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 /* Move At and Fight At, each under its switch: gold, resting with the switch off. */
 .farm-power { --farm-stat-color: #ffcf7a; padding: 0 2px; }
@@ -271,7 +271,7 @@
   border: 2px solid var(--hud-frame);
   border-radius: var(--hud-radius-small);
   background: var(--hud-surface);
-  box-shadow: 0 2px 0 #0006;
+  box-shadow: var(--ui-shadow); outline: var(--ui-seam); outline-offset: -1px;
   font: 700 13px/1.3 "Wildstat Chat", sans-serif;
   pointer-events: auto;
 }
@@ -900,13 +900,9 @@
 .smith-sheet .smith-views .inventory-filter, .smith-sheet .smith-shown .inventory-filter { position: relative; min-width: 86px; min-height: 34px; padding: 0 14px; border: 0; border-radius: 999px; color: #b3b3b3; font: 900 14px/1 var(--font-rounded); letter-spacing: .02em; }
 .smith-sheet .smith-shown .inventory-filter { min-width: 0; min-height: 30px; padding: 0 12px; font-size: 13px; }
 .smith-sheet .smith-views .inventory-filter[aria-pressed="true"], .smith-sheet .smith-shown .inventory-filter[aria-pressed="true"] { background: #fff; color: #111; border-bottom: 0; text-shadow: none; -webkit-text-stroke: 0; }
-.smith-sheet .smith-buy-dot { position: absolute; top: 5px; right: 8px; width: 8px; height: 8px; border: 1px solid #fff; border-radius: 50%; background: #e63d3d; }
-.smith-sheet .smith-buy-dot[hidden] { display: none; }
 /* Four tabs share the bar at phone width. */
 .smith-sheet .smith-views .inventory-filter { min-width: 70px; padding: 0 12px; }
 /* Slot Upgrades (slot-upgrades-controller.ts) on the Upgrade tab, under its heading: the old standalone window laid flat in the sheet, in its colors. */
-.smith-sheet .slot-upgrades-panel { position: static; inset: auto; z-index: auto; display: block; margin: 0; padding: 14px 12px; overflow: visible; border-radius: 12px; background: rgba(255,255,255,.05); }
-.smith-sheet .slot-upgrades-panel[hidden] { display: none; }
 .smith-sheet .slot-upgrades-content { width: 100%; margin: 0 auto; }
 .smith-sheet .slot-upgrades-prompt { font-size: 15px; }
 .smith-sheet .inventory-item.slot-upgrades-queue { border-color: rgba(255,255,255,.16); background: #141414; }

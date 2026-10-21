@@ -8,6 +8,11 @@ import { applyProfileIcon } from "../../src/app/profile-icons";
 import { GEAR_GRADES } from "../../shared/gear-grades";
 import { isGradeItemId, gradeOf } from "../../shared/grade-equipment";
 import { PLAYER_GENDER_MALE } from "../../shared/player-gender";
+import { craftExperienceForLevel } from "../../shared/crafting";
+import { createSmithController } from "../../src/ui/smith-window";
+import { createGearSellerController, type GearSellerDeps } from "../../src/ui/gear-seller-window";
+import { renderProfileGuild } from "../../src/ui/profile-guild";
+import { createProfileActionsMenu } from "../../src/ui/profile-actions-menu";
 import { settleFrames, settleImages } from "./determinism";
 import { GROUND, playerAppearance } from "./world";
 
@@ -138,4 +143,79 @@ async function wordmark() {
   await settleCssImages();
 }
 
-export const DOM_SCENES: Record<string, () => Promise<void>> = { icons, hud, wordmark };
+/**
+ * The Smith on Reforge (two copies of one bow and a sword) and the Weapon Seller on Sell and the Armor Seller on Buy,
+ * filled by their own window code from fake rows. The windows are unpinned and stacked so one full-page capture shows all three.
+ */
+async function shops() {
+  await gameMarkup();
+  document.body.style.background = GROUND;
+  const unpin = document.createElement("style");
+  unpin.textContent = `
+    html, body { position: static !important; height: auto !important; overflow: visible !important; }
+    dialog.farm-sheet[open] { position: relative !important; inset: auto !important; height: auto !important; margin: 12px auto !important; }
+    dialog.farm-sheet .quest-body { overflow: visible !important; max-height: none !important; }
+  `;
+  document.head.append(unpin);
+  const ores = { pine_log: 900, oak_log: 40, copper_ore: 300, iron_ore: 12, starshard: 5 };
+  const bow = { arrowStorm: 3.1, ricochet: 1.2, piercingShot: 0 }, sword = { whirlwind: 2, deflect: 0, shockwave: 1.5 };
+  const done = async () => ({ ok: true });
+  const smith = createSmithController({
+    inTown: () => true, items: () => [], refineLevel: () => 0, slotTier: () => 0, ores: () => ores, refine: done, showMessage: () => {},
+    worn: () => ({ equippedRightHand: "rare_bow" }),
+    craft: {
+      craftSkills: () => ({ fletching: BigInt(craftExperienceForLevel(24)), smithing: BigInt(craftExperienceForLevel(6)) }),
+      ores: () => ores, masteryLevels: () => ({ archery: 20 }), bagFull: () => false, craft: done,
+      weapons: () => [
+        { itemId: "rare_bow", copyId: 0n, equipped: true, roll: bow },
+        { itemId: "rare_bow", copyId: 7n, equipped: false, roll: { arrowStorm: 0, ricochet: 2, piercingShot: 0.8 } },
+        { itemId: "fine_sword", copyId: 0n, equipped: false, roll: sword },
+      ],
+      refineLevel: (_itemId, copyId) => copyId ? 2 : 7, reforge: done, showMessage: () => {},
+    },
+  });
+  smith.open("reforge");
+  try { localStorage.setItem("wildstat.gearSellerView.weapons", "sell"); localStorage.setItem("wildstat.gearSellerView.armor", "buy"); } catch { /* the default views */ }
+  const seller: GearSellerDeps = {
+    inTown: () => true, showMessage: () => {}, gold: () => 12_480n, masteryLevels: () => ({ archery: 20 }),
+    heldItems: () => ["rare_bow", "fine_sword", "rare_light_helmet"], bagFull: () => false, buyGear: done,
+    worn: () => ({ equippedRightHand: "rare_bow", equippedHead: "rare_light_helmet" }), slotTier: () => 3,
+    refineLevel: (_itemId, copyId) => copyId ? 2 : 7,
+    items: () => [
+      { itemId: "rare_bow", copyId: 0n, equipped: true, roll: bow },
+      { itemId: "rare_bow", copyId: 7n, equipped: false, roll: { arrowStorm: 0, ricochet: 2, piercingShot: 0.8 } },
+      { itemId: "fine_sword", copyId: 0n, equipped: false, roll: sword },
+    ],
+    locked: (_itemId, copyId) => copyId === 7n, sell: done,
+  };
+  createGearSellerController("weapons", seller).open();
+  createGearSellerController("armor", seller).open();
+  for (const dialog of document.querySelectorAll<HTMLDialogElement>("dialog[open]")) { dialog.close(); dialog.show(); }
+  await settleCssImages();
+}
+
+/**
+ * The profile window's header from the game shell's own markup: the name, online line and guild row,
+ * the pencil on your own and the ⋯ button on anyone else's. The stats and preview stay empty.
+ */
+async function profileWindow(own: boolean) {
+  const doc = await gameMarkup();
+  document.body.style.background = GROUND;
+  for (const node of doc.body.children) document.body.append(document.importNode(node, true));
+  await import("../../src/ui/game-shell");
+  byId("playerProfile").hidden = false;
+  byId("playerProfileName").textContent = own ? "Rymel" : "Moss";
+  const presence = byId("playerProfilePresence");
+  presence.textContent = "Online - Forest"; presence.classList.add("is-online");
+  applyProfileIcon(byId("playerProfileIcon"), own ? 0 : 3);
+  renderProfileGuild(byId<HTMLButtonElement>("playerProfileGuild"), "TheG", { id: "1", name: "TheG", emblem: 5 });
+  byId("editPlayerNameBtn").hidden = !own;
+  byId("settingsBtn").hidden = !own;
+  byId("profileMoreBtn").hidden = own;
+  byId("profileDuelBtn").hidden = own;
+  if (!own) createProfileActionsMenu({ isBlocked: () => false, openSafety: () => {}, showMessage: () => {} }).open("p-moss", "Moss");
+  await settleCssImages();
+}
+
+export const DOM_SCENES: Record<string, () => Promise<void>> = { icons, hud, wordmark, shops,
+  "profile-own": () => profileWindow(true), "profile-other": () => profileWindow(false) };

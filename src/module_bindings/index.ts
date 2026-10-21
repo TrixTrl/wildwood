@@ -70,6 +70,7 @@ import ConfigureGemCommerceReducer from "./configure_gem_commerce_reducer";
 import ConfigurePatreonReducer from "./configure_patreon_reducer";
 import ConvertItemToCosmeticReducer from "./convert_item_to_cosmetic_reducer";
 import CraftGradeGearReducer from "./craft_grade_gear_reducer";
+import CraftGradeItemReducer from "./craft_grade_item_reducer";
 import CreateGuildReducer from "./create_guild_reducer";
 import DeactivateCardReducer from "./deactivate_card_reducer";
 import DestroyEquipmentReducer from "./destroy_equipment_reducer";
@@ -137,6 +138,7 @@ import RecordConnectionDiagnosticReducer from "./record_connection_diagnostic_re
 import RecordPlayerDeathReducer from "./record_player_death_reducer";
 import RecordStartupTelemetryReducer from "./record_startup_telemetry_reducer";
 import RefineItemReducer from "./refine_item_reducer";
+import ReforgeWeaponReducer from "./reforge_weapon_reducer";
 import RefreshDailyQuestsReducer from "./refresh_daily_quests_reducer";
 import RegisterClientVersionReducer from "./register_client_version_reducer";
 import RegisterProtocolReducer from "./register_protocol_reducer";
@@ -288,6 +290,7 @@ import MyChatMuteRow from "./my_chat_mute_table";
 import MyChoppedTreesRow from "./my_chopped_trees_table";
 import MyCopyRefinesRow from "./my_copy_refines_table";
 import MyCopySlotsRow from "./my_copy_slots_table";
+import MyCosmeticRefinesRow from "./my_cosmetic_refines_table";
 import MyCraftSkillsRow from "./my_craft_skills_table";
 import MyCutsceneHistoryRow from "./my_cutscene_history_table";
 import MyDailyGemBonusRow from "./my_daily_gem_bonus_table";
@@ -344,6 +347,7 @@ import PlayerAutoFarmPuppetRow from "./player_auto_farm_puppet_table";
 import PlayerBonusToggleRow from "./player_bonus_toggle_table";
 import PlayerChatHeartsRow from "./player_chat_hearts_table";
 import PlayerCombatRatingRow from "./player_combat_rating_table";
+import PlayerCosmeticRefineRow from "./player_cosmetic_refine_table";
 import PlayerCraftLevelRow from "./player_craft_level_table";
 import PlayerDailyQuestRow from "./player_daily_quest_table";
 import PlayerDeathFrameRow from "./player_death_frame_table";
@@ -665,6 +669,20 @@ const tablesSchema = __schema({
       { name: 'player_combat_rating_identity_key', constraint: 'unique', columns: ['identity'] },
     ],
   }, PlayerCombatRatingRow),
+  playerCosmeticRefine: __table({
+    name: 'player_cosmetic_refine',
+    indexes: [
+      { accessor: 'identity', name: 'player_cosmetic_refine_identity_idx_btree', algorithm: 'btree', columns: [
+        'identity',
+      ] },
+      { accessor: 'key', name: 'player_cosmetic_refine_key_idx_btree', algorithm: 'btree', columns: [
+        'key',
+      ] },
+    ],
+    constraints: [
+      { name: 'player_cosmetic_refine_key_key', constraint: 'unique', columns: ['key'] },
+    ],
+  }, PlayerCosmeticRefineRow),
   playerCraftLevel: __table({
     name: 'player_craft_level',
     indexes: [
@@ -1285,6 +1303,13 @@ const tablesSchema = __schema({
     constraints: [
     ],
   }, MyCopySlotsRow),
+  myCosmeticRefines: __table({
+    name: 'my_cosmetic_refines',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, MyCosmeticRefinesRow),
   myCraftSkills: __table({
     name: 'my_craft_skills',
     indexes: [
@@ -1654,6 +1679,7 @@ const reducersSchema = __reducers(
   __reducerSchema("configure_patreon", ConfigurePatreonReducer),
   __reducerSchema("convert_item_to_cosmetic", ConvertItemToCosmeticReducer),
   __reducerSchema("craft_grade_gear", CraftGradeGearReducer),
+  __reducerSchema("craft_grade_item", CraftGradeItemReducer),
   __reducerSchema("create_guild", CreateGuildReducer),
   __reducerSchema("deactivate_card", DeactivateCardReducer),
   __reducerSchema("destroy_equipment", DestroyEquipmentReducer),
@@ -1721,6 +1747,7 @@ const reducersSchema = __reducers(
   __reducerSchema("record_player_death", RecordPlayerDeathReducer),
   __reducerSchema("record_startup_telemetry", RecordStartupTelemetryReducer),
   __reducerSchema("refine_item", RefineItemReducer),
+  __reducerSchema("reforge_weapon", ReforgeWeaponReducer),
   __reducerSchema("refresh_daily_quests", RefreshDailyQuestsReducer),
   __reducerSchema("register_client_version", RegisterClientVersionReducer),
   __reducerSchema("register_protocol", RegisterProtocolReducer),

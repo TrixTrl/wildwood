@@ -16,7 +16,7 @@ import { CAMPS, ENEMY_TYPES, type EnemyKind } from "./enemies";
 import { savedMapDesign } from "./map-design";
 import { MAP_EDITOR_GAMEPLAY_OVERRIDES } from "../../shared/map-editor-overrides";
 import { evenCampSpacing, isNearRegionSpawns, regionSpawnPoints } from "./region-scatter";
-import { gatewayClearings } from "../../shared/map-gateways";
+import { gatewayClearings, gatewayLandings, PORTAL_EXIT_SPREAD } from "../../shared/map-gateways";
 import { PLAYER_SPAWN } from "../../shared/rules";
 
 export type WorldPath = { x: number; y: number; w: number; h: number };
@@ -31,7 +31,7 @@ export type WorldDecor = WorldDecorPlacement & (
   | { type: "desertGrass"; variant: number }
   | { type: "snowPine"; s: number }
   | { type: "snowTuft"; variant: number }
-  | { type: "station"; s: number; label: "Slot Upgrades" | "Tech Research" | "Quest Board" | "Ox" | "Smith" | "Card Seller" | SchoolBuilding }
+  | { type: "station"; s: number; label: "Slot Upgrades" | "Tech Research" | "Quest Board" | "Ox" | "Smith" | "Card Seller" | "Weapon Seller" | "Armor Seller" | SchoolBuilding }
   | { type: "lavaPool"; s: number; variant: number }
   | { type: "lavaRock"; s: number; variant: number }
   | { type: "charredTree"; s: number; variant: number }
@@ -645,10 +645,12 @@ export function gatewayDecorReach(item: WorldDecor) {
   return GATEWAY_DECOR_CLEARANCE + (item.type === "lavaPool" ? 150 * item.s : 0);
 }
 function clearOfGateways<T extends { decor: WorldDecor[]; paths: WorldPath[] }>(layout: T, mapId: MapId): T {
-  const clearings = gatewayClearings(mapId);
+  const clearings = gatewayClearings(mapId), landings = gatewayLandings(mapId);
   if (!clearings.length) return layout;
+  // Every point a traveller can land on keeps the same reach as the gates.
   return { ...layout, decor: layout.decor.filter(item => FLAT_DECOR.has(item.type)
-    || clearings.every(spot => Math.hypot(item.x - spot.x, item.y - spot.y) >= gatewayDecorReach(item))) };
+    || clearings.every(spot => Math.hypot(item.x - spot.x, item.y - spot.y) >= gatewayDecorReach(item))
+      && landings.every(spot => Math.hypot(item.x - spot.x, item.y - spot.y) >= gatewayDecorReach(item) + PORTAL_EXIT_SPREAD)) };
 }
 
 function authoredWorldLayout(playerSpawn: Point, mapId: MapId) {
@@ -733,10 +735,10 @@ function authoredWorldLayout(playerSpawn: Point, mapId: MapId) {
  * Where no enemy of a campaign map may spawn: its arrival, its portals, in the forest where new
  * characters start, and the edge of every other region (so two camps' enemies stand apart). Regions
  * overlap some of these; since every map holds eight enemies a stat (0.901.47) their points are drawn
- * around them rather than hoping the draw misses (world.test.ts holds the rules).
+ * around them rather than hoping the draw misses (tests/scenarios/maps.test.ts holds the rules).
  */
 const NEIGHBOUR_REGION_GAP = 80;
-/** No enemy spawns this close to a map's boss (world.test.ts holds every map to 900). */
+/** No enemy spawns this close to a map's boss (tests/scenarios/maps.test.ts holds every map to 900). */
 const BOSS_ARENA_CLEARANCE = 920;
 /** The forest's starter camps (Spitters, Brambles) are the nearest to PLAYER_SPAWN; others keep this far from it. */
 const FOREST_STARTER_KINDS = new Set<string>(["Spitter", "Bramble"]);
@@ -811,7 +813,7 @@ export function createSpawnSites(_boss: Point, mapId: MapId = TUTORIAL_FOREST_MA
     const camp = camps[campIndex];
     const campTypes = seededCampTypes(camp, campIndex, mapSeed);
     // Anywhere in the region. Regions are laid out clear of the arrival and
-    // of the boss's arena (world.test.ts holds every map to it), so nothing
+    // of the boss's arena (tests/scenarios/maps.test.ts holds every map to it), so nothing
     // has to be pushed out of either here.
     const points = regionSpawnPoints(camp, WORLD.w, WORLD.h);
     for (let index = 0; index < camp.count; index += 1) {

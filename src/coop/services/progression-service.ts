@@ -14,7 +14,7 @@ import { withRequestDeadline } from "./request-deadline";
 import type { EnemyLootRequest } from "./regular-enemy-loot-queue";
 import { createRegularEnemyLootQueue, ENEMY_DEFEAT_ACK_TIMEOUT_MS } from "./regular-enemy-loot-queue";
 import { REGULAR_ENEMY_LOOT_DELAY_MS } from "../../../shared/regular-map-loot";
-import { ONBOARDING_DAMAGE_REWARD, ONBOARDING_REGEN_REWARD, ONBOARDING_STEP } from "../../../shared/onboarding";
+import { onboardingRewardsBetween } from "../../../shared/onboarding";
 import { withoutDestroyedEquipment } from "./destroyed-equipment";
 import { refusedLoadout, serverLoadoutChanges, withServerLoadout, type ServerLoadoutChange } from "./server-loadout";
 import { cosmeticUnlocks } from "../../../shared/cosmetic-conversion";
@@ -394,7 +394,7 @@ export function createProgressionService(dependencies: ProgressionServiceDepende
   }
 
   let lastThrottleDiagnosticAt = Number.NEGATIVE_INFINITY;
-  async function sendCombatBatch(request: EnemyLootRequest): Promise<boolean | "discard" | "throttled"> {
+  async function sendCombatBatch(request: EnemyLootRequest): Promise<boolean | "discard" | "wrong-map" | "throttled"> {
     if (!dependencies.worldEntryReady() || !dependencies.hydrationReady() || dependencies.reducers.worldEntryBlocked() || resetPending) return false;
     // The cadence runs from reports that go out, so a flush that could not send
     // (a reconnect still hydrating) does not hold the kills back another sixty seconds.
@@ -409,7 +409,7 @@ export function createProgressionService(dependencies: ProgressionServiceDepende
       // These kills are gone. Write down how many and where, so a loss that
       // used to be invisible can be counted and its cause found.
       recordConnectionDiagnostic("rewards-discarded", { detail: `${request.mapId}: ${request.count} kills: ${result.error}` });
-      return "discard";
+      return /another map/.test(result.error ?? "") ? "wrong-map" : "discard";
     }
     if (!result.ok && /Enemy rewards are catching up/.test(result.error ?? "")) {
       // An honest tab never gets here, so say who did and in what state; once
@@ -1267,15 +1267,17 @@ export function createProgressionService(dependencies: ProgressionServiceDepende
         return result;
       },
       async prestigeAccount() {
-        const wasChallenge = prestigeChallenge.active || aggroChallenge.active;
         const identity = dependencies.localIdentity();
         const connection = dependencies.reducers.connection();
+        // Queued kills are paid to the run that made them. After the prestige the server refuses them.
+        if (!await enemyLoot.flush(true)) return { ok: false, error: "Rewards are still syncing. Try again in a moment." };
         const result = await reducerResult("prestige", (active) => active.reducers.prestigeAccount({}))();
         if (result.ok && identity === dependencies.localIdentity() && connection === dependencies.reducers.connection()) {
           // SDK 2.9 applies the reset row before resolving the reducer promise.
           // A rejected prestige must retain its unsaved prediction.
           clearPending(identity);
-          if (wasChallenge) enemyLoot.reset();
+          // Kills made while it was on its way belong to the old run too: dropped, not sent to be refused.
+          enemyLoot.reset();
           dependencies.notify();
         }
         return result;
@@ -1442,10 +1444,12 @@ export function createProgressionService(dependencies: ProgressionServiceDepende
         const result = await reducerResult("tutorial", connection => connection.reducers.completeOnboardingStep({ step }))();
         if (result.ok && identity === dependencies.localIdentity()) {
           onboardingStep = Math.max(onboardingStep, step);
-          if (before && localProgress && previousStep < step) {
+          // A character with no lesson row (step 0) replays for nothing, as on the server.
+          if (before && localProgress && previousStep > 0 && previousStep < step) {
+            const reward = onboardingRewardsBetween(previousStep, step);
             localProgress = { ...localProgress,
-              damage: Math.max(localProgress.damage, before.damage + (step === ONBOARDING_STEP.regen ? ONBOARDING_DAMAGE_REWARD : 0)),
-              regen: Math.max(localProgress.regen, before.regen + (step === ONBOARDING_STEP.death ? ONBOARDING_REGEN_REWARD : 0)),
+              damage: Math.max(localProgress.damage, before.damage + reward.damage),
+              regen: Math.max(localProgress.regen, before.regen + reward.regen),
             };
             progressByIdentity.set(identity, localProgress);
           }

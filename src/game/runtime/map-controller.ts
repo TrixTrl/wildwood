@@ -5,7 +5,7 @@ import type { EnemyState, PlayerState } from "./types";
 import { BOSS_KINDS, clearBossAttack, type BossHazards, type BossStates } from "./boss/boss-registry";
 import type { MapId, SpawnSite } from "../world";
 import { portalTravelScene } from "./render/portal-glimpse";
-import { exitPortalFor, portalExitPoint } from "../../../shared/map-gateways";
+import { exitPortalFor, portalArrival, portalExitPoint } from "../../../shared/map-gateways";
 import { MAP_IDS } from "../../../shared/rules";
 import { isProceduralMap } from "../../../shared/procedural-maps";
 
@@ -63,6 +63,8 @@ export type MapController = {
   updatePortal: (dt: number) => void;
   loadMap: (mapId: MapId, x: number, y: number, facing?: number) => void;
   reconcileMapFromServer: () => void;
+  /** The server has the player on another map (a move it made itself, as Onward does) that this page has yet to follow. */
+  serverMovePending: () => boolean;
   queuePortalReveal: (mapId: MapId) => void;
   startProceduralPortalCutscene: () => boolean;
   startDragonPortalCutscene: () => boolean;
@@ -91,6 +93,8 @@ export function createMapController(options: {
   onTravelStarted?: () => void;
   /** Whether Auto Farm is taking the player through a portal to this map: the arrival guard does not hold it back. */
   travelWanted?: (destination: string) => boolean;
+  /** The server refused a crossing to this map. */
+  onTravelRefused?: (destination: string) => void;
   mapConfig: MapConfig;
   tutorialMapId: MapId;
   desertMapId: MapId;
@@ -134,6 +138,8 @@ export function createMapController(options: {
   bosses: BossStates;
   bossHazards: BossHazards;
   onCutsceneFinished: () => void;
+  /** Told when the server moved the player from one map to another; true to show the departure shimmer (Onward's cue). */
+  onServerMove?: (from: MapId, to: string) => boolean;
 }): MapController {
   const {
     mapConfig, tutorialMapId, desertMapId, snowMapId, lavaMapId, infernalMapId, waterMapId, dragonCutsceneSeenKey, snowlandsCutsceneSeenKey, lavaCutsceneSeenKey, infernalCutsceneSeenKey, waterCutsceneSeenKey, samuraiCutsceneSeenKey,
@@ -173,12 +179,12 @@ export function createMapController(options: {
   portalTravelScene.arrival = (mapId, from) => mapId in mapConfig ? arrivalFrom(mapId as MapId, from as MapId) : null;
 
   /**
-   * Where the server lands a traveller from `from` (map-travel.ts): a campaign or Endless map a step in front of its
-   * portal back, outside it; anywhere else, its arrival.
+   * Where the server lands a traveller from `from` (map-travel.ts): on a campaign or Endless map, out of its portal
+   * back, at the point drawn from where they stood (`at`, as sent to the server); without it, that circle's middle.
    */
-  function arrivalFrom(destination: MapId, from: MapId) {
+  function arrivalFrom(destination: MapId, from: MapId, at?: { x: number; y: number }) {
     const exit = exitFor(destination, from);
-    return exit ? portalExitPoint(exit) : mapConfig[destination].arrival;
+    return exit ? (at ? portalArrival(exit, at) : portalExitPoint(exit)) : mapConfig[destination].arrival;
   }
   function exitFor(destination: MapId, from: MapId) {
     const entry = mapConfig[destination];
@@ -374,8 +380,9 @@ export function createMapController(options: {
     stopTouchMove();
     player.moving = false;
     const attempt = mapLoadGeneration;
+    const from = { x: player.x, y: player.y };
     void prepareMapTransition(
-      () => changeMap(destination, player.x, player.y),
+      () => changeMap(destination, from.x, from.y),
       () => options.prepareMapAssets(destination),
     ).then((changed) => {
       if (attempt !== mapLoadGeneration) return;
@@ -383,9 +390,10 @@ export function createMapController(options: {
         mapTransitioning = false;
         guardPortal(portal);
         portalCooldown = 1;
+        crossingRefused(destination);
         return;
       }
-      const arrival = arrivalFrom(destination, departure);
+      const arrival = arrivalFrom(destination, departure, from);
       fadeToMap(() => {
         if (attempt !== mapLoadGeneration) return;
         loadMap(destination, arrival.x, arrival.y, player.facing);
@@ -400,7 +408,17 @@ export function createMapController(options: {
       mapTransitioning = false;
       guardPortal(portal);
       portalCooldown = 1;
+      crossingRefused(destination);
     });
+  }
+
+  /**
+   * A refusal means the server sees the player somewhere else. Auto Farm stops walking straight back in (a client
+   * retried one every six seconds for ten minutes), and a map the server already has them on is followed now.
+   */
+  function crossingRefused(destination: MapId) {
+    options.onTravelRefused?.(destination);
+    reconcileMapFromServer();
   }
 
   /**
@@ -410,7 +428,7 @@ export function createMapController(options: {
    */
   function travelThroughPortal(portal: MapPortal | null, destination: MapId): Promise<boolean> {
     const departure = { mapId: getCurrentMapId(), x: player.x, y: player.y, facing: player.facing };
-    const arrival = arrivalFrom(destination, departure.mapId);
+    const arrival = arrivalFrom(destination, departure.mapId, departure);
     const move = Promise.resolve(changeMap(destination, departure.x, departure.y));
     loadMap(destination, arrival.x, arrival.y, departure.facing);
     guardUntilStepOff = true;
@@ -430,6 +448,7 @@ export function createMapController(options: {
       syncStoppedPosition();
       if (portal) guardPortal(portal);
       portalCooldown = 1;
+      crossingRefused(destination);
       return false;
     };
     return withMapDeadline(move).then((changed) => {
@@ -441,13 +460,26 @@ export function createMapController(options: {
     }, goBack);
   }
 
-  function reconcileMapFromServer() {
-    if (!running() || mapTransitioning || arrivalPending || isDueling()) return;
+  /** A first-time portal cutscene showing, or about to start now the server opened its portal. */
+  function cutsceneDue() {
+    return portalCutscene.active || Boolean(pendingPortalReveal && pendingPortalReveal.mapId === getCurrentMapId()
+      && player.hp > 0 && mapUnlocked(pendingPortalReveal.portal.destination));
+  }
+
+  function serverMovePending() {
+    if (!running() || arrivalPending || isDueling()) return false;
     const state = localMapState();
-    if (!state || state.mapId === getCurrentMapId()) return;
-    if (!(state.mapId in mapConfig)) return;
+    return Boolean(state && state.mapId !== getCurrentMapId() && state.mapId in mapConfig);
+  }
+
+  /** Follows a move the server made: after any portal cutscene, it fades to the server's map and spot. */
+  function reconcileMapFromServer() {
+    if (mapTransitioning || cutsceneDue() || !serverMovePending()) return;
+    const state = localMapState()!;
     mapTransitioning = true;
     const attempt = mapLoadGeneration;
+    const shimmer = options.onServerMove?.(getCurrentMapId(), state.mapId) ?? false;
+    if (shimmer) { keys.clear(); stopTouchMove(); player.moving = false; beginTownTeleport(); }
     void withMapDeadline(options.prepareMapAssets(state.mapId as MapId)).then(() => {
       if (attempt !== mapLoadGeneration) return;
       fadeToMap(() => {
@@ -455,10 +487,13 @@ export function createMapController(options: {
         loadMap(state.mapId as MapId, state.x, state.y, state.facing);
         snapCameraToPlayer(camera, player, viewport());
         resetPresentationState();
+        if (shimmer) beginTownTeleport(true);
         mapTransitioning = false;
       });
     }).catch(() => {
-      if (attempt === mapLoadGeneration) mapTransitioning = false;
+      if (attempt !== mapLoadGeneration) return;
+      if (shimmer) endTownTeleport();
+      mapTransitioning = false;
     });
   }
 
@@ -520,6 +555,8 @@ export function createMapController(options: {
     resizeViewport();
     if (portalCutsceneSeenKey) options.markPortalCutsceneSeen(portalCutsceneSeenKey);
     onCutsceneFinished();
+    // A move the server made meanwhile (Onward) waited for the cutscene.
+    reconcileMapFromServer();
     return false;
   }
 
@@ -546,6 +583,7 @@ export function createMapController(options: {
     updatePortal,
     loadMap,
     reconcileMapFromServer,
+    serverMovePending,
     queuePortalReveal: (mapId) => {
       if (mapId !== getCurrentMapId()) return;
       const portal = mapConfig[mapId].secondaryPortal;

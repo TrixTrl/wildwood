@@ -7,7 +7,6 @@ import {
 } from "../game/inventory";
 import { requiredElement } from "../game/runtime/dom";
 import { canDestroyEquipment, itemDefinition, itemDisplayName } from "../../shared/items";
-import { weaponKind } from "../../shared/equip-best";
 import { COSMETIC_CONVERSION_GEM_COST, canConvertToCosmetic } from "../../shared/cosmetic-conversion";
 import { inventoryMoveActions, inventoryWeaponSlot, renderInventoryView, type InventoryMode } from "./hud";
 import type { ItemInspectionController } from "./item-inspection-controller";
@@ -40,11 +39,9 @@ type SelectableInventory = InventoryState & { selectedItemId: string; selectedIt
 type Result = { ok: boolean; error?: string } | undefined;
 /** A copy kept from a duplicate drop, beyond the item's first. */
 
-/** Where a look shows: a hand look only on a weapon of its own kind (shared/equipment-appearance.ts). */
+/** Where a look shows: a hand look on any weapon (shared/equipment-appearance.ts). */
 export function cosmeticReach(itemId: string) {
-  if (itemDefinition(itemId)?.slot !== "HAND") return "Appearance only";
-  const kind = weaponKind(itemId);
-  return kind === "MELEE" ? "Shows on a sword" : kind === "MAGIC" ? "Shows on a staff" : "Shows on a bow";
+  return itemDefinition(itemId)?.slot === "HAND" ? "Shows on any weapon" : "Appearance only";
 }
 
 export type KeptEquipmentCopy = { id: bigint; itemId: string; roll: WeaponSkillRoll };
@@ -58,6 +55,8 @@ type InventoryDependencies = {
   slotTier?: (slot: "HAND" | "HEAD" | "CHEST") => number;
   /** One copy's refine (★N); `copyId` 0n is the first copy, the one a slot holds. */
   refineLevel?: (itemId: string, copyId?: bigint) => number;
+  /** The refine a look's art is drawn at: the item's own or its cosmetic's kept ★10/★20 (local-item-refines.ts). */
+  lookRefine?: (itemId: string) => number;
   /** Ores held, by kind (mined in the Copper Hills, spent at the Smith): a stack in one bag slot each. */
   ores?: () => Readonly<Partial<Record<OreId, number>>>;
   /** The Cards tab: cards owned and active, the odds at each, and switching them on and off. */
@@ -333,7 +332,7 @@ export function createInventoryController(dependencies: InventoryDependencies) {
     dependencies.itemInspection.open({
       itemId,
       upgradeLevel: dependencies.upgradeLevel(itemId),
-      ...(mode === "EQUIPMENT" ? { refine: dependencies.refineLevel?.(itemId, copyId) ?? 0 } : {}),
+      ...(mode === "EQUIPMENT" ? { refine: dependencies.refineLevel?.(itemId, copyId) ?? 0 } : { lookRefine: dependencies.lookRefine?.(itemId) ?? 0 }),
       ownItem: mode === "EQUIPMENT",
       ...(mode === "EQUIPMENT" ? { worn: dependencies.inventory } : {}),
       ...(kept.length ? { context: `Copy ${copy ? kept.indexOf(copy) + 2 : 1} of ${kept.length + 1}` } : {}),
@@ -409,7 +408,7 @@ export function createInventoryController(dependencies: InventoryDependencies) {
     }];
   }
 
-  /** Graded gear in the bag sells to the Smith for gold; worn or locked gear does not. */
+  /** Graded gear in the bag sells for gold, as at the sellers' stalls; worn or locked gear does not. */
   function saleActions(itemId: string, copyId = 0n) {
     const sell = dependencies.sellGradedItem, price = gradeShopSalePrice(itemId), inventory = dependencies.inventory;
     const worn = copyId === 0n && [inventory.equippedHead, inventory.equippedChest, inventory.equippedFeet, inventory.equippedRightHand, inventory.equippedLeftHand].includes(itemId);
@@ -422,7 +421,7 @@ export function createInventoryController(dependencies: InventoryDependencies) {
         const refine = dependencies.refineLevel?.(itemId, copyId) ?? 0;
         if (!await ask(confirmDestroy, {
           message: `Sell ${withRefineStars(itemDisplayName(itemId), refine)} for ${price} Gold?`,
-          details: [{ label: "The Smith pays", value: `${price} Gold` }, ...(refine ? [{ label: "Refines", value: "Lost with the item" }] : [])],
+          details: [{ label: "You Get", value: `${price} Gold` }, ...(refine ? [{ label: "Refines", value: "Lost with the item" }] : [])],
           confirmLabel: "Sell",
         })) return;
         dependencies.itemInspection.close();
@@ -474,7 +473,8 @@ export function createInventoryController(dependencies: InventoryDependencies) {
     const held = dependencies.ores?.() ?? {};
     const nextState = JSON.stringify([cardsShown, buildsShown, mode, filter, inventory, held, inventory.itemIds.map(id => dependencies.equipmentLocked?.(id)), dependencies.inventorySlotsUnlocked(), dependencies.researchBagSlots?.() ?? 0, dependencies.toolLevels?.() ?? {}, unlockingSlot,
       ["HEAD", "CHEST", "HAND"].map(slot => dependencies.slotTier?.(slot as "HEAD" | "CHEST" | "HAND")), inventory.itemIds.map(itemId => `${dependencies.upgradeLevel(itemId)}:${dependencies.refineLevel?.(itemId, 0n)}`),
-      copies.map(copy => `${copy.id}:${copy.itemId}:${dependencies.equipmentLocked?.(copy.itemId, copy.id)}:${dependencies.refineLevel?.(copy.itemId, copy.id)}`)]);
+      copies.map(copy => `${copy.id}:${copy.itemId}:${dependencies.equipmentLocked?.(copy.itemId, copy.id)}:${dependencies.refineLevel?.(copy.itemId, copy.id)}`),
+      (inventory.cosmeticItemIds ?? []).map(itemId => dependencies.lookRefine?.(itemId) ?? 0)]);
     if (nextState === renderedState) return;
     renderedState = nextState;
     const cosmeticsActive = mode === "COSMETICS";
@@ -512,6 +512,7 @@ export function createInventoryController(dependencies: InventoryDependencies) {
         upgradeLevel: dependencies.upgradeLevel,
         slotTier: dependencies.slotTier,
         refineLevel: dependencies.refineLevel,
+        lookRefine: dependencies.lookRefine,
         slotCapacity,
         nextSlotCost: boughtCapacity < MAX_INVENTORY_SLOT_CAPACITY
           ? inventorySlotUnlockCost(slotsUnlocked)

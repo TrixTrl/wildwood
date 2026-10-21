@@ -63,8 +63,10 @@ export const TOWN_SOLIDS: readonly SoulSolid[] = [...TOWN_VILLAGE_SOLIDS, ...fur
 /** Where the feet are below the player's position (depth-world-renderer sorts the player there too), and how wide. */
 const FEET_OFFSET = TOWN_FEET_OFFSET;
 export const TOWN_FEET_RADIUS = 12;
-/** A door swings open while feet are this near its sill. */
-const DOOR_OPEN_RANGE = 120;
+/** A door swings open only once the player walks into it: feet between its posts, in front of its sill and this close. */
+const DOOR_PUSH_REACH = 20;
+/** How far past the sill feet may be and still count as at the door; anything further is behind the building. */
+const DOOR_SILL_DEPTH = 16;
 /** Doors onto empty rooms stay shut: walking into them does nothing. Anyone already inside still walks out. */
 export const TOWN_LOCKED_DOORS: ReadonlySet<number> = new Set([0, 7]);
 /** Going through: a few steps into the doorway while the screen goes dark. */
@@ -266,8 +268,8 @@ export function createTownRuntime(deps: {
     if (doorway.elapsed > 1.5) finishDoorway();
   }
   /**
-   * Doors near the player stand open; walking on into an open one (feet at its sill, between its posts, still
-   * heading in) or out of a room's doorway goes through.
+   * A door opens when the player pushes into it (feet at its sill, between its posts); walking on into the open
+   * door, or out of a room's doorway, goes through.
    */
   function checkDoors() {
     const { player } = deps;
@@ -275,8 +277,10 @@ export function createTownRuntime(deps: {
     if (player.hp <= 0) return;
     const feetX = player.x, feetY = player.y + FEET_OFFSET;
     const heading = Number.isFinite(lastY) ? player.y - lastY : 0;
-    for (const door of TOWN_DOORS) if (!TOWN_LOCKED_DOORS.has(door.index) && Math.hypot(feetX - door.x, feetY - door.y) < DOOR_OPEN_RANGE) SOUL_DOORS_OPEN.add(door.index);
-    const into = TOWN_DOORS.find(door => SOUL_DOORS_OPEN.has(door.index) && Math.abs(feetX - door.x) < door.half && feetY < door.enter + TOWN_FEET_RADIUS + 8);
+    const atSill = (door: { x: number; half: number; enter: number }, reach: number) => Math.abs(feetX - door.x) < door.half
+      && feetY > door.enter - DOOR_SILL_DEPTH && feetY < door.enter + TOWN_FEET_RADIUS + reach;
+    for (const door of TOWN_DOORS) if (atSill(door, DOOR_PUSH_REACH) && !TOWN_LOCKED_DOORS.has(door.index)) SOUL_DOORS_OPEN.add(door.index);
+    const into = TOWN_DOORS.find(door => SOUL_DOORS_OPEN.has(door.index) && atSill(door, 8));
     if (into && heading < 0) { startDoorway(into, true); return; }
     const room = townRoomAt(player.x, player.y);
     if (room && heading > 0 && Math.abs(feetX - room.exit.x) < room.exit.half && feetY > room.exit.y + 4) startDoorway(room, false);

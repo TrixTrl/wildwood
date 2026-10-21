@@ -14,10 +14,12 @@ import type { ItemInspectionController, ItemInspectionAction } from "./item-insp
 import { profileActiveCardIds, slotUpgradeLevelFor } from "./profile";
 import { setText } from "./settings";
 import { createProfileBonusToggles, type ProfileBonusDeps } from "./profile-bonus-toggles";
+import { createProfileActionsMenu } from "./profile-actions-menu";
+import { renderProfileGuild, type KnownGuild } from "./profile-guild";
 import {
   PROFILE_EQUIPMENT_SLOTS,
   profileEquipmentPresentation,
-  profileEquipmentRefine,
+  profileEquipmentRefine, profileLookRefine,
   profileEquipmentActiveCards,
   renderProfileEquipmentSlot,
   type ProfileEquipmentSlot,
@@ -37,7 +39,10 @@ export function createProfileWindowController(elements: {
   close: HTMLElement; editName: HTMLButtonElement; editor: ProfileEditorElements;
   preview: HTMLElement; equipmentHead: HTMLButtonElement; equipmentChest: HTMLButtonElement; equipmentFeet: HTMLButtonElement; equipmentRightHand: HTMLButtonElement; previousSprite: HTMLElement; nextSprite: HTMLElement;
   duel: HTMLButtonElement;
-  settings?: HTMLElement; safetyActions: HTMLElement; report: HTMLButtonElement; block: HTMLButtonElement;
+  /** Other players' ⋯ menu (Copy Name, Report, Block), where the pencil sits on your own. */
+  settings?: HTMLElement; more: HTMLButtonElement;
+  /** The player's guild badge and name, under the online line; it opens the guild. */
+  guild: HTMLButtonElement;
   prestigeRow: HTMLElement; prestige: HTMLElement;
   /** Every skill's level (profile-skills.ts), and your own soul tier kills under Info. */
   skillsTab?: HTMLElement; skillsPanel?: HTMLElement; soulTier?: HTMLElement;
@@ -53,7 +58,7 @@ export function createProfileWindowController(elements: {
   localIdentity: () => string | undefined; localDisplayName: () => string | undefined; profileIcon: (identity?: string) => number; paintIcon: (element: HTMLElement, index: number, identity?: string) => void;
   renderName: (element: HTMLElement, identity: string, name: string, gender?: PlayerGender) => void; isGuest: (identity: string) => boolean; isOnline: (identity: string) => boolean; presenceText: (profile: Profile, online: boolean) => string;
   /** `progress` carries the profile's refines too, so the preview draws worn graded gear in its refine look. */
-  renderCharacter: (identity: string, progress: (Profile["progress"] & { itemRefines?: Readonly<Record<string, number>> }) | null, visible: boolean) => void; skinTone: (identity?: string) => number; setSkinTone: (value: number) => Promise<{ ok?: boolean; error?: string } | undefined>;
+  renderCharacter: (identity: string, progress: (Profile["progress"] & { itemRefines?: Readonly<Record<string, number>>; cosmeticRefines?: Readonly<Record<string, number>> }) | null, visible: boolean) => void; skinTone: (identity?: string) => number; setSkinTone: (value: number) => Promise<{ ok?: boolean; error?: string } | undefined>;
   playerGender: (identity?: string) => PlayerGender; setGender: (value: PlayerGender) => Promise<{ ok?: boolean; error?: string } | undefined>;
   nameColor: (identity?: string) => number; setNameColor: (value: number) => Promise<{ ok?: boolean; error?: string } | undefined>; openIconPicker: () => void;
   renderStats: (profile: Profile, element: HTMLElement) => void; formatPower: (profile: Profile) => string; formatPlayedTime: (seconds: number) => string;
@@ -66,10 +71,16 @@ export function createProfileWindowController(elements: {
   showMessage: (text: string, color: string) => void;
   isBlocked: (identity: string) => boolean;
   openSafety: (identity: string, name: string, action: "report" | "block") => void;
+  /** The player's guild name ("" without one), its id and badge, and the guild's own window. */
+  guildTag: (identity: string) => string;
+  findGuild: (name: string) => Promise<KnownGuild | undefined>;
+  openGuild: (id: string) => void;
 }) {
   let identity = "";
   let profileData: Profile | null = null;
   const loading = createProfileLoading(elements.loading, elements.statGrid);
+  const actionsMenu = createProfileActionsMenu(api);
+  let guildShown: string | null = null;
   const bonuses = elements.bonusesPanel && elements.bonuses ? createProfileBonusToggles(elements.bonusesPanel, elements.bonuses) : null;
   const equipmentElements: Record<ProfileEquipmentSlot, HTMLButtonElement> = {
     HEAD: elements.equipmentHead,
@@ -110,7 +121,7 @@ export function createProfileWindowController(elements: {
 
   function drawPreview() {
     const profile = profileData;
-    const progress = profile && profile.identity === elements.preview.dataset.identity ? { ...profile.progress, itemRefines: profile.itemRefines } : null;
+    const progress = profile && profile.identity === elements.preview.dataset.identity ? { ...profile.progress, itemRefines: profile.itemRefines, cosmeticRefines: profile.cosmeticRefines } : null;
     api.renderCharacter(elements.preview.dataset.identity || "", progress, !elements.window.hidden);
   }
 
@@ -122,6 +133,7 @@ export function createProfileWindowController(elements: {
         presentation,
         profile?.itemUpgradeLevels[slot === "WEAPON" ? "HAND" : slot] ?? 0,
         profileEquipmentRefine(presentation, profile?.itemRefines),
+        profileLookRefine(presentation, profile?.itemRefines, profile?.cosmeticRefines),
       );
     }
   }
@@ -134,6 +146,7 @@ export function createProfileWindowController(elements: {
       itemId: presentation.inspectionItemId,
       upgradeLevel: slotUpgradeLevelFor(profileData.itemUpgradeLevels, presentation.inspectionItemId),
       refine: profileEquipmentRefine(presentation, profileData.itemRefines),
+      lookRefine: profileLookRefine(presentation, profileData.itemRefines, profileData.cosmeticRefines),
       activeCards: profileEquipmentActiveCards(presentation, profileActiveCardIds(profileData)),
       skills: profileData.wornSkill?.itemId === presentation.inspectionItemId ? profileData.wornSkill.roll : undefined,
       context: presentation.context,
@@ -151,12 +164,24 @@ export function createProfileWindowController(elements: {
     drawPreview();
   }
 
+  /** Redraws the guild row when the player's guild changes; the badge and link follow once the guild is found. */
+  function syncGuild() {
+    const name = identity ? api.guildTag(identity) : "";
+    if (name === guildShown) return;
+    guildShown = name;
+    renderProfileGuild(elements.guild, name);
+    if (!name) return;
+    const target = identity;
+    const settle = (guild: KnownGuild | null) => { if (identity === target && guildShown === name) renderProfileGuild(elements.guild, name, guild); };
+    void api.findGuild(name).then(guild => settle(guild ?? null), () => settle(null));
+  }
+
   /** Also runs on the 100ms HUD tick, so it only writes what changed and skips the duel button while the window is closed. */
   function updateDuelButton() {
     const own = !identity || identity === api.localIdentity();
-    if (elements.safetyActions.hidden !== own) elements.safetyActions.hidden = own;
+    if (elements.more.hidden !== own) elements.more.hidden = own;
     api.onOwnProfile?.(own);
-    setText(elements.block, api.isBlocked(identity) ? "Unblock Player" : "Block Player");
+    if (!elements.window.hidden) syncGuild();
     if (!elements.window.hidden && own) bonuses?.render();
     if (editor.isOpen()) editor.render();
     if (elements.duel.hidden || elements.window.hidden) return;
@@ -231,7 +256,7 @@ export function createProfileWindowController(elements: {
   }
 
   function close() {
-    closeNameEditor(); elements.window.hidden = true; elements.guest.hidden = true; identity = ""; profileData = null; renderEquipment(null); loading.hide(); api.releaseProfile();
+    closeNameEditor(); actionsMenu.close(); elements.window.hidden = true; guildShown = null; elements.guest.hidden = true; identity = ""; profileData = null; renderEquipment(null); loading.hide(); api.releaseProfile();
   }
 
   function openNameEditor() {
@@ -243,8 +268,8 @@ export function createProfileWindowController(elements: {
   elements.infoTab.addEventListener("click", () => selectTab("info")); elements.statsTab.addEventListener("click", () => selectTab("stats"));
   elements.skillsTab?.addEventListener("click", () => selectTab("skills"));
   elements.bonusesTab?.addEventListener("click", () => selectTab("bonuses"));
-  elements.report.addEventListener("click", () => api.openSafety(identity, profileData?.name || elements.name.textContent || "PLAYER", "report"));
-  elements.block.addEventListener("click", () => api.openSafety(identity, profileData?.name || elements.name.textContent || "PLAYER", "block"));
+  elements.more.addEventListener("click", () => actionsMenu.open(identity, profileData?.name || elements.name.textContent || "PLAYER"));
+  elements.guild.addEventListener("click", () => { const id = elements.guild.dataset.guildId; if (id) { close(); api.openGuild(id); } });
   for (const slot of PROFILE_EQUIPMENT_SLOTS) equipmentElements[slot].addEventListener("click", () => inspectEquipment(slot));
   elements.close.addEventListener("click", close); elements.editName.addEventListener("click", openNameEditor);
   elements.duel.addEventListener("click", () => { const opponent = elements.duel.dataset.identity || ""; if (!opponent || elements.duel.disabled) return; elements.duel.disabled = true; void api.requestDuel(opponent).then((result) => { if (!result?.ok) api.showMessage(result?.error || "DUEL FAILED", "#ff9b91"); else close(); updateDuelButton(); }); });
