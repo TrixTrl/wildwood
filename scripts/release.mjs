@@ -72,10 +72,10 @@ if (checkOnly) {
   process.exit(0);
 }
 
-const nextSettings = settings.replace(`const GAME_VERSION = "${currentVersion}";`, `const GAME_VERSION = "${nextVersion}";`);
-const nextHtml = html
+const nextSettings = nextVersion ? settings.replace(`const GAME_VERSION = "${currentVersion}";`, `const GAME_VERSION = "${nextVersion}";`) : settings;
+const nextHtml = nextVersion ? html
   .replaceAll(`v${currentVersion}`, `v${nextVersion}`)
-  .replaceAll(`?v=${currentVersion}`, `?v=${nextVersion}`);
+  .replaceAll(`?v=${currentVersion}`, `?v=${nextVersion}`) : htms;
 const dateParts = new Intl.DateTimeFormat("en-CA", {
   timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit",
 }).formatToParts(new Date());
