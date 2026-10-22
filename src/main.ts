@@ -300,6 +300,7 @@ import { updateTimeValues } from "./game/zone-timer";
     signOut: () => { coop?.signOut?.(); },
     canPlayMusic: () => !gameplayPauseReasons.has("rewarded-ad"),
     onLowPerformanceChanged: () => { session.resetFrameSchedule(); },
+    onGpuChanged: () => { staticWorldLayer?.rebuild?.(); },
     showMessage,
   });
 
