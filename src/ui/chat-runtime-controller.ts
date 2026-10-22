@@ -57,7 +57,7 @@ export function createChatRuntimeController(options: Pick<ChatOptions, "getCoop"
     onOpenPlayer: options.onOpenPlayer,
     onLayoutChange: options.onLayoutChange,
     requestDuel: coop ? coop.requestDuel : undefined,
-    duelCooldownRemaningMs: coop ? coop.duelCooldownRemaningMs : () => Infinity,
+    duelCooldownRemainingMs: coop ? coop.duelCooldownRemainingMs : () => Infinity,
   });
 
   // Subscription bursts share one paint; gameplay updates never synchronously
