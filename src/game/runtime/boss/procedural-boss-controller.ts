@@ -166,7 +166,7 @@ export function createProceduralBossController(options: {
         const prestige = options.prestige?.();
         if (identity && prestige) {
           saveTime(timeMap.endTime - timeMap.startTime, options.mapId() as MapId, prestige, identity);
-          updateTimeValues(identity, options.mapId() as MapId);
+          updateTimeValues(identity, options.mapId() as MapId, prestige);
         }
       }
       return;
