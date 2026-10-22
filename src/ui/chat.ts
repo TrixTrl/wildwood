@@ -144,7 +144,7 @@ type ChatOptions = {
   duelCooldownRemainingMs: () => number;
 };
 
-export function createChatController({ elements, getCoop, showMessage, onOpenReplay, onOpenPlayer, onLayoutChange, onAgeCheck, requestDuel, duelCooldownRemaningMs }: ChatOptions) {
+export function createChatController({ elements, getCoop, showMessage, onOpenReplay, onOpenPlayer, onLayoutChange, onAgeCheck, requestDuel, duelCooldownRemainingMs }: ChatOptions) {
   const ageOk = () => getCoop()?.ageVerified?.() ?? true;
   // Until then the mini chat shows this one line in place of messages.
   const ageLine = document.createElement("div");
