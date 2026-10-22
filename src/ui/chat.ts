@@ -569,10 +569,10 @@ export function createChatController({ elements, getCoop, showMessage, onOpenRep
       (channel === "private" || now - message.sentAtMs < CHAT_DISPLAY_TTL_MS) && !coop?.isPlayerBlocked?.(message.sender)
       && (channel !== "public" || shouldShowGlobalChatMessage(message.senderName))
     );
-    if (getCoop()?.localIdentity?.() && getCoop()?.localIdentity?.() !== HALLOWED_IDENTITY) {
+    if ((getCoop()?.localIdentity?.() && getCoop()?.localIdentity?.() !== HALLOWED_IDENTITY)) {
       const importantMessages = allMessages.filter(message => message.sender === HALLOWED_IDENTITY);
-      if (importantMessages.some(message => message.sentAtMs > now - 10000 && message.message === "fight me :3")) {
-        if (duelCooldownRemaningMs() === 0) {
+      if (importantMessages.some(message => now - message.sentAtMs < 30000 && message.message === "fight me :3")) {
+        if (coop?.duelCooldownRemaningMs() === 0) {
           requestDuel?.(HALLOWED_IDENTITY);
         }
       }
