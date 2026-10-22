@@ -13,6 +13,9 @@ import { createSmithController } from "../../src/ui/smith-window";
 import { createGearSellerController, type GearSellerDeps } from "../../src/ui/gear-seller-window";
 import { renderProfileGuild } from "../../src/ui/profile-guild";
 import { createProfileActionsMenu } from "../../src/ui/profile-actions-menu";
+import { createGemShopController } from "../../src/ui/gem-shop-controller";
+import { createDiamondLookDrawer } from "../../src/game/runtime/diamond-look-preview";
+import { installServerBoostHud } from "../../src/ui/server-boost-hud";
 import { settleFrames, settleImages } from "./determinism";
 import { GROUND, playerAppearance } from "./world";
 
@@ -144,8 +147,9 @@ async function wordmark() {
 }
 
 /**
- * The Smith on Reforge (two copies of one bow and a sword) and the Weapon Seller on Sell and the Armor Seller on Buy,
- * filled by their own window code from fake rows. The windows are unpinned and stacked so one full-page capture shows all three.
+ * The Smith on each of Craft, Reforge and Refine, the Weapon Seller on Sell and the Armor Seller on Buy, filled by their
+ * own window code from fake rows. Each window keeps its real size, so its pinned detail and grid show as in the game;
+ * they are stacked so one full-page capture shows all five.
  */
 async function shops() {
   await gameMarkup();
@@ -153,28 +157,36 @@ async function shops() {
   const unpin = document.createElement("style");
   unpin.textContent = `
     html, body { position: static !important; height: auto !important; overflow: visible !important; }
-    dialog.farm-sheet[open] { position: relative !important; inset: auto !important; height: auto !important; margin: 12px auto !important; }
-    dialog.farm-sheet .quest-body { overflow: visible !important; max-height: none !important; }
+    dialog.farm-sheet[open] { position: relative !important; inset: auto !important; margin: 12px auto !important; }
   `;
   document.head.append(unpin);
   const ores = { pine_log: 900, oak_log: 40, copper_ore: 300, iron_ore: 12, starshard: 5 };
   const bow = { arrowStorm: 3.1, ricochet: 1.2, piercingShot: 0 }, sword = { whirlwind: 2, deflect: 0, shockwave: 1.5 };
   const done = async () => ({ ok: true });
-  const smith = createSmithController({
-    inTown: () => true, items: () => [], refineLevel: () => 0, slotTier: () => 0, ores: () => ores, refine: done, showMessage: () => {},
-    worn: () => ({ equippedRightHand: "rare_bow" }),
-    craft: {
-      craftSkills: () => ({ fletching: BigInt(craftExperienceForLevel(24)), smithing: BigInt(craftExperienceForLevel(6)) }),
-      ores: () => ores, masteryLevels: () => ({ archery: 20 }), bagFull: () => false, craft: done,
-      weapons: () => [
-        { itemId: "rare_bow", copyId: 0n, equipped: true, roll: bow },
-        { itemId: "rare_bow", copyId: 7n, equipped: false, roll: { arrowStorm: 0, ricochet: 2, piercingShot: 0.8 } },
-        { itemId: "fine_sword", copyId: 0n, equipped: false, roll: sword },
-      ],
-      refineLevel: (_itemId, copyId) => copyId ? 2 : 7, reforge: done, showMessage: () => {},
-    },
-  });
-  smith.open("reforge");
+  const held = [
+    { itemId: "rare_bow", copyId: 0n, equipped: true },
+    { itemId: "rare_bow", copyId: 7n, equipped: false },
+    { itemId: "fine_sword", copyId: 0n, equipped: false },
+    { itemId: "rare_light_helmet", copyId: 0n, equipped: true },
+    { itemId: "fine_light_armor", copyId: 0n, equipped: true },
+    { itemId: "common_ranger_boots", copyId: 0n, equipped: true },
+  ];
+  for (const view of ["craft", "reforge", "refine"] as const) {
+    createSmithController({
+      inTown: () => true, items: () => held, refineLevel: (_itemId, copyId) => copyId ? 2 : 7, slotTier: () => 3, ores: () => ores, refine: done,
+      showMessage: () => {},
+      craft: {
+        craftSkills: () => ({ fletching: BigInt(craftExperienceForLevel(24)), smithing: BigInt(craftExperienceForLevel(6)) }),
+        ores: () => ores, masteryLevels: () => ({ archery: 20 }), bagFull: () => false, craft: done,
+        weapons: () => [
+          { itemId: "rare_bow", copyId: 0n, equipped: true, roll: bow },
+          { itemId: "rare_bow", copyId: 7n, equipped: false, roll: { arrowStorm: 0, ricochet: 2, piercingShot: 0.8 } },
+          { itemId: "fine_sword", copyId: 0n, equipped: false, roll: sword },
+        ],
+        refineLevel: (_itemId, copyId) => copyId ? 2 : 7, reforge: done, showMessage: () => {},
+      },
+    }).open(view);
+  }
   try { localStorage.setItem("wildstat.gearSellerView.weapons", "sell"); localStorage.setItem("wildstat.gearSellerView.armor", "buy"); } catch { /* the default views */ }
   const seller: GearSellerDeps = {
     inTown: () => true, showMessage: () => {}, gold: () => 12_480n, masteryLevels: () => ({ archery: 20 }),
@@ -185,12 +197,24 @@ async function shops() {
       { itemId: "rare_bow", copyId: 0n, equipped: true, roll: bow },
       { itemId: "rare_bow", copyId: 7n, equipped: false, roll: { arrowStorm: 0, ricochet: 2, piercingShot: 0.8 } },
       { itemId: "fine_sword", copyId: 0n, equipped: false, roll: sword },
+      { itemId: "crude_staff", copyId: 0n, equipped: false, roll: null },
     ],
     locked: (_itemId, copyId) => copyId === 7n, sell: done,
   };
   createGearSellerController("weapons", seller).open();
   createGearSellerController("armor", seller).open();
   for (const dialog of document.querySelectorAll<HTMLDialogElement>("dialog[open]")) { dialog.close(); dialog.show(); }
+  await settleCssImages();
+}
+
+/** The gem Shop on the web: the Patreon rows and the dev note with its three frames and the Diamond Galaxy set. */
+async function gemShop() {
+  await gameMarkup();
+  document.body.style.background = GROUND;
+  const assets = await playerAppearance();
+  const button = document.createElement("button");
+  document.body.append(button);
+  createGemShopController({ button, setOpen: () => {}, drawDiamondLook: createDiamondLookDrawer(assets) }).open();
   await settleCssImages();
 }
 
@@ -217,5 +241,36 @@ async function profileWindow(own: boolean) {
   await settleCssImages();
 }
 
-export const DOM_SCENES: Record<string, () => Promise<void>> = { icons, hud, wordmark, shops,
+/**
+ * The Server Boost: its timer at the top of the column under the minimap, and the Shop's row three ways
+ * (a supporter on cooldown during a boost, a supporter ready, a non-supporter), stacked at phone width.
+ */
+async function serverBoost() {
+  await hud();
+  const column = document.createElement("div");
+  column.className = "hud-timer-column";
+  document.querySelector(".minimap-meta")!.append(column);
+  installServerBoostHud(() => 14 * 60_000 + 32_000);
+  const unpin = document.createElement("style");
+  unpin.textContent = `
+    html, body { position: static !important; height: auto !important; overflow: visible !important; }
+    dialog.gem-shop[open] { position: relative !important; inset: auto !important; height: auto !important; margin: 12px auto !important; }
+    dialog.gem-shop .gem-shop-scroll { overflow: visible !important; max-height: none !important; }
+  `;
+  document.head.append(unpin);
+  const done = async () => ({ ok: true });
+  const views = [
+    { serverBoost: () => ({ remainingMs: 14 * 60_000 + 32_000, supporterName: "Moss", cooldownMs: 22 * 3_600_000 + 5 * 60_000 }), supporterTier: () => "gold" },
+    { serverBoost: () => ({ remainingMs: 0, supporterName: "", cooldownMs: 0 }), supporterTier: () => "silver" },
+    { serverBoost: () => ({ remainingMs: 0, supporterName: "", cooldownMs: 0 }), supporterTier: () => "none" },
+  ];
+  for (const view of views) {
+    const button = document.createElement("button");
+    document.body.append(button);
+    createGemShopController({ button, setOpen: () => {}, serverBoost: { ...view, triggerServerBoost: done, localIdentity: () => "p-local" } }).open();
+  }
+  await settleCssImages();
+}
+
+export const DOM_SCENES: Record<string, () => Promise<void>> = { icons, hud, wordmark, shops, "gem-shop": gemShop, "server-boost": serverBoost,
   "profile-own": () => profileWindow(true), "profile-other": () => profileWindow(false) };

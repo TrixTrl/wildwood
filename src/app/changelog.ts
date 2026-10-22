@@ -1,4 +1,22 @@
 export const RELEASE_NOTES: Record<string, string[]> = {
+  "0.916.28": [
+    "The Smith and the Sellers show your items as a grid, with the picked item and its button always on top",
+    "Craft and the Sellers always list all gear",
+    "Skeleton archers and reapers hold their bows properly",
+    "The Shop shows the Diamond Galaxy set under the Diamond frame",
+    "Patreon supporters can start a 15-minute 2x Rewards Server Boost once a day",
+    "Removed the Upgrade All button from the Weapon and Armor Sellers",
+    "Guild invites arrive as a private chat from the player who sent them",
+    "Removed friends; private chats work with anyone",
+    "One simpler Reconnecting screen, without a Retry button",
+    "Chat and guild buttons are black and white",
+  ],
+  "0.916.27": [
+    "Sword swings move the hilt along with the blade",
+  ],
+  "0.916.26": [
+    "Profiles show Attack Speed as attacks per second and Crit Damage as a multiplier",
+  ],
   "0.916.25": [
     "Walking through a portal no longer blacks out an open inventory or window",
     "Quests appear once you've visited the quest board in Town",
@@ -3799,6 +3817,9 @@ const RELEASE_DATES: Record<string, string> = {
 };
 
 export const RELEASE_DAYS: Record<string, string> = {
+  "0.916.28": "2026-10-21",
+  "0.916.27": "2026-10-21",
+  "0.916.26": "2026-10-21",
   "0.916.25": "2026-10-21",
   "0.916.24": "2026-10-21",
   "0.916.23": "2026-10-21",

@@ -179,8 +179,7 @@ describe("cards", () => {
     // The network drops and the player reconnects: the find it already showed is not shown again.
     const first = tab.connection()!;
     first.fake.drop();
-    await playUntil(tab, () => tab.shown("reconnectRetryBtn"), "the game offers to reconnect");
-    tab.tap("reconnectRetryBtn");
+    await playUntil(tab, () => tab.shown("reconnectOverlay"), "the game shows it is reconnecting");
     await playUntil(tab, () => tab.connection() !== first && tab.coop.isConnected() === true, "the game reconnects", 20_000);
     await tab.play(1_000);
     expect(tab.shown("cardFoundName")).toBe(false);
@@ -614,7 +613,7 @@ describe("builds", () => {
     const world = scenarioWorld();
     const ann = world.join("Ann");
     world.setup(ctx => addCard(ctx as never, ann.identity, "needle_card", 1));
-    // A build saved before cards were kept by type names three Needles; two weapon slots are in play.
+    // An older saved build names three Needles; two weapon slots are in play.
     world.setup(ctx => {
       ctx.db.playerBuild.insert({ key: `${ann.hex}:2`, identity: ann.identity, slot: 2, gearJson: JSON.stringify({ HAND: "", HEAD: "", CHEST: "", FEET: "" }),
         cardsJson: JSON.stringify({ any_bow: ["needle_card", "needle_card", "needle_card"] }), savedAt: ctx.timestamp });

@@ -42,9 +42,8 @@ export const PULL_WAIT_SECONDS = 4;
 /** How long after a boss win the way forward is looked at: the unlock reaches the map's portals in a moment. */
 const BOSS_WIN_SETTLE_MS = 5_000;
 /**
- * How long Move On waits for the enemies attacking the player to die before it goes anyway. It used to
- * leave the moment power was reached, dragging a half-killed group to the next map ("I killed one mob from
- * the agro group, time to move on"); an Aggro run's chasers never stop coming, so the wait has an end.
+ * How long Move On waits for the enemies attacking the player to die before it goes anyway, so a
+ * half-killed group is not dragged to the next map; an Aggro run's chasers never stop coming, so the wait has an end.
  */
 export const MOVE_ON_FIGHT_MS = 20_000;
 /** After the server refuses a crossing, Move On farms on for this long before it tries that portal again. */
@@ -299,7 +298,7 @@ export function createAutoFarmController(options: {
   }
   const groups = () => choices().map(entry => entry.key);
 
-  /** A stat picked on a campaign map is its soul stat in the Soul Dimension, and back (carryFarmGroup); an enemy kind saved before 0.873 is its stat. */
+  /** A stat picked on a campaign map is its soul stat in the Soul Dimension, and back (carryFarmGroup); a saved enemy kind is read as its stat. */
   function normalizeKey(key: string) {
     if (key.startsWith('stat:') || key.startsWith('soul:')) return carryFarmGroup(key, isSoulMap(options.mapId()));
     const [kind] = key.split(':') as [EnemyKind];
@@ -672,7 +671,7 @@ export function createAutoFarmController(options: {
       const carried = normalizeShares(decodeFarmPlan(pendingResume.choice));
       pendingResume = null;
       // Every slider at 0% (Pull Only, Chase Only) stays that here: it stands and fights what it pulls or what
-      // chases it, as Go starts it. It used to read as nothing set and split every group evenly, walking off to farm them.
+      // chases it, as Go starts it.
       if (carried && !Object.values(carried).some(value => value > 0)) {
         startZero();
         return;
@@ -724,8 +723,7 @@ export function createAutoFarmController(options: {
   /**
    * Farm's pick: the Farm groups share the time evenly (damage twice over), leaving out a stat whose kill gives
    * nothing now (rewardCapped: attack speed or crit at its cap) and an Aggro group waiting its turn, which is
-   * never walked to. Picking by power, or by growth a second, was tried in the autofarm sim first: by power
-   * it farmed health alone, by growth tough camps (34 kills in ten minutes against the even split's 47).
+   * never walked to.
    */
   function farmWeights(all: ReturnType<typeof choices>) {
     const switched = new Set(aggroGroups()), pulledNow = pulledGroups();
@@ -769,7 +767,7 @@ export function createAutoFarmController(options: {
    */
   /**
    * Sliders all at 0%: farm only what is pulled (or chases, in an Aggro run) and stand still. The farm
-   * follows the Aggro switches: switching groups used to leave it on the old one, walking off to its camp.
+   * follows the Aggro switches, so switching groups moves it to the new one.
    */
   let followsPull = false;
   /** Stopped because the last Aggro switch went off: the next one switched on starts it again. */
@@ -823,8 +821,7 @@ export function createAutoFarmController(options: {
 
   /**
    * Any travel carries the farm across with the same settings: autofarm's own
-   * Move On, a portal the player walks into, a teleport. It used to end on
-   * any travel but its own, and a player farming by hand had to start it again.
+   * Move On, a portal the player walks into, a teleport.
    */
   function travelStarted() {
     mine?.travelStarted();

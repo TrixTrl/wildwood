@@ -4,25 +4,6 @@ import { isSoulMap, SOUL_STAT_ORDER } from '../../../../shared/soul-dimension';
 
 /** How often the farm looks again at which group is furthest behind its share, while its group still has enemies. */
 export const SHARE_REPLAN_SECONDS = 20;
-/** The growth forecast's copy of the old Auto's camp ranking (growth-forecast.ts), until it goes. */
-export const AUTO_REPLAN_SECONDS = SHARE_REPLAN_SECONDS;
-const AUTO_SWITCH_MARGIN = 1.5;
-export type FarmCandidate = { key: string; alive: number; reward: FarmReward; secondsPerKill: number };
-export function rankFarmCandidates(candidates: readonly FarmCandidate[], evaluate: (reward?: FarmReward) => FarmEvaluation) {
-  const now = evaluate().power;
-  const alive = (pool: readonly FarmCandidate[]) => pool.some(candidate => candidate.alive > 0) ? pool.filter(candidate => candidate.alive > 0) : pool;
-  const gains = new Map(candidates.map(candidate => [candidate.key, evaluate(candidate.reward).power - now]));
-  const useful = candidates.filter(candidate => gains.get(candidate.key)! > 0);
-  return alive(useful.length ? useful : candidates).map(candidate => {
-    const gain = gains.get(candidate.key)!;
-    return { key: candidate.key, rate: Number.isFinite(gain) ? Math.max(0, gain) / Math.max(.1, candidate.secondsPerKill) : 0 };
-  }).sort((a, b) => b.rate - a.rate);
-}
-export function pickRankedCandidate(ranked: readonly { key: string; rate: number }[], current: string | null = null) {
-  if (!ranked.length) return null;
-  const held = ranked.find(entry => entry.key === current)?.rate;
-  return held !== undefined && ranked[0].rate <= held * AUTO_SWITCH_MARGIN ? current : ranked[0].key;
-}
 
 /** What the player's build would be, with or without one more kill's reward: its power, and its effective stats when known. */
 export type FarmEvaluation = { power: number; stats?: PlayerPowerStats };
@@ -107,7 +88,7 @@ const finiteRecord = (value: unknown): Record<string, number> | null => value &&
 /** The sliders, one record for every campaign map (groups are stats, named the same everywhere), and the Soul Dimension's own. */
 export const AUTO_FARM_SHARES_KEY = 'wildstat:autofarm-shares:v2';
 export const AUTO_FARM_SOUL_SHARES_KEY = 'wildstat:autofarm-soul-shares:v2';
-/** Before the shares: 0-200% sliders with an Auto mode, and before those a route of picked stats (an empty one was Auto). */
+/** Older saved settings, still read: 0-200% sliders with an Auto mode, or a route of picked stats (an empty one means Auto). */
 export const AUTO_FARM_WEIGHTS_KEY = 'wildstat:autofarm-weights:v1';
 export const AUTO_FARM_SOUL_WEIGHTS_KEY = 'wildstat:autofarm-soul-weights:v1';
 export const AUTO_FARM_CHOICE_KEY = 'wildstat:autofarm-choice:v1';
@@ -120,8 +101,8 @@ const FARM_GROUPS = [...(Object.keys(REWARD_DATA) as RewardType[]).map(stat => `
 const OLD_WEIGHT_DEFAULT = 100;
 
 /**
- * The shares saved before 0.901.11, as a record of weights (any scale): the
- * 0-200% sliders as they were (a group never set at 100%), an old route (a
+ * Shares from the older saved settings, as a record of weights (any scale): the
+ * 0-200% sliders (a group never set at 100%), an old route (a
  * picked stat 100%, a pip more 100% more, the rest 0%); null for Auto or
  * nothing saved, an even split.
  */
@@ -210,9 +191,8 @@ function readStep(key: string, storage: () => Storage | undefined, fallback: num
   try { const saved = storage()?.getItem(key); return saved == null ? fallback : powerStep(Number(saved)); } catch { return fallback; }
 }
 /**
- * Move At for a player who never set it: 2x, ready for the next map's enemies twice as strong. Chosen in the
- * autofarm sim over six hours from a fresh character (0.901.66): 1x 330k power and 207 deaths, 1.5x 375k and
- * 158, 2x 436k and 107, 3x 414k and 63. Waiting for the margin made the next map safe enough to farm faster.
+ * Move At for a player who never set it: 2x, ready for the next map's enemies twice as strong. In the autofarm
+ * sim it gains the most power, and the margin makes the next map safe enough to farm faster.
  */
 export const DEFAULT_MOVE_STEP = 2;
 function writeStep(key: string, value: number, storage: () => Storage | undefined) {

@@ -7,6 +7,7 @@ import { installQuestTracker } from "./ui/quest-tracker";
 import { createStatTrackerSource } from "./ui/stat-tracker-source";
 import { refreshMapBalanceEnemies } from "./game/runtime/enemies/map-balance-enemies";
 import { createMapBalanceLoader } from "./game/runtime/map-balance-loader";
+import { createDiamondLookDrawer } from "./game/runtime/diamond-look-preview";
 import { installAccountDeletion } from "./ui/account-deletion-controller";
 import { MAP_IDS as CAMPAIGN_MAP_IDS } from "../shared/rules";
 import { weaponAttackRange } from "./game/weapon-combat";
@@ -63,7 +64,7 @@ import { scheduleBackgroundTask } from "./game/runtime/scheduler";
 import { displayedPlayerPowerProgress } from "./game/runtime/render/player-identity-renderer";
 import type { PlayerDeathAnimationState } from "./game/runtime/player-death-animation";
 import { createCanvasRuntime, gameplayBottomInset } from "./game/runtime/render/canvas-runtime";
-import { PORTAL_CUTSCENE_SEEN_KEYS, APP_SHELL_STORAGE_KEYS, GAME_VERSION, MUSIC_VOLUME_KEY, SFX_VOLUME_KEY } from "./game/runtime/game-settings";
+import { APP_SHELL_STORAGE_KEYS, GAME_VERSION, MUSIC_VOLUME_KEY, SFX_VOLUME_KEY } from "./game/runtime/game-settings";
 import { createWorldProgressionController } from "./game/runtime/world-progression-controller";
 import { createBossController } from "./game/runtime/boss/boss-controller";
 import { BOSSES, BOSS_KINDS, bossForMap } from "./game/runtime/boss/boss-registry";
@@ -79,12 +80,7 @@ import { createWebGLStaticWorldLayer } from "./game/runtime/render/webgl-static-
 import { PLAYER_SKIN_TONES, PLAYER_SKIN_TONE_NAMES, warmPlayerAppearanceCache } from "./game/player-appearance";
 import type { DuelScene } from "./game/runtime/types";
 import {
-  ADVANCED_LAVA_WASTES_MAP_ID,
-  BEGINNER_DESERT_MAP_ID,
-  INFERNAL_DEPTHS_MAP_ID,
-  INTERMEDIATE_SNOWLANDS_MAP_ID,
   TUTORIAL_FOREST_MAP_ID,
-  WATER_REACH_MAP_ID,
   type MapId,
 } from "./game/world";
 import { createChatRuntimeController } from "./ui/chat-runtime-controller";
@@ -115,7 +111,7 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
     canvas, gameOverEl, deathCountdownEl, hpText, playerHudProfileIcon, playerHudProfileGear, hudGemWallet,
     hudGemBalance, minimapButton, toolbar, settingsBtn, settingsPanel, inventoryPanel, inventoryCharacterCanvas,
     bootUpgradeEl, bootUpgradeClose, joystickEl, stickEl, duelResultEl, watchDuelReplayBtn, cutsceneOverlayEl,
-    playerProfileEl, playerProfileIcon, profileCharacterCanvas, closeProfileIconPickerBtn, gameUpdateGateEl,
+    playerProfileEl, playerProfileIcon, profileCharacterCanvas, closeProfileIconPickerBtn,
   } = gameElements;
   const staticWorldLayer = createWebGLStaticWorldLayer(canvas);
   const canvasRuntime = createCanvasRuntime({
@@ -258,7 +254,7 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
     if (!shouldPause) session.refreshFrameClock();
   }
 
-  // Only states the game can't be played through pause it; menus and windows never do (0.873).
+  // Only states the game can't be played through pause it; menus and windows never do.
   function setGameplayPause(reason: string, active: boolean) {
     if (active) gameplayPauseReasons.add(reason);
     else gameplayPauseReasons.delete(reason);
@@ -320,7 +316,6 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
   });
   const renderInventory = inventoryController.render;
   const worldProgression = createWorldProgressionController({
-    hasSeenPortalCutscene: (cutscene) => coop?.hasSeenPortalCutscene?.(cutscene) ?? true,
     player,
     bootsPickup,
     movementSpeedForBoots: (bootsEquipped) => progress.movementSpeedForEquipment(bootsEquipped),
@@ -333,7 +328,6 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
     resume: () => setGameplayPause("boot-upgrade", false),
     bootUpgrade: bootUpgradeEl,
     bootUpgradeClose,
-    ...PORTAL_CUTSCENE_SEEN_KEYS,
   });
   const playerInput = createPlayerInputController({
     canvas,
@@ -415,6 +409,7 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
   const research = createResearchController({
     prestigeLevel: () => coop?.prestigeStatGainInPlay?.() === false ? 0 : coopAccess.prestigeLevel(),
     guildQuestBonus: () => coop?.weeklyQuests?.()?.bonus ?? 1,
+    serverBoost: () => coop?.serverBoostMultiplier?.() ?? 1,
     prestigePerks: () => coop?.prestigePerks?.(), cards: () => coop?.activeCardStats?.(), equippedFeet: () => inventory.equippedFeet,
     itemLevel: coopAccess.itemLevel,
     player,
@@ -471,13 +466,6 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
     onTravelRefused: destination => autoFarm.travelRefused(destination),
     markPortalCutsceneSeen: (cutscene) => coop?.markPortalCutsceneSeen?.(cutscene),
     mapConfig: MAP_CONFIG,
-    tutorialMapId: TUTORIAL_FOREST_MAP_ID,
-    desertMapId: BEGINNER_DESERT_MAP_ID,
-    snowMapId: INTERMEDIATE_SNOWLANDS_MAP_ID,
-    lavaMapId: ADVANCED_LAVA_WASTES_MAP_ID,
-    infernalMapId: INFERNAL_DEPTHS_MAP_ID,
-    waterMapId: WATER_REACH_MAP_ID,
-    ...PORTAL_CUTSCENE_SEEN_KEYS,
     getCurrentMapId: () => currentMapId,
     setCurrentMapId: setCurrentMap,
     prepareMapAssets: (mapId) => mapAssets.prepare(mapId),
@@ -536,7 +524,7 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
     running: () => session.isRunning(),
     currentMapId: () => currentMapId,
     portalCutsceneActive: () => mapController.isCutsceneActive(),
-    portalCutscenes: bossPortalCutscenes(worldProgression, mapController),
+    portalCutscenes: bossPortalCutscenes((cutscene) => coop?.hasSeenPortalCutscene?.(cutscene) ?? true, mapController),
     spawnBurst,
     damagePlayer: (amount) => playerCombat.damagePlayerFromBoss(amount),
     damageEnemies: (attack, amount, inside) => playerCombat.damageEnemiesFromBoss(attack, amount, inside),
@@ -679,7 +667,7 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
     coop: coopAccess, e: gameElements, player, inventory, currentMapId: () => currentMapId, inTutorial,
     isMapTransitioning: () => mapController.isMapTransitioning(), teleportHome: () => mapController.teleportHome(),
     teleportToMap: mapController.teleportToMap,
-    clearInput: playerInput.clear, renderInventory, equip: inventoryController.equip, showMessage, techTree, quests,
+    clearInput: playerInput.clear, renderInventory, showMessage, techTree, quests,
     beforeUpgradesOpen: () => panels.closeAllExcept("slotUpgrades"), onUpgradeFinished: progressNotices.onUpgradeFinished,
     applyEquipmentStats, saveProgress,
   });
@@ -765,7 +753,7 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
   const { mailbox } = giftsAndMail;
 
   const reconnectOverlay = createReconnectOverlay({
-    coop: coopAccess, e: gameElements, version: GAME_VERSION, hasStarted: () => session.hasStarted(),
+    coop: coopAccess, e: gameElements, hasStarted: () => session.hasStarted(),
     setFarmConnection: connection => { farmConnection = connection; }, refreshAutoFarm: () => autoFarm.refresh(), setGameplayPause,
   });
 
@@ -777,7 +765,7 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
   });
 
   startupCoordinator = createStartupCoordination({
-    coop: coopAccess, version: GAME_VERSION, gameUpdateGate: gameUpdateGateEl, canvas, screen: startupScreen, session, progress,
+    coop: coopAccess, version: GAME_VERSION, updateScreen: reconnectOverlay, canvas, screen: startupScreen, session, progress,
     playerSpriteReady, worldArtReady: assets.worldArtReady, setGameplayPause,
     saveBeforeUpdate: () => { saveProgress(true); coop?.syncMovementState?.(player.x, player.y, 0, 0, "keyboard", true); },
     suspendPlayerVisibility: () => playerVisibility.suspend(),
@@ -897,6 +885,7 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
   const handleInputEscape = createGameActions({
     coop: coopAccess, e: gameElements, inventory, inventoryController, itemInspection: itemInspectionController, renderInventory,
     logPickup, showMessage, clearInput: playerInput.clear, minimizeChat: chatRuntime.minimize, openSupporter: openProfileIconPicker,
+    drawDiamondLook: createDiamondLookDrawer(playerAppearanceAssets),
     closeIconPicker: closeProfileIconPicker, leaveDuelResult, closeDuelReplay: duelRuntime.closeReplayWindow,
     closeBootUpgrade: worldProgression.closeBootUpgrade,
     windows: {

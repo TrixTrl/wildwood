@@ -44,7 +44,7 @@ import { setPlayerBaseMaxHealth } from '../../player-health';
 import { weaponAttackRange } from '../../../weapon-combat';
 import { WORLD } from '../../../constants';
 import { ENEMY_TYPES } from '../../../enemies';
-import { TUTORIAL_FOREST_MAP_ID, type MapId } from '../../../world';
+import type { MapId } from '../../../world';
 import { resolveMapBalance } from '../../../../../shared/map-balance';
 import { runtimeMapBalance } from '../../../../../shared/map-balance-runtime';
 import { GAME_BALANCE } from '../../../../balance/game-balance';
@@ -128,10 +128,6 @@ export type VirtualPlayerProfile = {
   aggroGroups?: string[];
   /** An Aggro run: this many of the map's groups chase the player from arrival (Pull is off during one). */
   aggro?: number;
-  /** False: autofarm without the growth planner (auto-farm-growth.ts), as it was before it. */
-  growth?: boolean;
-  /** The growth planner's tuning, for comparing it (the game's defaults otherwise). */
-  growthTuning?: Partial<import('../auto-farm-growth').GrowthTuning>;
 };
 
 export type BossDuelSetup = {
@@ -141,9 +137,7 @@ export type BossDuelSetup = {
   playerShare: number;
 };
 
-type Sample = { t: number; map: string; power: number; phase: string; selected: string | null; x?: number; y?: number; hp: number; status: string; bossStatus: string;
-  /** The growth planner's forecast for what it was doing (power a minute), this map's best option, and its calibration. */
-  forecast?: { doing: number | null; best: number; mode: string | null; group: string | null; damage: number; incoming: number; groups?: string; next?: number | null; previous?: number | null } };
+type Sample = { t: number; map: string; power: number; phase: string; selected: string | null; x?: number; y?: number; hp: number; status: string; bossStatus: string };
 type MapVisit = { map: string; from: number; to: number | null; entryPower: number; exitPower: number | null; deaths: number; reason: string };
 type DeathEvent = { t: number; map: string; phase: string; selected: string | null; probation: boolean; afterBossLeave: boolean;
   /** What happened in the last 15 s: health shares taken by source, and the biggest single hit. */
@@ -496,9 +490,6 @@ export function createVirtualPlayer(profile: VirtualPlayerProfile, options: {
     travelWanted: destination => autoFarm.headingTo(destination), onTravelRefused: destination => autoFarm.travelRefused(destination),
     markPortalCutsceneSeen: noop,
     mapConfig: mapConfig as never,
-    tutorialMapId: TUTORIAL_FOREST_MAP_ID, desertMapId: 'beginner_desert' as MapId, snowMapId: 'intermediate_snowlands' as MapId,
-    lavaMapId: 'advanced_lava_wastes' as MapId, infernalMapId: 'infernal_depths' as MapId, waterMapId: 'water_reach' as MapId,
-    dragonCutsceneSeenKey: '', snowlandsCutsceneSeenKey: '', lavaCutsceneSeenKey: '', infernalCutsceneSeenKey: '', waterCutsceneSeenKey: '', samuraiCutsceneSeenKey: '',
     getCurrentMapId: () => currentMapId, setCurrentMapId: setCurrentMap, prepareMapAssets: async () => {},
     player, camera: { x: 0, y: 0, zoom: 1 }, viewport: () => ({ width: 1280, height: 720 }), keys: { clear: noop }, stopTouchMove: noop,
     cutsceneOverlay: { hidden: true } as HTMLElement, resizeViewport: noop, isDueling: () => false, running: () => running,

@@ -143,13 +143,12 @@ const PLAYER_STATE_TABLES: ReadonlySet<string> = new Set([
   "playerDefeatClock", "playerMapDeparture", "playerLastLocation", "playerLegalConsent", "playerLifetime", "playerMapBalance", "playerMapMarker",
   "playerMultiplayerPreference", "playerNameCooldown", "playerOnboarding",
   "playerUpgradeBench", "playerUpgradeBenchThirdSlot",
-  // Added after the removal functions were first written.
   "accountDeletionRequest", "accountEmail", "aggroChallengeRun", "chatMessageReportRateLimit", "chatModerator",
   "connectionDiagnostic", "connectionDiagnosticRate", "dailyGemBonus", "developerPresencePreference",
   "endlessTravelAccess",
   "gemKillDaily", "gemKillProgress", "gemTransaction", "guildMemberQuestWeek", "guildRejoin",
   "homeReturnLocation", "leaderboardDirty", "leaderboardPosition", "leaderboardPrestigePosition", "leaderboardStanding", "loginMove",
-  "offlineProgress", "patreonPreview", "playerAggroChallenge", "playerAggroChallengeParked", "playerBonusToggle", "playerNameColor",
+  "offlineProgress", "patreonPreview", "serverBoostTrigger", "playerAggroChallenge", "playerAggroChallengeParked", "playerBonusToggle", "playerNameColor",
   "playerMining", "playerMinedNode", "playerMiningLevel", "playerWoodcutting", "playerChoppedTree", "playerWoodcuttingLevel", "playerLuckResearch", "playerResearchRank", "playerCardShopPurchase", "playerWeaponMastery", "playerMasteryLevel", "playerGold", "oldGearPayout", "playerStarterWeapon", "playerCraftSkill", "playerCraftLevel", "playerTool",
   "playerCosmeticRefine",
   "playerDailyQuest", "playerEndlessRebaseBackup", "playerFreeRespec",
@@ -282,7 +281,7 @@ export function createAccountLifecycle(deps: AccountLifecycleDeps) {
     mergeEquipmentLocks(ctx, link.guest, ctx.sender);
     mergeIgnoredDrops(ctx, link.guest, ctx.sender);
     mergeOfflinePreference(ctx, link.guest, ctx.sender);
-    // Every save is at the current balance version (player_balance_version, 2026-10-15), so the guest's is too.
+    // Every save is at the current balance version (player_balance_version), so the guest's is too.
     const guestAttackRate = guestProgress.attackRate;
     let nextProgress = {
       ...guestProgress,
@@ -347,7 +346,7 @@ export function createAccountLifecycle(deps: AccountLifecycleDeps) {
     movePausedResearch(ctx, link.guest, ctx.sender);
 
     for (const guestUpgrade of [...ctx.db.playerItemUpgrade.byIdentity.filter(link.guest) as Iterable<any>]) {
-      // Rows are keyed by slot now, so this merges a guest's tiers into
+      // Rows are keyed by slot, so this merges a guest's tiers into
       // the account's, keeping whichever went further on each track.
       const key = slotUpgradeKey(ctx.sender, guestUpgrade.itemId);
       const accountUpgrade = ctx.db.playerItemUpgrade.key.find(key);

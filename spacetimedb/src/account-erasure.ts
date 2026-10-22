@@ -210,6 +210,7 @@ export const ERASURE_TARGETS: readonly ErasureTarget[] = [
   { table: "regularEnemyStream", columns: ["identity"], pk: "key", mode: "index", index: "identity" },
   { table: "releaseAcknowledgement", columns: ["identity"], pk: "identity", mode: "key" },
   { table: "researchCompletionSchedule", columns: ["identity"], pk: "scheduled_id", mode: "scan" },
+  { table: "serverBoostTrigger", columns: ["identity"], pk: "identity", mode: "key" },
   { table: "socialFriend", columns: ["owner","peer"], pk: "key", mode: "index", index: "owner" },
   { table: "socialGuildInvite", columns: ["sender","recipient"], pk: "id", mode: "index", index: "sender" },
   { table: "socialMessage", columns: ["sender","recipient","reply_sender"], pk: "id", mode: "index", index: "sender" },
@@ -247,8 +248,8 @@ function matchesIdentity(row: any, columns: readonly string[], identities: reado
 
 /**
  * The rows an index gives for one identity: a btree index's filter, or a unique index's find (a row
- * or none). Null when it is neither, and the table is scanned instead. Every live erase failed on
- * "index.filter is not a function" (2026-10-12): an accessor named like the column is a unique index.
+ * or none). Null when it is neither, and the table is scanned instead. An accessor named like the
+ * column is a unique index, which has no filter.
  */
 function indexRows(index: any, identity: any): Iterable<any> | null {
   if (typeof index?.filter === "function") return index.filter(identity);

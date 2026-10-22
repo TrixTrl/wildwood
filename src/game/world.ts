@@ -118,9 +118,8 @@ import { DESERT_CAMPS, SNOW_CAMPS, LAVA_CAMPS, INFERNAL_CAMPS, WATER_CAMPS, SAMU
 export type { SpawnCamp } from "../../shared/enemy-camps";
 
 /**
- * Regions may not touch. They used to keep 160 apart, but at twice their old
- * size (0.871) the forest's nine fit only closer; every map was laid out by
- * pushing its centres apart until this and the arrival and boss clearances held.
+ * Regions may not touch, and keep at least this far apart. Every map is laid out by
+ * pushing its centres apart until this and the arrival and boss clearances hold.
  */
 const CAMP_CLEARANCE = 20;
 
@@ -149,7 +148,7 @@ function isNearSpawnCamp(camps: readonly SpawnCamp[], x: number, y: number, padd
   return isNearRegionSpawns(camps, x, y, padding);
 }
 
-/** Near the portals or the arrival in the middle of a campaign map (0.901.15); layouts keep that clear as they keep the old corner. */
+/** Near the portals or the arrival in the middle of a campaign map; layouts keep that clear, and the corner too. */
 function nearGateways(mapId: MapId, x: number, y: number, radius: number) {
   return gatewayClearings(mapId).some(spot => Math.hypot(x - spot.x, y - spot.y) < radius);
 }
@@ -653,6 +652,29 @@ function clearOfGateways<T extends { decor: WorldDecor[]; paths: WorldPath[] }>(
       && landings.every(spot => Math.hypot(item.x - spot.x, item.y - spot.y) >= gatewayDecorReach(item) + PORTAL_EXIT_SPREAD)) };
 }
 
+type AuthoredMapId = typeof BEGINNER_DESERT_MAP_ID | typeof INTERMEDIATE_SNOWLANDS_MAP_ID | typeof ADVANCED_LAVA_WASTES_MAP_ID
+  | typeof INFERNAL_DEPTHS_MAP_ID | typeof WATER_REACH_MAP_ID | typeof SAMURAI_GARDEN_MAP_ID | typeof CLOUDSPIRE_MAP_ID
+  | typeof MOONFEN_MAP_ID | typeof CRYSTAL_HOLLOWS_MAP_ID | typeof CLOCKWORK_RUINS_MAP_ID | typeof ION_CITADEL_MAP_ID
+  | typeof VERDANT_CATACOMBS_MAP_ID | typeof NEON_BASTION_MAP_ID | typeof DUSKFALL_ORCHARD_MAP_ID;
+
+/** Each campaign map's built-in camps and layout, used when no saved design replaces them; the Forest uses CAMPS. */
+const AUTHORED_MAPS: Record<AuthoredMapId, { camps: readonly SpawnCamp[]; layout: () => { decor: WorldDecor[]; paths: WorldPath[] } }> = {
+  [BEGINNER_DESERT_MAP_ID]: { camps: DESERT_CAMPS, layout: createDesertLayout },
+  [INTERMEDIATE_SNOWLANDS_MAP_ID]: { camps: SNOW_CAMPS, layout: createSnowLayout },
+  [ADVANCED_LAVA_WASTES_MAP_ID]: { camps: LAVA_CAMPS, layout: createLavaLayout },
+  [INFERNAL_DEPTHS_MAP_ID]: { camps: INFERNAL_CAMPS, layout: createNightForestLayout },
+  [WATER_REACH_MAP_ID]: { camps: WATER_CAMPS, layout: createWaterLayout },
+  [SAMURAI_GARDEN_MAP_ID]: { camps: SAMURAI_CAMPS, layout: createSamuraiGardenLayout },
+  [CLOUDSPIRE_MAP_ID]: { camps: CLOUDSPIRE_CAMPS, layout: createCloudspireLayout },
+  [MOONFEN_MAP_ID]: { camps: MOONFEN_CAMPS, layout: createMoonfenLayout },
+  [CRYSTAL_HOLLOWS_MAP_ID]: { camps: CRYSTAL_HOLLOWS_CAMPS, layout: createCrystalHollowsLayout },
+  [CLOCKWORK_RUINS_MAP_ID]: { camps: CLOCKWORK_RUINS_CAMPS, layout: createClockworkRuinsLayout },
+  [ION_CITADEL_MAP_ID]: { camps: ION_CITADEL_CAMPS, layout: () => createIonCitadelLayout(ION_CITADEL_CAMPS) },
+  [VERDANT_CATACOMBS_MAP_ID]: { camps: VERDANT_CATACOMBS_CAMPS, layout: () => createVerdantCatacombsLayout(VERDANT_CATACOMBS_CAMPS) },
+  [NEON_BASTION_MAP_ID]: { camps: NEON_BASTION_CAMPS, layout: () => createNeonBastionLayout(NEON_BASTION_CAMPS) },
+  [DUSKFALL_ORCHARD_MAP_ID]: { camps: DUSKFALL_ORCHARD_CAMPS, layout: createDuskfallOrchardLayout },
+};
+
 function authoredWorldLayout(playerSpawn: Point, mapId: MapId) {
   const saved = savedMapDesign(mapId);
   if (saved) {
@@ -661,15 +683,8 @@ function authoredWorldLayout(playerSpawn: Point, mapId: MapId) {
       paths: saved.paths.map((path) => ({ ...path })),
     };
   }
-  if (mapId === BEGINNER_DESERT_MAP_ID) return createDesertLayout();
-  if (mapId === INTERMEDIATE_SNOWLANDS_MAP_ID) return createSnowLayout();
-  if (mapId === ADVANCED_LAVA_WASTES_MAP_ID) return createLavaLayout();
-  if (mapId === INFERNAL_DEPTHS_MAP_ID) return createNightForestLayout();
-  if (mapId === WATER_REACH_MAP_ID) return createWaterLayout();
-  if (mapId === SAMURAI_GARDEN_MAP_ID) return createSamuraiGardenLayout();
-  if (mapId === CLOUDSPIRE_MAP_ID) return createCloudspireLayout();
-  if (mapId === MOONFEN_MAP_ID) return createMoonfenLayout();
-  if (mapId === CLOCKWORK_RUINS_MAP_ID) return createClockworkRuinsLayout(); else if (mapId === ION_CITADEL_MAP_ID) return createIonCitadelLayout(ION_CITADEL_CAMPS); else if (mapId === VERDANT_CATACOMBS_MAP_ID) return createVerdantCatacombsLayout(VERDANT_CATACOMBS_CAMPS); else if (mapId === NEON_BASTION_MAP_ID) return createNeonBastionLayout(NEON_BASTION_CAMPS); else if (mapId === DUSKFALL_ORCHARD_MAP_ID) return createDuskfallOrchardLayout(); else if (mapId === CRYSTAL_HOLLOWS_MAP_ID) return createCrystalHollowsLayout();
+  const authored = AUTHORED_MAPS[mapId as AuthoredMapId];
+  if (authored) return authored.layout();
   const decor: WorldDecor[] = [];
   const paths: WorldPath[] = [];
   const centerX = WORLD.w / 2;
@@ -734,7 +749,7 @@ function authoredWorldLayout(playerSpawn: Point, mapId: MapId) {
 /**
  * Where no enemy of a campaign map may spawn: its arrival, its portals, in the forest where new
  * characters start, and the edge of every other region (so two camps' enemies stand apart). Regions
- * overlap some of these; since every map holds eight enemies a stat (0.901.47) their points are drawn
+ * overlap some of these; since every map holds eight enemies a stat, their points are drawn
  * around them rather than hoping the draw misses (tests/scenarios/maps.test.ts holds the rules).
  */
 const NEIGHBOUR_REGION_GAP = 80;
@@ -772,28 +787,10 @@ export function mapSpawnCamps(mapId: MapId = TUTORIAL_FOREST_MAP_ID): readonly S
 function authoredSpawnCamps(mapId: MapId): readonly SpawnCamp[] {
   const saved = savedMapDesign(mapId);
   if (saved?.spawnCamps.length) return saved.spawnCamps;
-  return mapId === BEGINNER_DESERT_MAP_ID
-    ? DESERT_CAMPS
-    : mapId === INTERMEDIATE_SNOWLANDS_MAP_ID
-      ? SNOW_CAMPS
-      : mapId === ADVANCED_LAVA_WASTES_MAP_ID
-        ? LAVA_CAMPS
-        : mapId === INFERNAL_DEPTHS_MAP_ID
-          ? INFERNAL_CAMPS
-          : mapId === WATER_REACH_MAP_ID
-            ? WATER_CAMPS
-            : mapId === SAMURAI_GARDEN_MAP_ID
-              ? SAMURAI_CAMPS
-              : mapId === CLOUDSPIRE_MAP_ID
-                ? CLOUDSPIRE_CAMPS
-                : mapId === MOONFEN_MAP_ID
-                  ? MOONFEN_CAMPS
-                  : mapId === CRYSTAL_HOLLOWS_MAP_ID
-                    ? CRYSTAL_HOLLOWS_CAMPS
-                    : mapId === CLOCKWORK_RUINS_MAP_ID ? CLOCKWORK_RUINS_CAMPS : mapId === ION_CITADEL_MAP_ID ? ION_CITADEL_CAMPS : mapId === VERDANT_CATACOMBS_MAP_ID ? VERDANT_CATACOMBS_CAMPS : mapId === NEON_BASTION_MAP_ID ? NEON_BASTION_CAMPS : mapId === DUSKFALL_ORCHARD_MAP_ID ? DUSKFALL_ORCHARD_CAMPS : CAMPS;
+  return AUTHORED_MAPS[mapId as AuthoredMapId]?.camps ?? CAMPS;
 }
 
-/** `_boss` is kept for callers: regions are laid out clear of the boss, so nothing is pushed from it any more. */
+/** `_boss` is unused: regions are laid out clear of the boss, so nothing is pushed from it. */
 export function createSpawnSites(_boss: Point, mapId: MapId = TUTORIAL_FOREST_MAP_ID): SpawnSite[] {
   if (isProceduralMap(mapId)) return generatedMapContent(mapId).sites;
   if (mapId === HOME_EXTERIOR_MAP_ID || mapId === ONBOARDING_MAP_ID || isSoulMap(mapId) || isGuildHallMap(mapId) || isTownMap(mapId)) return [];
