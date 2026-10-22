@@ -28,6 +28,7 @@ export function saveTime(time: number, mapId: MapId, prestige: number, identity:
             lastChangedMap = mapId;
           }
           relevantTime.bestTime = time;
+          relevantTime.prestige = prestige;
           relevantTime.allTimes.push({ prestige: prestige, time: time });
         }
       } else {
