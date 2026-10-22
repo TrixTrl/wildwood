@@ -3,9 +3,10 @@ import { PROCEDURAL_PREFIX } from "../../shared/procedural-map-core";
 import { formatTimerMs } from "../../shared/timer-format";
 import { MapId } from "./world";
 
-export const TIMER_VALUES = 5;
+const TIMER_VALUES = 11;
+const OFFSET = 4;
 
-type TimeStorage = { [index: string]: { bestTime: number, prestige: number, previousPB?: number } };
+type TimeStorage = { [index: string]: { bestTime: number, prestige: number, previousPB?: number, allTimes: Array<{ prestige: number, time: number }> } };
 
 let lastChangedMap: MapId | undefined;
 
@@ -27,9 +28,10 @@ export function saveTime(time: number, mapId: MapId, prestige: number, identity:
             lastChangedMap = mapId;
           }
           relevantTime.bestTime = time;
+          relevantTime.allTimes.push({ prestige: prestige, time: time });
         }
       } else {
-        data[mapId] = { bestTime: time, prestige: prestige };
+        data[mapId] = { bestTime: time, prestige: prestige, allTimes: [{ prestige: prestige, time: time }] };
       }
       console.log(data);
       console.log(JSON.stringify(data));
@@ -39,9 +41,7 @@ export function saveTime(time: number, mapId: MapId, prestige: number, identity:
 
     }
   }
-  const data = { [mapId]: { bestTime: time, prestige: prestige } };
-  console.log(data);
-  console.log(JSON.stringify(data));
+  const data = { [mapId]: { bestTime: time, prestige: prestige, allTimes: [{ prestige: prestige, time: time }] } };
   localStorage.setItem(`wildjank:timerValues-${identity}`, JSON.stringify(data));
   //storage.setItem(`timerValues-${identity}`, currentStorage);
 }
@@ -86,19 +86,23 @@ export function createTimer() {
 
 export function updateTimeValues(identity: string, centreValue: MapId) {
   const mapId = (n: number) => n < CAMPAIGN_MAPS.length ? CAMPAIGN_MAPS[n].id : `${PROCEDURAL_PREFIX}${n - 14}`;
-  const timerValues = [document.getElementById("timer-1"), document.getElementById("timer-2"), document.getElementById("timer-3"), document.getElementById("timer-4"), document.getElementById("timer-5")];
+  const timerValues = [];
+  for (let i = 0; i < TIMER_VALUES; i++) {
+    timerValues.push(document.getElementById(`timer-${i + 1}`));
+  }
   const times = getTimes(identity);
   const findIndex = CAMPAIGN_MAPS.findIndex(m => m.id === centreValue);
   const mapIndex = findIndex === -1 ? (parseInt(centreValue.split('_')[1]) + 14) : findIndex;
-  const realCentre = Math.max(mapIndex, 2);
+  const realCentre = Math.max(mapIndex, OFFSET);
   const labelText = (mapId: string) => {
-    if (!times[mapId]) return `---`;
-    return formatTimerMs(times[mapId].bestTime);
+    const time = times[mapId];
+    if (!time) return `${mapId}: ---`;
+    return `${mapId}: [${time.prestige}] ${formatTimerMs(time.bestTime)} ${time.previousPB ? `${formatTimerMs(time.previousPB)}` : ``}`;
   };
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < TIMER_VALUES; i++) {
     const timer = timerValues[i];
     if (timer) {
-      timer.textContent = labelText(mapId(realCentre - 2 + i));
+      timer.textContent = labelText(mapId(realCentre - OFFSET + i)) + (realCentre - OFFSET + i === mapIndex ? ` <--` : ``);
     }
   }
 }
