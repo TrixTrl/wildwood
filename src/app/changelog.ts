@@ -1,4 +1,9 @@
 export const RELEASE_NOTES: Record<string, string[]> = {
+  "0.916.29.1": [
+    "The Shop shows the Server Boost below the note from the dev",
+    "Server Boost and Patreon banners in chat show the supporter's portrait",
+    "The Smith's Craft, Reforge and Upgrade buttons match Refine's size, in a softer gold",
+  ],
   "0.916.29": [
     "Server Boost announcements show as their own banner in chat",
     "Server Boost also doubles wood and ore",
@@ -3824,6 +3829,7 @@ const RELEASE_DATES: Record<string, string> = {
 };
 
 export const RELEASE_DAYS: Record<string, string> = {
+  "0.916.29.1": "2026-10-21",
   "0.916.29": "2026-10-21",
   "0.916.28": "2026-10-21",
   "0.916.27": "2026-10-21",
