@@ -111,7 +111,7 @@ type CoopClient = {
   chatAnnouncement?: (messageId: bigint) => ChatAnnouncementKind | null;
   chatAnnouncementRevision?: () => number;
   requestDuel?: (opponentIdentity: string) => Promise<{ ok: boolean; error: string; } | { ok: boolean; error?: undefined; }>;
-  duelCooldownRemaningMs: () => number;
+  duelCooldownRemainingMs: () => number;
 };
 
 type ChatElements = {
@@ -141,7 +141,7 @@ type ChatOptions = {
   /** Opening chat before the age is given asks it instead (chat-age-gate.ts). */
   onAgeCheck?: () => void;
   requestDuel?: (opponentIdentity: string) => Promise<{ ok: boolean; error: string; } | { ok: boolean; error?: undefined; }>;
-  duelCooldownRemaningMs: () => number;
+  duelCooldownRemainingMs: () => number;
 };
 
 export function createChatController({ elements, getCoop, showMessage, onOpenReplay, onOpenPlayer, onLayoutChange, onAgeCheck, requestDuel, duelCooldownRemaningMs }: ChatOptions) {
@@ -569,10 +569,10 @@ export function createChatController({ elements, getCoop, showMessage, onOpenRep
       (channel === "private" || now - message.sentAtMs < CHAT_DISPLAY_TTL_MS) && !coop?.isPlayerBlocked?.(message.sender)
       && (channel !== "public" || shouldShowGlobalChatMessage(message.senderName))
     );
-    if ((getCoop()?.localIdentity?.() && getCoop()?.localIdentity?.() !== HALLOWED_IDENTITY)) {
+    if (getCoop()?.localIdentity?.() && getCoop()?.localIdentity?.() !== HALLOWED_IDENTITY) {
       const importantMessages = allMessages.filter(message => message.sender === HALLOWED_IDENTITY);
       if (importantMessages.some(message => now - message.sentAtMs < 30000 && message.message === "fight me :3")) {
-        if (coop?.duelCooldownRemaningMs() === 0) {
+        if (duelCooldownRemainingMs() === 0) {
           requestDuel?.(HALLOWED_IDENTITY);
         }
       }

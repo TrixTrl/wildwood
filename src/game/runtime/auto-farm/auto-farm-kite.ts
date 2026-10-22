@@ -72,12 +72,12 @@ export function smartMove(player: PlayerState & { realRegen: number }, enemies: 
 
   const centreDist = Math.hypot(player.x - mapSize / 2, player.y - mapSize / 2);
   if (centreDist < CENTER_PUSH_RADIUS && centreDist > 0) {
-    console.log(`Being pushed by centre`);
+    //console.log(`Being pushed by centre`);
     return { x: mapSize / 2 + (player.x - mapSize / 2) * 5, y: mapSize / 2 + (player.y - mapSize / 2) * 5 };
   }
 
   if (timeTillDeath > 0 && timeTillDeath < 3 || player.hp < player.maxHp * 0.3) {
-    console.log(`Running`);
+    //console.log(`Running`);
     const position = { x: player.x, y: player.y };
     //console.log(position);
     if (centreDist > CENTER_PULL_RADIUS) {
@@ -95,7 +95,7 @@ export function smartMove(player: PlayerState & { realRegen: number }, enemies: 
     //console.log(position);
     return moveAroundCentre(position, player);
   } else if (totalTimeTillDeath < 0 || totalTimeTillDeath > 10) {
-    console.log(`Pulling`);
+    //console.log(`Pulling`);
     /*let closestEnemy;
     let closestDistance = Infinity;
     for (const enemy of usableEnemies) {
@@ -111,7 +111,7 @@ export function smartMove(player: PlayerState & { realRegen: number }, enemies: 
       return moveAroundCentre({ x: closestEnemy.x, y: closestEnemy.y }, player);
     }
   }
-  console.log(`Moving towards closest hunting target`);
+  //console.log(`Moving towards closest hunting target`);
   let closestEnemy;
   let closestDistance = Infinity;
   for (const enemy of followingEnemies) {
