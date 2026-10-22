@@ -223,7 +223,7 @@ import { updateTimeValues } from "./game/zone-timer";
 
   const timeMap: Map<MapId, { startTime: number, endTime?: number }> = new Map<MapId, { startTime: number, endTime?: number }>();
   function setCurrentMap(mapId: MapId) {
-    timeMap.forEach(t => { if (t.endTime === undefined) t.endTime = Infinity });
+    timeMap.forEach((t, k) => { if (k !== mapId && t.endTime === undefined) t.endTime = Infinity });
     if (![ONBOARDING_MAP_ID, SOUL_MAP_ID, TOWN_MAP_ID].includes(mapId) && !mapId.startsWith(GUILD_HALL_MAP_PREFIX)) {
       if (!timeMap.has(mapId)) timeMap.set(mapId, { startTime: Date.now() });
       if (coop) updateTimeValues(coop.localIdentity(), mapId);
