@@ -131,12 +131,8 @@ export function smartMove(player: PlayerState & { realRegen: number }, enemies: 
 const validEnemy = (enemy: EnemyState) => !enemy.dead && !enemy.remoteCombatGhost && !enemy.generatedBoss && enemy.hp > 0;
 
 function enemyDps(enemy: EnemyState): number {
-  if (!enemy.definition) {
-    //console.log(`Enemy found without definition: ${JSON.stringify(enemy)}`);
-    //return 0;
-    enemy.definition = ENEMY_BASE_VALUES[enemy.type];
-  }
-  return enemy.damage * enemy.definition.attackSpeed;
+  const definition = ENEMY_BASE_VALUES[enemy.type];
+  return enemy.damage * definition.attackSpeed;
 }
 
 function calculateInfluence(player: PlayerState, enemy: EnemyState): number {
