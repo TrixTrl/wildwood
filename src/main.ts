@@ -301,6 +301,7 @@ import { updateTimeValues } from "./game/zone-timer";
     canPlayMusic: () => !gameplayPauseReasons.has("rewarded-ad"),
     onLowPerformanceChanged: () => { session.resetFrameSchedule(); },
     onGpuChanged: () => { staticWorldLayer?.rebuild?.(); },
+    onWebGLChanged: on => { staticWorldLayer?.setWanted?.(on); },
     showMessage,
   });
 
@@ -793,6 +794,7 @@ import { updateTimeValues } from "./game/zone-timer";
   finishStartup();
   startupCoordinator.startVersionPolling();
 
+  let staticWorldPrepared = false;
   function startGame(markIntro = true, restoreServerPosition = true) {
     if (onboarding?.isActive()) return;
     if (onboarding?.required()) {
@@ -828,7 +830,9 @@ import { updateTimeValues } from "./game/zone-timer";
       giftsAndMail.refresh();
       applyGameplayPauseState();
     };
-    const shouldWarmStaticWorld = firstStart && Boolean(staticWorldLayer?.prepare());
+    // The tutorial starts the session itself, so its end is not a first start: the layer waits for its own first.
+    const shouldWarmStaticWorld = !staticWorldPrepared && Boolean(staticWorldLayer?.prepare());
+    staticWorldPrepared ||= Boolean(staticWorldLayer);
     finishStart();
     if (shouldWarmStaticWorld) {
       scheduleBackgroundTask(() => { void worldRenderRuntime.warmStaticWorld().catch(() => { }); });

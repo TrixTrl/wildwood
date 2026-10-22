@@ -211,7 +211,9 @@ import StartResearchReducer from "./start_research_reducer";
 import StartServerBoostReducer from "./start_server_boost_reducer";
 import TakeOverSessionReducer from "./take_over_session_reducer";
 import TeleportToResearchReducer from "./teleport_to_research_reducer";
+import TeleportToTownSquareReducer from "./teleport_to_town_square_reducer";
 import TransferGuildLeadershipReducer from "./transfer_guild_leadership_reducer";
+import TravelToMapReducer from "./travel_to_map_reducer";
 import UnlockInventorySlotReducer from "./unlock_inventory_slot_reducer";
 import UnlockSecondUpgradeSlotReducer from "./unlock_second_upgrade_slot_reducer";
 import UnlockThirdUpgradeSlotReducer from "./unlock_third_upgrade_slot_reducer";
@@ -1855,7 +1857,9 @@ const reducersSchema = __reducers(
   __reducerSchema("start_server_boost", StartServerBoostReducer),
   __reducerSchema("take_over_session", TakeOverSessionReducer),
   __reducerSchema("teleport_to_research", TeleportToResearchReducer),
+  __reducerSchema("teleport_to_town_square", TeleportToTownSquareReducer),
   __reducerSchema("transfer_guild_leadership", TransferGuildLeadershipReducer),
+  __reducerSchema("travel_to_map", TravelToMapReducer),
   __reducerSchema("unlock_inventory_slot", UnlockInventorySlotReducer),
   __reducerSchema("unlock_second_upgrade_slot", UnlockSecondUpgradeSlotReducer),
   __reducerSchema("unlock_third_upgrade_slot", UnlockThirdUpgradeSlotReducer),

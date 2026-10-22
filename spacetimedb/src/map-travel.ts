@@ -124,6 +124,35 @@ export function teleportToResearchRoom(ctx: ModuleReducerCtx, { x, y }: { x: num
   persistWorldLocation(ctx, ctx.db.player.identity.find(ctx.sender));
 }
 
+/** The Town button from the Copper Hills or Timberwood: back to the square, inside the Town only. */
+export function teleportToTownSquare(ctx: ModuleReducerCtx) {
+  const current = requireControllingPlayer(ctx);
+  if (!isTownMap(current.mapId)) throw new SenderError("Teleport to the Town first.");
+  if (activeDuelFor(ctx, ctx.sender)) throw new SenderError("Finish the duel before using a portal.");
+  if (current.hp <= 0) throw new SenderError("Respawn before teleporting to the Town.");
+  transitionPlayerMap(ctx, current, TOWN_MAP_ID, TOWN_ARRIVAL);
+  persistWorldLocation(ctx, ctx.db.player.identity.find(ctx.sender));
+}
+
+/**
+ * The Map Guide's Travel: straight to an open campaign or Endless map from any map, with the Town travel portal's
+ * checks, landing where that portal would put the player.
+ */
+export function travelToMap(ctx: ModuleReducerCtx, { mapId }: { mapId: string }) {
+  const current = requireControllingPlayer(ctx);
+  if (activeDuelFor(ctx, ctx.sender)) throw new SenderError("Finish the duel before using a portal.");
+  if (current.hp <= 0) throw new SenderError("Respawn before travelling.");
+  if (mapId === current.mapId) return;
+  if (!VALID_MAP_IDS.has(mapId) || !((MAP_IDS as readonly string[]).includes(mapId) || isProceduralMap(mapId)) || isTownMap(mapId)) {
+    throw new SenderError("Unsupported map destination.");
+  }
+  const locked = lockedReason(ctx, mapId);
+  if (locked) throw new SenderError(locked);
+  const [portal] = townPortalUsePoints(mapId);
+  transitionPlayerMap(ctx, current, mapId, arrivalFor(mapId, TOWN_MAP_ID, portal));
+  persistWorldLocation(ctx, ctx.db.player.identity.find(ctx.sender));
+}
+
 /** Why a campaign or Endless map is still shut to the caller, or null when it is open. */
 function lockedReason(ctx: ModuleReducerCtx, mapId: string) {
   const currentProgress = readPlayerProgress(ctx, ctx.sender);
