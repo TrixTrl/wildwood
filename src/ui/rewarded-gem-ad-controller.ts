@@ -104,6 +104,7 @@ export function createRewardedGemAdController(
 
   /** The wait renders every second: only what changed is written, and nothing is shown then hidden again. */
   function render(next: ButtonState, status: string, disabled: boolean, label = WATCH_LABEL, countdown: string | null = null, buttonHidden = false) {
+    return;
     state = next;
     renderedRecord = dependencies.adGemReward();
     setHidden(elements.button, buttonHidden);

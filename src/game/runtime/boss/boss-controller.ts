@@ -48,6 +48,8 @@ import { clamp } from "../../math";
 import type { PlayerGender } from "../../../../shared/player-gender";
 import type { BossCone, PlayerState, SpiderWeb } from "../types";
 import { BOSSES, BOSS_KINDS, bossForMap, clearBossAttack, perBoss, type BossHazards, type BossKind, type BossStates } from "./boss-registry";
+import { MapId } from "../../world";
+import { saveTime, updateTimeValues } from "../../zone-timer";
 
 /** How far past a boss's edge still counts as touching it, as a share of the edge distance. */
 const BOSS_CONTACT_SLACK = 1.02;
@@ -310,9 +312,12 @@ export function createBossController(options: {
   damageEnemies?: (attack: object, amount: number, inside: (x: number, y: number, r: number) => boolean) => void;
   /** Pushes map enemies out of a boss's body. */
   collideEnemies?: (boss: { x: number; y: number; r: number; ry?: number; hitboxOffsetY?: number }) => void;
+  timeMap: () => Map<MapId, { startTime: number, endTime?: number }>;
+  identity?: () => string | undefined;
+  prestige?: () => number | undefined;
 }): BossController {
   const { bosses, hazards, player, localIdentity, running, portalCutsceneActive, spawnBurst, damagePlayer } = options;
-  const hitEnemies = options.damageEnemies ?? (() => {});
+  const hitEnemies = options.damageEnemies ?? (() => { });
   const boss = bosses.dragon;
   const bossRain = hazards.dragon;
   const spiderBoss = bosses.spider;
@@ -427,7 +432,7 @@ export function createBossController(options: {
   // Boss area attacks hit without knocking the player back. Restoring the push
   // is setting the angle, BOSS_AREA_KNOCKBACK_DURATION and
   // bossAreaKnockbackDistance(attackRange, bossRadius) here again.
-  function queueBossAreaKnockback(_sourceX: number, _sourceY: number, _attackRange: number, _bossRadius: number) {}
+  function queueBossAreaKnockback(_sourceX: number, _sourceY: number, _attackRange: number, _bossRadius: number) { }
 
   function clearBossKnockback() {
     bossKnockbackTimeRemaining = 0;
@@ -550,6 +555,19 @@ export function createBossController(options: {
     state.encounter = shared.encounter;
     state.maxHp = shared.maxHp;
     state.hp = shared.hp;
+    if (!shared.alive) {
+      const timeMap = options.timeMap().get(options.currentMapId() as MapId);
+      if (timeMap && timeMap?.endTime === undefined) {
+        timeMap.endTime = Date.now();
+        console.log(options.timeMap());
+        const identity = options.identity?.();
+        const prestige = options.prestige?.();
+        if (identity && prestige) {
+          saveTime(timeMap.endTime - timeMap.startTime, options.currentMapId() as MapId, prestige, identity);
+          updateTimeValues(identity, options.currentMapId() as MapId);
+        }
+      }
+    }
     const revealOnArrival = () => outcome.revealOnArrival === "beforeCutscene"
       ? !options.portalCutscenes[kind]?.seen()
       : outcome.revealOnArrival;
@@ -566,6 +584,7 @@ export function createBossController(options: {
   }
 
   function syncDragonState() {
+    console.log(`Is this run?`);
     const shared = options.sharedBoss("dragon");
     if (!shared) return;
     const encounter = encounters.dragon;
@@ -619,7 +638,21 @@ export function createBossController(options: {
     boss.encounter = shared.encounter;
     boss.maxHp = shared.maxHp;
     boss.hp = shared.hp;
-    if (!shared.alive) boss.dead = true;
+    if (!shared.alive) {
+      boss.dead = true;
+      console.log(`boss kill caught`);
+      const timeMap = options.timeMap().get(options.currentMapId() as MapId);
+      if (timeMap && timeMap?.endTime === undefined) {
+        timeMap.endTime = Date.now();
+        console.log(options.timeMap());
+        const identity = options.identity?.();
+        const prestige = options.prestige?.();
+        if (identity && prestige) {
+          saveTime(timeMap.endTime - timeMap.startTime, options.currentMapId() as MapId, prestige, identity);
+          updateTimeValues(identity, options.currentMapId() as MapId);
+        }
+      }
+    }
     if (encounter.pendingResult !== null && encounter.shownResult !== encounter.pendingResult) {
       const result = options.bossResult("dragon");
       if (result?.encounter === encounter.pendingResult) showDragonResult(result);
@@ -974,59 +1007,73 @@ export function createBossController(options: {
     magmalisk: {
       aggroRange: MAGMALISK_AGGRO_RANGE,
       cone: { ability: "bite", windup: MAGMALISK_BITE_WINDUP, duration: MAGMALISK_BITE_DURATION, range: MAGMALISK_BITE_RANGE, halfAngle: MAGMALISK_BITE_HALF_ANGLE, reach: 38, hitBurst: ["#ffb13b", 28, 230], recover: 2.4 },
-      hazards: { ability: "eruption", landBurst: ["#ff7a24", 32, 220], pattern: {
-        pattern: "eruption", count: 11, angleJitter: .3, minimumRadius: 48, maximumRadius: 230, centerFirst: true,
-        firstTimer: .8, timerStep: .11, margin: 72, radius: 72, attackClock: 3.1, next: "bite",
-      } },
+      hazards: {
+        ability: "eruption", landBurst: ["#ff7a24", 32, 220], pattern: {
+          pattern: "eruption", count: 11, angleJitter: .3, minimumRadius: 48, maximumRadius: 230, centerFirst: true,
+          firstTimer: .8, timerStep: .11, margin: 72, radius: 72, attackClock: 3.1, next: "bite",
+        }
+      },
     },
     gloomroot: {
       aggroRange: GLOOMROOT_AGGRO_RANGE,
       cone: { ability: "sweep", windup: GLOOMROOT_SWEEP_WINDUP, duration: GLOOMROOT_SWEEP_DURATION, range: GLOOMROOT_SWEEP_RANGE, halfAngle: GLOOMROOT_SWEEP_HALF_ANGLE, reach: 40, hitBurst: ["#8af4f3", 30, 235], recover: 2.5 },
-      hazards: { ability: "bloom", landBurst: ["#58e2ee", 34, 225], pattern: {
-        pattern: "bloom", count: 12, angleJitter: .28, minimumRadius: 55, maximumRadius: 255, centerFirst: true,
-        firstTimer: .9, timerStep: .1, margin: 74, radius: 74, attackClock: 3.2, next: "sweep",
-      } },
+      hazards: {
+        ability: "bloom", landBurst: ["#58e2ee", 34, 225], pattern: {
+          pattern: "bloom", count: 12, angleJitter: .28, minimumRadius: 55, maximumRadius: 255, centerFirst: true,
+          firstTimer: .9, timerStep: .1, margin: 74, radius: 74, attackClock: 3.2, next: "sweep",
+        }
+      },
     },
     tidewyrm: {
       aggroRange: TIDEWYRM_AGGRO_RANGE,
       cone: { ability: "surge", windup: TIDEWYRM_SURGE_WINDUP, duration: TIDEWYRM_SURGE_DURATION, range: TIDEWYRM_SURGE_RANGE, halfAngle: TIDEWYRM_SURGE_HALF_ANGLE, reach: 42, hitBurst: ["#b7f7ff", 32, 250], recover: 2.45 },
-      hazards: { ability: "whirlpool", landBurst: ["#5eeaff", 38, 245], pattern: {
-        pattern: "whirlpool", count: 11, angleJitter: .25, minimumRadius: 70, maximumRadius: 290, centerFirst: true,
-        firstTimer: .85, timerStep: .11, margin: 82, radius: 82, attackClock: 3.15, next: "surge", spriteLead: .85,
-      } },
+      hazards: {
+        ability: "whirlpool", landBurst: ["#5eeaff", 38, 245], pattern: {
+          pattern: "whirlpool", count: 11, angleJitter: .25, minimumRadius: 70, maximumRadius: 290, centerFirst: true,
+          firstTimer: .85, timerStep: .11, margin: 82, radius: 82, attackClock: 3.15, next: "surge", spriteLead: .85,
+        }
+      },
       spriteClock: true,
     },
     koiShogun: {
       aggroRange: KOI_SHOGUN_AGGRO_RANGE,
       cone: { ability: "slash", windup: KOI_SHOGUN_SLASH_WINDUP, duration: KOI_SHOGUN_SLASH_DURATION, range: KOI_SHOGUN_SLASH_RANGE, halfAngle: KOI_SHOGUN_SLASH_HALF_ANGLE, reach: 42, hitBurst: ["#d7fbff", 34, 255], recover: 2.4 },
-      hazards: { ability: "whirlpool", landBurst: ["#71e9ff", 40, 250], pattern: {
-        pattern: "whirlpool", count: 11, angleJitter: .25, minimumRadius: 70, maximumRadius: 300, centerFirst: true,
-        firstTimer: .82, timerStep: .105, margin: 82, radius: 84, attackClock: 3.1, next: "slash",
-      } },
+      hazards: {
+        ability: "whirlpool", landBurst: ["#71e9ff", 40, 250], pattern: {
+          pattern: "whirlpool", count: 11, angleJitter: .25, minimumRadius: 70, maximumRadius: 300, centerFirst: true,
+          firstTimer: .82, timerStep: .105, margin: 82, radius: 84, attackClock: 3.1, next: "slash",
+        }
+      },
     },
     tempestKirin: {
       aggroRange: TEMPEST_KIRIN_AGGRO_RANGE,
       cone: { ability: "charge", windup: TEMPEST_KIRIN_CHARGE_WINDUP, duration: TEMPEST_KIRIN_CHARGE_DURATION, range: TEMPEST_KIRIN_CHARGE_RANGE, halfAngle: TEMPEST_KIRIN_CHARGE_HALF_ANGLE, reach: 42, hitBurst: ["#f3fdff", 38, 280], recover: 2.35 },
-      hazards: { ability: "thunder", landBurst: ["#d6f7ff", 44, 270], pattern: {
-        pattern: "thunder", count: 12, angleJitter: .22, minimumRadius: 64, maximumRadius: 320, centerFirst: true,
-        firstTimer: .72, timerStep: .1, margin: 82, radius: 82, attackClock: 3.1, next: "charge",
-      } },
+      hazards: {
+        ability: "thunder", landBurst: ["#d6f7ff", 44, 270], pattern: {
+          pattern: "thunder", count: 12, angleJitter: .22, minimumRadius: 64, maximumRadius: 320, centerFirst: true,
+          firstTimer: .72, timerStep: .1, margin: 82, radius: 82, attackClock: 3.1, next: "charge",
+        }
+      },
     },
     miremaw: {
       aggroRange: MIREMAW_AGGRO_RANGE,
       cone: { ability: "tongue", windup: MIREMAW_TONGUE_WINDUP, duration: MIREMAW_TONGUE_DURATION, range: MIREMAW_TONGUE_RANGE, halfAngle: MIREMAW_TONGUE_HALF_ANGLE, reach: 42, hitBurst: ["#e1fff2", 38, 280], recover: 2.35 },
-      hazards: { ability: "bogBurst", landBurst: ["#a9ffe0", 44, 270], pattern: {
-        pattern: "bogBurst", count: 10, angleJitter: .28, minimumRadius: 72, maximumRadius: 340, centerFirst: true,
-        firstTimer: .76, timerStep: .11, margin: 82, radius: 96, attackClock: 3.1, next: "tongue",
-      } },
+      hazards: {
+        ability: "bogBurst", landBurst: ["#a9ffe0", 44, 270], pattern: {
+          pattern: "bogBurst", count: 10, angleJitter: .28, minimumRadius: 72, maximumRadius: 340, centerFirst: true,
+          firstTimer: .76, timerStep: .11, margin: 82, radius: 96, attackClock: 3.1, next: "tongue",
+        }
+      },
     },
     prismshell: {
       aggroRange: PRISMSHELL_AGGRO_RANGE,
       cone: { ability: "shatter", windup: PRISMSHELL_SHATTER_WINDUP, duration: PRISMSHELL_SHATTER_DURATION, range: PRISMSHELL_SHATTER_RANGE, halfAngle: PRISMSHELL_SHATTER_HALF_ANGLE, reach: 42, hitBurst: ["#d5fcff", 38, 280], recover: 2.35 },
-      hazards: { ability: "crystalBurst", landBurst: ["#c3a6ff", 44, 270], pattern: {
-        pattern: "crystalBurst", count: 8, angleJitter: .12, minimumRadius: 105, maximumRadius: 330, centerFirst: true,
-        firstTimer: .95, timerStep: .15, margin: 82, radius: 86, attackClock: 3.1, next: "shatter",
-      } },
+      hazards: {
+        ability: "crystalBurst", landBurst: ["#c3a6ff", 44, 270], pattern: {
+          pattern: "crystalBurst", count: 8, angleJitter: .12, minimumRadius: 105, maximumRadius: 330, centerFirst: true,
+          firstTimer: .95, timerStep: .15, margin: 82, radius: 86, attackClock: 3.1, next: "shatter",
+        }
+      },
     },
     ironhorn: {
       aggroRange: IRONHORN_AGGRO_RANGE,
@@ -1037,10 +1084,12 @@ export function createBossController(options: {
     dreadreaper: {
       aggroRange: DREADREAPER_AGGRO_RANGE,
       cone: { ability: "shatter", windup: DREADREAPER_SHATTER_WINDUP, duration: DREADREAPER_SHATTER_DURATION, range: DREADREAPER_SHATTER_RANGE, halfAngle: DREADREAPER_SHATTER_HALF_ANGLE, reach: 42, hitBurst: ["#d5fcff", 38, 280], recover: 2.35 },
-      hazards: { ability: "crystalBurst", landBurst: ["#c3a6ff", 44, 270], pattern: {
-        pattern: "crystalBurst", count: 10, angleJitter: 0, minimumRadius: 240, maximumRadius: 240, centerFirst: false,
-        firstTimer: 1.15, timerStep: .07, margin: 82, radius: 68, attackClock: 3.1, next: "shatter", spriteLead: 1.15,
-      } },
+      hazards: {
+        ability: "crystalBurst", landBurst: ["#c3a6ff", 44, 270], pattern: {
+          pattern: "crystalBurst", count: 10, angleJitter: 0, minimumRadius: 240, maximumRadius: 240, centerFirst: false,
+          firstTimer: 1.15, timerStep: .07, margin: 82, radius: 68, attackClock: 3.1, next: "shatter", spriteLead: 1.15,
+        }
+      },
       spriteClock: true,
     },
   };
@@ -1147,8 +1196,10 @@ export function createBossController(options: {
     for (let index = 0; index < 3; index++) {
       const elapsed = elapsedSeconds - index * NEON_EMP.stagger;
       if (elapsed >= duration) continue;
-      voltwardenCrystalBursts.push({ x: voltwardenBoss.x, y: voltwardenBoss.y, r: NEON_EMP.range,
-        timer: duration - elapsed, maxTimer: duration, hitPlayer: false });
+      voltwardenCrystalBursts.push({
+        x: voltwardenBoss.x, y: voltwardenBoss.y, r: NEON_EMP.range,
+        timer: duration - elapsed, maxTimer: duration, hitPlayer: false
+      });
     }
     voltwardenBoss.attackClock = 3.8;
     voltwardenBoss.nextAttack = "laserGrid";
@@ -1158,8 +1209,10 @@ export function createBossController(options: {
     for (const site of verdantSporeSites(target.x, target.y, patternIndex)) {
       const elapsed = elapsedSeconds - site.delay;
       if (elapsed >= duration) continue;
-      gravebloomCrystalBursts.push({ x: clamp(site.x, 100, WORLD.w - 100), y: clamp(site.y, 100, WORLD.h - 100), r: VERDANT_SPORES.range,
-        timer: duration - elapsed, maxTimer: duration, hitPlayer: false });
+      gravebloomCrystalBursts.push({
+        x: clamp(site.x, 100, WORLD.w - 100), y: clamp(site.y, 100, WORLD.h - 100), r: VERDANT_SPORES.range,
+        timer: duration - elapsed, maxTimer: duration, hitPlayer: false
+      });
     }
     gravebloomBoss.attackClock = 3.8;
     gravebloomBoss.nextAttack = "rootGrasp";
@@ -1170,8 +1223,10 @@ export function createBossController(options: {
     for (const site of ionBurstSites(target.x, target.y, pattern, aegisPrimeBoss)) {
       const elapsed = elapsedSeconds - site.delay;
       if (elapsed >= duration) continue;
-      aegisPrimeCrystalBursts.push({ x: clamp(site.x, 100, WORLD.w - 100), y: clamp(site.y, 100, WORLD.h - 100), r: ION_BURSTS.range,
-        timer: duration - elapsed, maxTimer: duration, hitPlayer: false });
+      aegisPrimeCrystalBursts.push({
+        x: clamp(site.x, 100, WORLD.w - 100), y: clamp(site.y, 100, WORLD.h - 100), r: ION_BURSTS.range,
+        timer: duration - elapsed, maxTimer: duration, hitPlayer: false
+      });
     }
     aegisPrimeBoss.attackClock = 3.8;
     aegisPrimeBoss.nextAttack = "shieldSweep";

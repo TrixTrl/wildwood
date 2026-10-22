@@ -33,11 +33,11 @@ export function smartMove(player: PlayerState & { realRegen: number }, enemies: 
     return { x: player.x, y: player.y };
   }
   if (bossCornerDist < BOSS_CORNER_SIZE + (runningFromBoss ? BOSS_CORNER_BUFFER : 0)) {
-    console.log(`Running from boss (${player.x}, ${player.y})`);
+    //console.log(`Running from boss (${player.x}, ${player.y})`);
     runningFromBoss = true;
     return { x: mapSize / 2, y: mapSize / 2 };
   } else {
-    if (runningFromBoss) console.log(`Finished running`);
+    //if (runningFromBoss) console.log(`Finished running`);
     runningFromBoss = false;
   }
 
@@ -131,12 +131,8 @@ export function smartMove(player: PlayerState & { realRegen: number }, enemies: 
 const validEnemy = (enemy: EnemyState) => !enemy.dead && !enemy.remoteCombatGhost && !enemy.generatedBoss && enemy.hp > 0;
 
 function enemyDps(enemy: EnemyState): number {
-  if (!enemy.definition) {
-    //console.log(`Enemy found without definition: ${JSON.stringify(enemy)}`);
-    //return 0;
-    enemy.definition = ENEMY_BASE_VALUES[enemy.type];
-  }
-  return enemy.damage * enemy.definition.attackSpeed;
+  const definition = ENEMY_BASE_VALUES[enemy.type];
+  return enemy.damage * definition.attackSpeed;
 }
 
 function calculateInfluence(player: PlayerState, enemy: EnemyState): number {

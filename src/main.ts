@@ -23,7 +23,7 @@ import { createPrestigeExpansionRuntime } from "./ui/prestige-expansion-runtime"
 import { createProceduralBossController } from "./game/runtime/boss/procedural-boss-controller";
 import { bindPlayerNameTags } from "./app/player-name-tags";
 import { bindAvatarFrames } from "./app/avatar-frames";
-import { isSoulMap } from "../shared/soul-dimension";
+import { isSoulMap, SOUL_MAP_ID } from "../shared/soul-dimension";
 import { worldBoundsFor } from "../shared/world-bounds";
 import { paintTownTeleportButton } from "./ui/town-teleport-button";
 import { isDeveloperIdentity } from "./app/developer";
@@ -96,6 +96,9 @@ import { createRewardDisplay } from "./game/runtime/reward-display";
 import { onwardCue } from "./game/runtime/onward-cue";
 import { bossPortalCutscenes } from "./game/runtime/boss/boss-portal-cutscenes";
 import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
+import { GUILD_HALL_MAP_PREFIX } from "../shared/guild-hall";
+import { TOWN_MAP_ID } from "../shared/town";
+import { updateTimeValues } from "./game/zone-timer";
 
 (() => {
   "use strict";
@@ -218,7 +221,14 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
   let onboarding: ReturnType<typeof createOnboardingRuntime> | undefined;
   const inTutorial = () => currentMapId === ONBOARDING_MAP_ID;
 
+  const timeMap: Map<MapId, { startTime: number, endTime?: number }> = new Map<MapId, { startTime: number, endTime?: number }>();
   function setCurrentMap(mapId: MapId) {
+    timeMap.forEach(t => { if (t.endTime === undefined) t.endTime = Infinity });
+    if (![ONBOARDING_MAP_ID, SOUL_MAP_ID, TOWN_MAP_ID].includes(mapId) && !mapId.startsWith(GUILD_HALL_MAP_PREFIX)) {
+      if (!timeMap.has(mapId)) timeMap.set(mapId, { startTime: Date.now() });
+      if (coop) updateTimeValues(coop.localIdentity(), mapId);
+    }
+    console.log(timeMap);
     currentMapId = mapId;
     WORLD.w = mapId === ONBOARDING_MAP_ID ? ONBOARDING_WORLD.width : worldBoundsFor(mapId).width;
     WORLD.h = mapId === ONBOARDING_MAP_ID ? ONBOARDING_WORLD.height : worldBoundsFor(mapId).height;
@@ -384,6 +394,10 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
     damagePlayer: (damage, source) => playerCombat.damagePlayer(damage, source),
     damageEnemies: (attack, amount, inside) => playerCombat.damageEnemiesFromBoss(attack, amount, inside),
     collideEnemies: boss => playerCombat.pushEnemiesFromBoss(boss), burst: spawnBurst, shot: projectileStore.spawnEnemyShot,
+    timeMap: () => timeMap,
+    storage: localStorage,
+    identity: () => coop?.localIdentity(),
+    prestige: () => coop?.prestige()?.level,
   });
   const enemySimulation = createEnemySimulation(
     enemies,
@@ -529,6 +543,9 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
     damagePlayer: (amount) => playerCombat.damagePlayerFromBoss(amount),
     damageEnemies: (attack, amount, inside) => playerCombat.damageEnemiesFromBoss(attack, amount, inside),
     collideEnemies: boss => playerCombat.pushEnemiesFromBoss(boss),
+    timeMap: () => timeMap,
+    identity: () => coop ? coop.localIdentity() : undefined,
+    prestige: () => coop ? coop.prestige()?.level : undefined,
   });
 
   const markPlayerSpriteReady = () => {

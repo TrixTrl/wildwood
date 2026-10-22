@@ -5021,3 +5021,24 @@ html.text-outline-shadow .death-countdown { text-shadow: var(--text-outline-ring
 .chat-announcement-label { display: inline-block; margin-left: 8px; padding: 1px 8px; border: 1px solid rgba(255,255,255,.3); border-radius: 999px; color: #fff; font-size: 13px; font-weight: 900; line-height: 1.3; vertical-align: middle; -webkit-text-stroke: 0; }
 #chatPanel.is-large .chat-announcement .chat-text { box-shadow: inset 0 0 0 1px rgba(255,255,255,.3); }
 #chatPanel:not(.is-large) .chat-announcement-label { display: none; }
+
+#timerSheet {
+  position: absolute;
+  height: fit-content;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 500;
+  padding: 2px 14px 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  scrollbar-width: none;
+  background-color: #00000070;
+  top: calc(var(--hud-safe-top) + var(--player-hud-visual-height) + 115px);
+}
+
+.timer-line {
+  height: fit-content;
+  width: 200px;
+}

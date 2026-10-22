@@ -6,7 +6,8 @@ import {
 import { ENEMY_TYPES } from "../../enemies";
 import { generatedBossArt } from "../../procedural-maps";
 import type { EnemyState, PlayerState } from "../types";
-import type { SpawnSite } from "../../world";
+import type { MapId, SpawnSite } from "../../world";
+import { saveTime, updateTimeValues } from "../../zone-timer";
 
 type BossRow = {
   key: string;
@@ -66,6 +67,10 @@ export function createProceduralBossController(options: {
     life: number,
     source?: EnemyState | null,
   ) => void;
+  timeMap: () => Map<MapId, { startTime: number, endTime?: number }>;
+  storage: Storage;
+  identity: () => string | undefined;
+  prestige?: () => number | undefined;
 }) {
   let mapId = "",
     boss: EnemyState | null = null,
@@ -153,6 +158,17 @@ export function createProceduralBossController(options: {
     if (row.hp <= 0) {
       if (!boss.dead) options.burst(boss.x, boss.y, "#f7edce", 35, 150);
       boss.dead = true;
+      const timeMap = options.timeMap().get(options.mapId() as MapId);
+      if (timeMap && timeMap?.endTime === undefined) {
+        timeMap.endTime = Date.now();
+        console.log(options.timeMap());
+        const identity = options.identity?.();
+        const prestige = options.prestige?.();
+        if (identity && prestige) {
+          saveTime(timeMap.endTime - timeMap.startTime, options.mapId() as MapId, prestige, identity);
+          updateTimeValues(identity, options.mapId() as MapId);
+        }
+      }
       return;
     }
     // Map enemies collide with its body and take its touch, as with a campaign boss.
