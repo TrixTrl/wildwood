@@ -108,11 +108,9 @@ function cachedPlayerBody(
 }
 
 /**
- * How often a body-part sprite that failed to load is asked for again. A part
- * that fails once used to stay broken for the life of the page: the body was
- * drawn without it, and a plain reload could be handed the same failed answer
- * from the browser's cache, so only closing the browser brought the character
- * back. The query string makes every retry a fresh request; the delays grow so
+ * How often a body-part sprite that failed to load is asked for again, so a
+ * failed part never stays missing for the life of the page. The query string
+ * makes every retry a fresh request, past the browser's cache; the delays grow so
  * a real outage is not hammered, and the last one repeats until it works.
  */
 export const PLAYER_PART_RETRY_DELAYS_MS = [500, 1_000, 2_000, 4_000, 8_000, 30_000] as const;
@@ -256,9 +254,8 @@ export function equipmentLegs(assets: PlayerAppearanceAssets, itemId: string | u
 /**
  * The bare legs, in the player's own skin tone.
  *
- * The art is one neutral pair, so without this a dark-skinned character walked
- * around on pale feet the moment they had no boots — which is now the default,
- * since Trailblazer Boots are gone. Multiply keeps the shading in the artwork
+ * The art is one neutral pair, so without this a dark-skinned character would
+ * walk on pale feet whenever they wear no boots, the default. Multiply keeps the shading in the artwork
  * and takes its colour from the tone; the second draw restores the alpha the
  * fill would otherwise have squared off.
  *
@@ -598,6 +595,8 @@ export function drawStartingPlayer(
   // Another kind's art swung as the sword is, or lifted and leaned as the staff is, around its own grip.
   const swing = swings ? spin ?? swordSwingPose(options.throwClock ?? 0) : undefined;
   const swingTurn = swing && !swordHeld ? (swing.angle + 28) * DEGREES_TO_RADIANS : 0;
+  // The hilt moves a little with the swing.
+  const gripX = swing?.gripX ?? 0, gripY = swing?.gripY ?? 0;
   const cast = casts && !staffHeld ? staffCastPose(options.throwClock ?? 0) : undefined;
   const drawHeldItem = () => {
     if (!heldItem || !heldSpritePresentation || !heldVisible) return;
@@ -611,7 +610,7 @@ export function drawStartingPlayer(
       // Held upright at its grip, leaning a little forward; the cast lifts, leans and thrusts it, and its head glows.
       const pose = staffCastPose(casts ? options.throwClock ?? 0 : 0);
       ctx.save();
-      ctx.translate(left + width / 2 + pose.forward, heldY + height * STAFF_GRIP - pose.lift);
+      ctx.translate(left + width / 2 + pose.forward + gripX, heldY + height * STAFF_GRIP - pose.lift + gripY);
       ctx.rotate(STAFF_REST_TILT + pose.tilt + runMotion.rotation + swingTurn);
       if (swing) drawSwordTrail(ctx, 0, 0, height * STAFF_GRIP, -Math.PI / 2, swing.trail);
       drawLayer(ctx, asset, -width / 2, -height * STAFF_GRIP, width, height, "weapon", true, asset !== held);
@@ -620,7 +619,7 @@ export function drawStartingPlayer(
       return;
     }
     ctx.save();
-    ctx.translate(left + width / 2 + (cast?.forward ?? 0), heldY + height / 2 - (cast?.lift ?? 0));
+    ctx.translate(left + width / 2 + (cast?.forward ?? 0) + gripX, heldY + height / 2 - (cast?.lift ?? 0) + gripY);
     const baseRotation = heldSpritePresentation.handAction === "BOW"
       ? bowHeldRotationRadians({ combatFacing: options.combatFacing, facingLeft, heldInLeftHand })
       : 0;
