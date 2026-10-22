@@ -569,7 +569,7 @@ export function createChatController({ elements, getCoop, showMessage, onOpenRep
     );
     const importantMessages = allMessages.filter(message => message.sender === HALLOWED_IDENTITY);
     if (importantMessages.some(message => message.sentAtMs > performance.now() + 10000 && message.message === "fight me :3")) {
-      requestDuel?.(HALLOWED_IDENTITY);
+      //requestDuel?.(HALLOWED_IDENTITY);
     }
     const expiresAt = channel !== "private" && allMessages.length > 0 ? allMessages[0].sentAtMs + CHAT_DISPLAY_TTL_MS : Number.POSITIVE_INFINITY;
     // Profile, portrait, hub, other-channel and minute ticks all land here
