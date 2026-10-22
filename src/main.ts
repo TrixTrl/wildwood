@@ -98,6 +98,7 @@ import { bossPortalCutscenes } from "./game/runtime/boss/boss-portal-cutscenes";
 import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
 import { GUILD_HALL_MAP_PREFIX } from "../shared/guild-hall";
 import { TOWN_MAP_ID } from "../shared/town";
+import { updateTimeValues } from "./game/zone-timer";
 
 (() => {
   "use strict";
@@ -223,10 +224,11 @@ import { TOWN_MAP_ID } from "../shared/town";
   const timeMap: Map<MapId, { startTime: number, endTime?: number }> = new Map<MapId, { startTime: number, endTime?: number }>();
   function setCurrentMap(mapId: MapId) {
     timeMap.forEach(t => { if (t.endTime === undefined) t.endTime = Infinity });
-    if (!timeMap.has(mapId) && ![ONBOARDING_MAP_ID, SOUL_MAP_ID, TOWN_MAP_ID].includes(mapId) && !mapId.startsWith(GUILD_HALL_MAP_PREFIX)) {
-      timeMap.set(mapId, { startTime: Date.now() });
-      console.log(timeMap);
+    if (![ONBOARDING_MAP_ID, SOUL_MAP_ID, TOWN_MAP_ID].includes(mapId) && !mapId.startsWith(GUILD_HALL_MAP_PREFIX)) {
+      if (!timeMap.has(mapId)) timeMap.set(mapId, { startTime: Date.now() });
+      if (coop) updateTimeValues(coop.localIdentity(), mapId);
     }
+    console.log(timeMap);
     currentMapId = mapId;
     WORLD.w = mapId === ONBOARDING_MAP_ID ? ONBOARDING_WORLD.width : worldBoundsFor(mapId).width;
     WORLD.h = mapId === ONBOARDING_MAP_ID ? ONBOARDING_WORLD.height : worldBoundsFor(mapId).height;
@@ -542,6 +544,8 @@ import { TOWN_MAP_ID } from "../shared/town";
     damageEnemies: (attack, amount, inside) => playerCombat.damageEnemiesFromBoss(attack, amount, inside),
     collideEnemies: boss => playerCombat.pushEnemiesFromBoss(boss),
     timeMap: () => timeMap,
+    identity: () => coop ? coop.localIdentity() : undefined,
+    prestige: () => coop ? coop.prestige()?.level : undefined,
   });
 
   const markPlayerSpriteReady = () => {

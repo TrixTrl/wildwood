@@ -7,7 +7,7 @@ import { ENEMY_TYPES } from "../../enemies";
 import { generatedBossArt } from "../../procedural-maps";
 import type { EnemyState, PlayerState } from "../types";
 import type { MapId, SpawnSite } from "../../world";
-import { saveTime } from "../../zone-timer";
+import { saveTime, updateTimeValues } from "../../zone-timer";
 
 type BossRow = {
   key: string;
@@ -166,6 +166,7 @@ export function createProceduralBossController(options: {
         const prestige = options.prestige?.();
         if (identity && prestige) {
           saveTime(timeMap.endTime - timeMap.startTime, options.mapId() as MapId, prestige, identity);
+          updateTimeValues(identity, options.mapId() as MapId);
         }
       }
       return;

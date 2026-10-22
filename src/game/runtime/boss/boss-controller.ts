@@ -49,6 +49,7 @@ import type { PlayerGender } from "../../../../shared/player-gender";
 import type { BossCone, PlayerState, SpiderWeb } from "../types";
 import { BOSSES, BOSS_KINDS, bossForMap, clearBossAttack, perBoss, type BossHazards, type BossKind, type BossStates } from "./boss-registry";
 import { MapId } from "../../world";
+import { saveTime, updateTimeValues } from "../../zone-timer";
 
 /** How far past a boss's edge still counts as touching it, as a share of the edge distance. */
 const BOSS_CONTACT_SLACK = 1.02;
@@ -312,6 +313,8 @@ export function createBossController(options: {
   /** Pushes map enemies out of a boss's body. */
   collideEnemies?: (boss: { x: number; y: number; r: number; ry?: number; hitboxOffsetY?: number }) => void;
   timeMap: () => Map<MapId, { startTime: number, endTime?: number }>;
+  identity?: () => string | undefined;
+  prestige?: () => number | undefined;
 }): BossController {
   const { bosses, hazards, player, localIdentity, running, portalCutsceneActive, spawnBurst, damagePlayer } = options;
   const hitEnemies = options.damageEnemies ?? (() => { });
@@ -552,6 +555,19 @@ export function createBossController(options: {
     state.encounter = shared.encounter;
     state.maxHp = shared.maxHp;
     state.hp = shared.hp;
+    if (!shared.alive) {
+      const timeMap = options.timeMap().get(options.currentMapId() as MapId);
+      if (timeMap && timeMap?.endTime === undefined) {
+        timeMap.endTime = Date.now();
+        console.log(options.timeMap());
+        const identity = options.identity?.();
+        const prestige = options.prestige?.();
+        if (identity && prestige) {
+          saveTime(timeMap.endTime - timeMap.startTime, options.currentMapId() as MapId, prestige, identity);
+          updateTimeValues(identity, options.currentMapId() as MapId);
+        }
+      }
+    }
     const revealOnArrival = () => outcome.revealOnArrival === "beforeCutscene"
       ? !options.portalCutscenes[kind]?.seen()
       : outcome.revealOnArrival;
@@ -568,6 +584,7 @@ export function createBossController(options: {
   }
 
   function syncDragonState() {
+    console.log(`Is this run?`);
     const shared = options.sharedBoss("dragon");
     if (!shared) return;
     const encounter = encounters.dragon;
@@ -621,7 +638,21 @@ export function createBossController(options: {
     boss.encounter = shared.encounter;
     boss.maxHp = shared.maxHp;
     boss.hp = shared.hp;
-    if (!shared.alive) boss.dead = true;
+    if (!shared.alive) {
+      boss.dead = true;
+      console.log(`boss kill caught`);
+      const timeMap = options.timeMap().get(options.currentMapId() as MapId);
+      if (timeMap && timeMap?.endTime === undefined) {
+        timeMap.endTime = Date.now();
+        console.log(options.timeMap());
+        const identity = options.identity?.();
+        const prestige = options.prestige?.();
+        if (identity && prestige) {
+          saveTime(timeMap.endTime - timeMap.startTime, options.currentMapId() as MapId, prestige, identity);
+          updateTimeValues(identity, options.currentMapId() as MapId);
+        }
+      }
+    }
     if (encounter.pendingResult !== null && encounter.shownResult !== encounter.pendingResult) {
       const result = options.bossResult("dragon");
       if (result?.encounter === encounter.pendingResult) showDragonResult(result);

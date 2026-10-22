@@ -27,6 +27,7 @@ import { statPopupsEnabled } from "./stat-popup-setting";
 import { setHidden, setText } from "./dom-write";
 import { replaceChildrenIfChanged } from "./replace-children-if-changed";
 import { HALLOWED_IDENTITY } from "../../shared/developer-identity";
+import { createTimer } from "../game/zone-timer";
 
 
 const GEM_DROP_ART = "assets/wildstat/gems/gem-icon-v2.webp";
@@ -102,6 +103,8 @@ export function createRuntimeHudController(dependencies: RuntimeHudDependencies)
   const activeStatRewards = new Map<string, ActiveStatReward>();
   let rewardDisplayMode: "total" | "base" = "total";
   let completionToastId = 0;
+
+  createTimer();
 
   function showMessage(text: string, color = "#fff") {
     elements.message.textContent = text;
