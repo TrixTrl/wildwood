@@ -228,118 +228,92 @@
           </div>
           <div id="slotUpgradesPanel" class="slot-upgrades-panel" role="dialog" aria-modal="true" aria-labelledby="slotUpgradesTitle" hidden>
         <h2 id="slotUpgradesTitle" class="window-banner"><span>Slot Upgrades</span></h2>
-            <div class="slot-upgrades-content">
-              <p id="slotUpgradesPrompt" class="slot-upgrades-prompt">Pick A Queue</p>
-              <div class="slot-upgrades-queues" role="group" aria-label="Upgrade Queues">
-                <button id="slotUpgradesQueueOne" class="inventory-item slot-upgrades-queue is-empty" type="button"
-                  aria-label="Pick A Slot For Queue 1" aria-pressed="false">
-                  <span class="inventory-item-empty-mark">+</span>
-                </button>
-                <button id="slotUpgradesQueueTwo" class="inventory-item slot-upgrades-queue is-locked" type="button"
-                  aria-label="Unlock A Second Queue For 150 Gems" aria-pressed="false">
-                  <span class="slot-upgrades-lock-symbol" aria-hidden="true">🔒</span>
-                  <span class="slot-upgrades-queue-cost"><img src="assets/wildstat/gems/gem-icon-v2.webp" alt=""
-                      aria-hidden="true" draggable="false" /><strong>150</strong></span>
-                </button>
-              </div>
-              <div id="slotUpgradesStatGain" class="slot-upgrades-stat-gain" aria-live="polite"></div>
-              <div id="slotUpgradesTimer" class="slot-upgrades-timer" role="timer" hidden></div>
-              <button id="slotUpgradesAction" class="slot-upgrades-action" type="button" disabled
-                hidden>Upgrade</button>
-              <button id="slotUpgradesSpeedUp" class="slot-upgrades-action slot-upgrades-speed-up" type="button"
-                disabled hidden>Finish Now</button>
-              <button id="slotUpgradesBack" class="slot-upgrades-back window-back-button" type="button">Back</button>
-            </div>
-            <div id="slotUpgradesPicker" class="slot-upgrades-picker" hidden>
-              <div class="slot-upgrades-picker-sheet" role="dialog" aria-modal="true"
-                aria-label="Choose A Slot To Upgrade">
-                <div class="slot-upgrades-picker-heading">Choose A Slot To Upgrade</div>
-                <div id="slotUpgradesPickerItems" class="slot-upgrades-picker-items"></div>
-                <button id="closeSlotUpgradesPickerBtn" class="slot-upgrades-picker-close window-back-button"
-                  type="button">Back</button>
-              </div>
-            </div>
+        <div class="slot-upgrades-content">
+          <p id="slotUpgradesPrompt" class="slot-upgrades-prompt">Pick A Queue</p>
+          <div class="slot-upgrades-queues" role="group" aria-label="Upgrade Queues">
+            <button id="slotUpgradesQueueOne" class="inventory-item slot-upgrades-queue is-empty" type="button" aria-label="Pick A Slot For Queue 1" aria-pressed="false">
+              <span class="inventory-item-empty-mark">+</span>
+            </button>
+            <button id="slotUpgradesQueueTwo" class="inventory-item slot-upgrades-queue is-locked" type="button" aria-label="Unlock A Second Queue For 150 Gems" aria-pressed="false">
+              <span class="slot-upgrades-lock-symbol" aria-hidden="true">🔒</span>
+              <span class="slot-upgrades-queue-cost"><img src="assets/wildstat/gems/gem-icon-v2.webp" alt="" aria-hidden="true" draggable="false" /><strong>150</strong></span>
+            </button>
           </div>
-          <div id="duelControls" hidden>
-            <div id="duelStatus">DUEL READY</div>
+          <div id="slotUpgradesStatGain" class="slot-upgrades-stat-gain" aria-live="polite"></div>
+          <div id="slotUpgradesTimer" class="slot-upgrades-timer" role="timer" hidden></div>
+          <button id="slotUpgradesAction" class="slot-upgrades-action" type="button" disabled hidden>Upgrade</button>
+          <button id="slotUpgradesSpeedUp" class="slot-upgrades-action slot-upgrades-speed-up" type="button" disabled hidden>Finish Now</button>
+          <button id="slotUpgradesBack" class="slot-upgrades-back window-back-button" type="button">Back</button>
+        </div>
+        <div id="slotUpgradesPicker" class="slot-upgrades-picker" hidden>
+          <div class="slot-upgrades-picker-sheet" role="dialog" aria-modal="true" aria-label="Choose A Slot To Upgrade">
+            <div class="slot-upgrades-picker-heading">Choose A Slot To Upgrade</div>
+            <div id="slotUpgradesPickerItems" class="slot-upgrades-picker-items"></div>
+            <button id="closeSlotUpgradesPickerBtn" class="slot-upgrades-picker-close window-back-button" type="button">Back</button>
           </div>
         </div>
       </div>
-    </div>
-    <div id="message"></div>
-    <div id="pickupLog"></div>
-    <div id="itemDropReveal" aria-live="polite" aria-atomic="true"></div>
-    <button id="minimapButton" class="minimap-button" type="button" aria-label="Open map guide" aria-controls="mapGuide"
-      aria-expanded="false"></button>
-    <div class="minimap-meta">
-      <div id="minimapMapName" class="minimap-map-name" aria-live="polite"></div>
-      <div id="minimapPlayers" class="minimap-players">players online: 0</div>
-      <button id="minimapVersion" class="minimap-version" type="button"
-        aria-label="Game alpha version v0.916.30 ~ Hallowed's Version.1. Open release notes">alpha v0.916.30.1 ~ Hallowed's
-        Version</button>
-    </div>
-    <button id="enemyRespawnAdBtn" class="respawn-ad-button" type="button" aria-label="Watch ad · +10 Gems"
-      aria-controls="enemyRespawnAdPrompt" aria-expanded="false" aria-haspopup="dialog" hidden>
-      <span class="respawn-ad-video-icon" aria-hidden="true"></span>
-      <span id="enemyRespawnAdCountdown" class="respawn-ad-countdown" aria-hidden="true" hidden></span>
-      <span id="enemyRespawnAdStatus" class="visually-hidden">WATCH AD</span>
-    </button>
-    <div id="enemyRespawnAdPrompt" class="respawn-ad-prompt" role="dialog" aria-modal="true"
-      aria-labelledby="enemyRespawnAdPromptTitle" aria-describedby="enemyRespawnAdPromptCopy" hidden>
-      <div class="respawn-ad-prompt-card">
-        <span class="respawn-ad-prompt-video" aria-hidden="true"></span>
-        <h2 id="enemyRespawnAdPromptTitle">Watch ad · +10 Gems</h2>
-        <p id="enemyRespawnAdPromptCopy">Watch a short ad for 10 Gems. One ad every 30 minutes, up to 4 a day.</p>
-        <div class="respawn-ad-prompt-actions">
-          <button id="enemyRespawnAdConfirm" class="respawn-ad-prompt-confirm" type="button">Watch Ad</button>
-          <button id="enemyRespawnAdCancel" class="respawn-ad-prompt-cancel" type="button">Not Now</button>
-        </div>
+      <div id="duelControls" hidden>
+        <div id="duelStatus">DUEL READY</div>
       </div>
     </div>
-    <div id="chatPanel" class="card">
-      <div class="chat-header">
-        <span>WORLD CHAT</span>
-        <div id="topMeta">
-          <div id="coopStatus">Players online: 1</div>
-          <div id="version">alpha v0.916.30.1 ~ Hallowed's Version</div>
-        </div>
-        <button id="chatSizeToggle" class="chat-size-toggle" type="button" aria-label="Expand chat"
-          aria-expanded="false"><span class="chat-size-icon" aria-hidden="true"></span></button>
-      </div>
-      <div id="chatMessages" aria-live="polite"></div>
-      <form id="chatForm">
-        <div id="chatReplyComposer" class="chat-reply-composer" hidden>
-          <div class="chat-reply-composer-copy">
-            <strong id="chatReplyComposerName">Replying to Player</strong>
-            <span id="chatReplyComposerPreview"></span>
-          </div>
-          <button id="chatReplyCancelBtn" type="button" aria-label="Cancel reply">×</button>
-        </div>
-        <textarea id="chatInput" maxlength="250" rows="1" autocomplete="off" enterkeyhint="send"
-          placeholder="Say something…"></textarea>
-        <button id="chatSendBtn" class="window-back-button" type="submit">SEND</button>
-        <button id="chatBackBtn" class="chat-back-button window-back-button" type="button" hidden>Back</button>
-      </form>
     </div>
-    <div class="hud-secondary-controls">
-      <div id="hudGemWallet" class="hud-gem-wallet" aria-label="Gem balance">
-        <img class="hud-gem-icon" src="assets/wildstat/gems/gem-icon-v2.webp" alt="" aria-hidden="true"
-          draggable="false" />
-        <strong id="hudGemBalance" class="hud-gem-balance" aria-live="polite">0</strong>
-      </div>
-    </div>
-    <div class="dps-chasing-counter-box">
-      <div id="dpsChasingCounter-dps">
-        ...
-      </div>
-      <div>
-        /
-      </div>
-      <div id="dpsChasingCounter-regen">
-        ...
+  </div>
+  <div id="message"></div>
+  <div id="pickupLog"></div>
+  <div id="itemDropReveal" aria-live="polite" aria-atomic="true"></div>
+  <button id="minimapButton" class="minimap-button" type="button" aria-label="Open map guide" aria-controls="mapGuide" aria-expanded="false"></button>
+  <div class="minimap-meta">
+    <div id="minimapMapName" class="minimap-map-name" aria-live="polite"></div>
+    <div id="minimapPlayers" class="minimap-players">players online: 0</div>
+    <button id="minimapVersion" class="minimap-version" type="button" aria-label="Game alpha version v0.916.31 ~ Hallowed's Version. Open release notes">alpha v0.916.31 ~ Hallowed's Version</button>
+  </div>
+  <button id="enemyRespawnAdBtn" class="respawn-ad-button" type="button" aria-label="Watch ad · +10 Gems" aria-controls="enemyRespawnAdPrompt" aria-expanded="false" aria-haspopup="dialog" hidden>
+    <span class="respawn-ad-video-icon" aria-hidden="true"></span>
+    <span id="enemyRespawnAdCountdown" class="respawn-ad-countdown" aria-hidden="true" hidden></span>
+    <span id="enemyRespawnAdStatus" class="visually-hidden">WATCH AD</span>
+  </button>
+  <div id="enemyRespawnAdPrompt" class="respawn-ad-prompt" role="dialog" aria-modal="true" aria-labelledby="enemyRespawnAdPromptTitle" aria-describedby="enemyRespawnAdPromptCopy" hidden>
+    <div class="respawn-ad-prompt-card">
+      <span class="respawn-ad-prompt-video" aria-hidden="true"></span>
+      <h2 id="enemyRespawnAdPromptTitle">Watch ad · +10 Gems</h2>
+      <p id="enemyRespawnAdPromptCopy">Watch a short ad for 10 Gems. One ad every 30 minutes, up to 4 a day.</p>
+      <div class="respawn-ad-prompt-actions">
+        <button id="enemyRespawnAdConfirm" class="respawn-ad-prompt-confirm" type="button">Watch Ad</button>
+        <button id="enemyRespawnAdCancel" class="respawn-ad-prompt-cancel" type="button">Not Now</button>
       </div>
     </div>
   </div>
+  <div id="chatPanel" class="card">
+    <div class="chat-header">
+      <span>WORLD CHAT</span>
+      <div id="topMeta">
+        <div id="coopStatus">Players online: 1</div>
+        <div id="version">alpha v0.916.31 ~ Hallowed's Version</div>
+      </div>
+      <button id="chatSizeToggle" class="chat-size-toggle" type="button" aria-label="Expand chat" aria-expanded="false"><span class="chat-size-icon" aria-hidden="true"></span></button>
+    </div>
+    <div id="chatMessages" aria-live="polite"></div>
+    <form id="chatForm">
+      <div id="chatReplyComposer" class="chat-reply-composer" hidden>
+        <div class="chat-reply-composer-copy">
+          <strong id="chatReplyComposerName">Replying to Player</strong>
+          <span id="chatReplyComposerPreview"></span>
+        </div>
+        <button id="chatReplyCancelBtn" type="button" aria-label="Cancel reply">×</button>
+      </div>
+      <textarea id="chatInput" maxlength="250" rows="1" autocomplete="off" enterkeyhint="send" placeholder="Say something…"></textarea>
+      <button id="chatSendBtn" class="window-back-button" type="submit">SEND</button>
+      <button id="chatBackBtn" class="chat-back-button window-back-button" type="button" hidden>Back</button>
+    </form>
+  </div>
+  <div class="hud-secondary-controls">
+  <div id="hudGemWallet" class="hud-gem-wallet" aria-label="Gem balance">
+    <img class="hud-gem-icon" src="assets/wildstat/gems/gem-icon-v2.webp" alt="" aria-hidden="true" draggable="false" />
+    <strong id="hudGemBalance" class="hud-gem-balance" aria-live="polite">0</strong>
+  </div>
+  </div>
+</div>
 
 <div id="start">
   <button id="signInMuteButton" class="signin-mute-button" type="button" aria-label="Mute music" aria-pressed="false" title="Mute music">
@@ -403,7 +377,7 @@
       <ul id="updateNoticeItems" class="signin-update-history"></ul>
     </div>
   </aside>
-  <button id="signinVersion" class="signin-version" type="button" aria-expanded="false" aria-controls="updateNotice" aria-label="WildStat alpha version v0.916.30.1. Toggle release notes">alpha v0.916.30.1</button>
+  <button id="signinVersion" class="signin-version" type="button" aria-expanded="false" aria-controls="updateNotice" aria-label="WildStat alpha version v0.916.31 ~ Hallowed's Version Toggle release notes">alpha v0.916.31 ~ Hallowed's Version</button>
   <div id="newPlayerPanel" class="modal onboarding-modal" hidden>
     <h1 class="wildstat-wordmark-title welcome-wordmark-title" aria-label="Welcome to WildStat">
       <span class="welcome-wordmark-prefix" aria-hidden="true">WELCOME TO</span>
