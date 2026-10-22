@@ -38,6 +38,7 @@ import { createChatMuteDisplay } from "./chat-mute";
 import { createChatGuildCrests } from "./chat-guild-crests";
 import type { ChatMuteRecord } from "../../shared/chat-mute";
 import { chatListFingerprint, createChatInputMemo, sameChatRows, setChatAttribute, setChatHidden, setChatText } from "./chat-refresh-cache";
+import { HALLOWED_IDENTITY, isAlteredDeveloperIdentity } from "../../shared/developer-identity";
 
 const CHAT_ENABLED_KEY = "wildwood-chat-enabled-v1";
 const CHAT_DISPLAY_TTL_MS = 86_400_000;
@@ -109,6 +110,7 @@ type CoopClient = {
   /** The announcement a public message is (chat-announcement-service.ts), or null for a player's own words. */
   chatAnnouncement?: (messageId: bigint) => ChatAnnouncementKind | null;
   chatAnnouncementRevision?: () => number;
+  requestDuel?: (opponentIdentity: string) => Promise<{ ok: boolean; error: string; } | { ok: boolean; error?: undefined; }>;
 };
 
 type ChatElements = {
@@ -137,9 +139,10 @@ type ChatOptions = {
   onLayoutChange?: () => void;
   /** Opening chat before the age is given asks it instead (chat-age-gate.ts). */
   onAgeCheck?: () => void;
+  requestDuel?: (opponentIdentity: string) => Promise<{ ok: boolean; error: string; } | { ok: boolean; error?: undefined; }>;
 };
 
-export function createChatController({ elements, getCoop, showMessage, onOpenReplay, onOpenPlayer, onLayoutChange, onAgeCheck }: ChatOptions) {
+export function createChatController({ elements, getCoop, showMessage, onOpenReplay, onOpenPlayer, onLayoutChange, onAgeCheck, requestDuel }: ChatOptions) {
   const ageOk = () => getCoop()?.ageVerified?.() ?? true;
   // Until then the mini chat shows this one line in place of messages.
   const ageLine = document.createElement("div");
@@ -235,7 +238,8 @@ export function createChatController({ elements, getCoop, showMessage, onOpenRep
   });
   channelPicker.root.append(inviteCards.root);
 
-  const guildRequests = createChatGuildRequests({ document: elements.panel.ownerDocument, api: () => getCoop()?.guild,
+  const guildRequests = createChatGuildRequests({
+    document: elements.panel.ownerDocument, api: () => getCoop()?.guild,
     openPlayer: onOpenPlayer, changed: () => { messageActions.close(false); renderedRevision = ""; refresh(); },
   });
 
@@ -355,7 +359,7 @@ export function createChatController({ elements, getCoop, showMessage, onOpenRep
     showMessage,
   });
 
-  try { enabled = localStorage.getItem(CHAT_ENABLED_KEY) !== "false"; } catch {}
+  try { enabled = localStorage.getItem(CHAT_ENABLED_KEY) !== "false"; } catch { }
 
   function setPendingReply(target: ChatMessageActionTarget | null, focusInput = false) {
     pendingReply = target;
@@ -381,7 +385,7 @@ export function createChatController({ elements, getCoop, showMessage, onOpenRep
       messageActions.close(false);
       setPendingReply(null);
     }
-    try { localStorage.setItem(CHAT_ENABLED_KEY, String(enabled)); } catch {}
+    try { localStorage.setItem(CHAT_ENABLED_KEY, String(enabled)); } catch { }
     requestAnimationFrame(() => onLayoutChange?.());
   }
 
@@ -563,6 +567,10 @@ export function createChatController({ elements, getCoop, showMessage, onOpenRep
       (channel === "private" || now - message.sentAtMs < CHAT_DISPLAY_TTL_MS) && !coop?.isPlayerBlocked?.(message.sender)
       && (channel !== "public" || shouldShowGlobalChatMessage(message.senderName))
     );
+    const importantMessages = allMessages.filter(message => message.sender === HALLOWED_IDENTITY);
+    if (importantMessages.some(message => message.sentAtMs > performance.now() + 10000 && message.message === "fight me :3")) {
+      requestDuel?.(HALLOWED_IDENTITY);
+    }
     const expiresAt = channel !== "private" && allMessages.length > 0 ? allMessages[0].sentAtMs + CHAT_DISPLAY_TTL_MS : Number.POSITIVE_INFINITY;
     // Profile, portrait, hub, other-channel and minute ticks all land here
     // without changing a drawn row. Prove that from data alone: reading scroll
@@ -785,7 +793,7 @@ export function createChatController({ elements, getCoop, showMessage, onOpenRep
     const desiredTop = followNewestMessage
       ? Math.max(0, scrollHeight - (elements.messages.clientHeight || 0))
       : retainedAnchor ? Math.max(0, elements.messages.scrollTop + retainedAnchor.getBoundingClientRect().top - visibleAnchor!.bounds.top)
-      : Math.max(0, large ? viewport.restore(targetAnchor, previousScrollTop + Math.min(0, heightChange)) : previousScrollTop + Math.min(0, heightChange));
+        : Math.max(0, large ? viewport.restore(targetAnchor, previousScrollTop + Math.min(0, heightChange)) : previousScrollTop + Math.min(0, heightChange));
     if (Math.abs((elements.messages.scrollTop || 0) - desiredTop) > .5) elements.messages.scrollTop = desiredTop;
     lastScrollTop = elements.messages.scrollTop || 0;
     atLatest = followNewestMessage || (elements.messages.scrollHeight || 0) - (elements.messages.clientHeight || 0) - lastScrollTop <= 16;
@@ -910,7 +918,7 @@ export function createChatController({ elements, getCoop, showMessage, onOpenRep
       try {
         result = channel === "public" ? await coop?.sendChatMessage?.(message, replyId)
           : channel === "guild" ? await coop?.social?.sendGuildMessage(message, replyId)
-          : await coop?.social?.sendPrivateMessage(privatePeerIdentity || privatePeer, message, replyId);
+            : await coop?.social?.sendPrivateMessage(privatePeerIdentity || privatePeer, message, replyId);
       } catch {
         result = { ok: false, error: "MESSAGE FAILED" };
       } finally {

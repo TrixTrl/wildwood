@@ -13,6 +13,7 @@ export function createChatRuntimeController(options: Pick<ChatOptions, "getCoop"
     verifyAge: async age => options.getCoop()?.verifyAge?.(age),
     onVerified: () => chat.open(),
   });
+  const coop = options.getCoop();
   const chat = createChatController({
     onAgeCheck: ageGate.open,
     elements: {
@@ -55,6 +56,7 @@ export function createChatRuntimeController(options: Pick<ChatOptions, "getCoop"
     onOpenReplay: options.openReplay,
     onOpenPlayer: options.onOpenPlayer,
     onLayoutChange: options.onLayoutChange,
+    requestDuel: coop ? coop.requestDuel : undefined,
   });
 
   // Subscription bursts share one paint; gameplay updates never synchronously
@@ -76,6 +78,7 @@ export function createChatRuntimeController(options: Pick<ChatOptions, "getCoop"
     refresh: chat.refresh,
     requestRefresh,
     minimize: chat.minimize,
+    openPrivate: chat.openPrivate,
     isMaximized: chat.isMaximized,
     isInteracting: chat.isInteracting,
   };

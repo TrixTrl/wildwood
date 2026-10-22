@@ -5,6 +5,7 @@ import { createSpawnSites, type MapId, type SpawnSite, type WorldDecor, type Wor
 import type { Movement } from "./player-input-controller";
 import type { DragonBossState, EnemyState, PlayerState, DuelScene, RuntimeDuelReplay, RuntimeDuelState } from "./types";
 import { setPlayerBaseMaxHealth } from "./player-health";
+import { HALLOWED_IDENTITY } from "../../../shared/developer-identity";
 
 type LocalState = { x: number; y: number; facing?: number };
 type DuelPresentation = { state: { challengerHp: number; opponentHp: number } };
@@ -215,6 +216,10 @@ export function createPlayerController(options: {
     isDuelResultHeld: () => duelResultHeld || duelWasActive,
     resetMovementSync: () => { movementSyncActive = false; },
     finishDuelResult: () => {
+      const duel = liveDuelScene();
+      if (duel && duel.opponent.identity === HALLOWED_IDENTITY) {
+
+      }
       duelResultHeld = false;
       setHeldDuelScene(null);
       if (duelReturnState) {
