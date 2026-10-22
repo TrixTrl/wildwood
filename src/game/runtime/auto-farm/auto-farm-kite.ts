@@ -33,11 +33,11 @@ export function smartMove(player: PlayerState & { realRegen: number }, enemies: 
     return { x: player.x, y: player.y };
   }
   if (bossCornerDist < BOSS_CORNER_SIZE + (runningFromBoss ? BOSS_CORNER_BUFFER : 0)) {
-    console.log(`Running from boss (${player.x}, ${player.y})`);
+    //console.log(`Running from boss (${player.x}, ${player.y})`);
     runningFromBoss = true;
     return { x: mapSize / 2, y: mapSize / 2 };
   } else {
-    if (runningFromBoss) console.log(`Finished running`);
+    //if (runningFromBoss) console.log(`Finished running`);
     runningFromBoss = false;
   }
 
