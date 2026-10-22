@@ -1,4 +1,11 @@
 export const RELEASE_NOTES: Record<string, string[]> = {
+  "0.916.29": [
+    "Server Boost announcements show as their own banner in chat",
+    "Server Boost also doubles wood and ore",
+    "The Server Boost button says why when it cannot start",
+    "Chat and guild buttons are green again",
+    "A crowded Town uses less CPU",
+  ],
   "0.916.28": [
     "The Smith and the Sellers show your items as a grid, with the picked item and its button always on top",
     "Craft and the Sellers always list all gear",
@@ -3817,6 +3824,7 @@ const RELEASE_DATES: Record<string, string> = {
 };
 
 export const RELEASE_DAYS: Record<string, string> = {
+  "0.916.29": "2026-10-21",
   "0.916.28": "2026-10-21",
   "0.916.27": "2026-10-21",
   "0.916.26": "2026-10-21",
