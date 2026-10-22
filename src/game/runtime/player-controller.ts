@@ -216,10 +216,6 @@ export function createPlayerController(options: {
     isDuelResultHeld: () => duelResultHeld || duelWasActive,
     resetMovementSync: () => { movementSyncActive = false; },
     finishDuelResult: () => {
-      const duel = liveDuelScene();
-      if (duel && duel.opponent.identity === HALLOWED_IDENTITY) {
-
-      }
       duelResultHeld = false;
       setHeldDuelScene(null);
       if (duelReturnState) {
