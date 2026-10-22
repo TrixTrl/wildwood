@@ -1944,7 +1944,7 @@
   .chat-reply-composer-copy span { overflow: hidden; color: rgba(235,232,226,.52); font-size: 10px; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; -webkit-text-stroke: 0; text-shadow: none; }
   #chatReplyCancelBtn { width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 0; border: 0; border-radius: 0; background: transparent; color: rgba(255,255,255,.72); font-size: 19px; box-shadow: none; }
 
-  #chatForm #chatSendBtn { flex: 0 0 53px; width: 53px; margin: 0; border-color: var(--ui-outline); background: #f2f2f2; box-shadow: 0 3px 0 var(--ui-outline); color: #111; -webkit-text-stroke: 0; text-shadow: none; }
+  #chatForm #chatSendBtn { flex: 0 0 53px; width: 53px; margin: 0; border-color: #18371b; background: linear-gradient(#63ad5c, #347536); box-shadow: 0 3px 0 #18371b; }
   #chatBackBtn[hidden] { display: none; }
 
   .window-back-footer { display: grid; flex: 0 0 auto; place-items: center; min-height: 60px; padding: 7px max(10px, env(safe-area-inset-right)) var(--window-back-bottom-gap) max(10px, env(safe-area-inset-left)); }
@@ -1956,7 +1956,8 @@
     width: 44px; height: 44px; min-height: 44px; margin: 0; padding: 8px;
   }
   .item-inspection-tools button.item-inspection-destroy:active { transform: translateY(2px); box-shadow: 0 1px 0 #351519; }
-  .item-inspection-tools button.item-inspection-destroy:disabled { opacity: .55; }
+  .item-inspection-tools button.item-inspection-destroy:disabled,
+  .item-inspection-tools button.item-inspection-destroy[aria-disabled="true"] { opacity: .55; }
   .item-inspection-destroy svg { flex: none; }
 
   #chatInput,
@@ -4278,8 +4279,7 @@
 .chat-private-picker { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px; margin-top: 6px; }
 .chat-private-picker[hidden] { display: none; }
 .chat-private-picker input { min-width: 0; min-height: 40px; padding: 7px; border: 1px solid #73667c; border-radius: 6px; background: #29252d; color: #fff; font-size: 14px; }
-.chat-private-picker > button { min-height: 40px; margin: 0; padding: 0 14px; border: 2px solid var(--ui-outline); border-radius: 8px; background: #f2f2f2; box-shadow: 0 3px 0 var(--ui-outline); color: #111; font: 900 14px/1 var(--font-rounded); -webkit-text-stroke: 0; text-shadow: none; }
-.chat-private-picker > button:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ui-outline); }
+.chat-private-picker > button { min-height: 40px; margin: 0; font-size: 14px; border-color: #18371b; background: linear-gradient(#63ad5c, #347536); box-shadow: 0 3px 0 #18371b; }
 /* Player search: the recipient field in private chat and the leaderboard's magnifier. Names come from one load and filter as they are typed. */
 .player-search { position: relative; min-width: 0; }
 .player-search-field { position: relative; display: flex; align-items: center; min-width: 0; }
@@ -4336,7 +4336,7 @@
 .chat-guild-invite p { margin: 0; color: #fff; font: 800 14px/1.3 var(--font-rounded); -webkit-text-stroke: 0; text-shadow: none; }
 .chat-guild-invite-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .chat-guild-invite-actions button { min-height: 40px; margin: 0; padding: 0 10px; border: 2px solid var(--ui-outline); border-radius: 8px; background: #3a3a3a; box-shadow: 0 3px 0 var(--ui-outline); color: #fff; font: 900 14px/1 var(--font-rounded); -webkit-text-stroke: 0; text-shadow: none; }
-.chat-guild-invite-actions button.is-primary { background: #f2f2f2; color: #111; }
+.chat-guild-invite-actions button.is-primary { border-color: #18371b; background: linear-gradient(#63ad5c, #347536); box-shadow: 0 3px 0 #18371b; -webkit-text-stroke: initial; text-shadow: initial; }
 .chat-guild-invite-actions button:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 var(--ui-outline); }
 .chat-guild-invite-actions button:disabled { opacity: .6; }
 #chatForm { position: relative; }
@@ -4718,7 +4718,7 @@
 .shop-dev-note p { margin: 0; color: #e3e6ea; font-size: 14px; font-weight: 700; line-height: 1.45; -webkit-text-stroke: 0; text-shadow: none; }
 .shop-dev-note .shop-dev-sign { color: #f0d7e7; font-weight: 900; }
 /* Server Boost: what it does, the one running, and the supporter's Start button with its wait. */
-.shop-server-boost { display: grid; gap: 8px; margin: 0 0 18px; padding: 14px 16px; border: 1px solid #ffffff1f; border-radius: 12px; background: #000000b3; color: #fff; text-align: left; }
+.shop-server-boost { display: grid; gap: 8px; margin: 18px 0 0; padding: 14px 16px; border: 1px solid #ffffff1f; border-radius: 12px; background: #000000b3; color: #fff; text-align: left; }
 .shop-server-boost h2 { margin: 0; color: #fff; font-size: 15px; }
 .shop-server-boost p { margin: 0; color: #e3e6ea; font-size: 13px; font-weight: 700; line-height: 1.4; -webkit-text-stroke: 0; text-shadow: none; }
 .shop-server-boost p:empty { display: none; }
@@ -4726,6 +4726,7 @@
 .shop-server-boost-start { justify-self: start; min-height: 44px; padding: 8px 16px; border: 1px solid #777; border-radius: 6px; background: #222; color: #fff; box-shadow: none; font-size: 14px; }
 .shop-server-boost-start[hidden] { display: none; }
 .shop-server-boost-start:disabled { opacity: .55; cursor: default; }
+.shop-server-boost .shop-server-boost-note.is-error { color: #ffb0a6; }
 .shop-frame-tiers { display: flex; justify-content: space-around; align-items: start; gap: 10px; margin-top: 8px; }
 .shop-frame-tier { display: grid; justify-items: center; gap: 10px; }
 .shop-frame-portrait { display: block; width: 64px; height: 64px; border-radius: 8px; background-color: #2a2f36; }
@@ -4934,8 +4935,8 @@
 .guild-request-online::before, .guild-request-offline::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; background: currentColor; vertical-align: 1px; }
 
 .guild-request-actions .window-back-button { width: auto; min-width: 0; margin: 0; }
-.guild-request-actions .guild-request-accept { border-color: var(--ui-outline); background: #f2f2f2; box-shadow: 0 3px 0 var(--ui-outline); color: #111; -webkit-text-stroke: 0; text-shadow: none; }
-.guild-request-actions .guild-request-deny { border-color: var(--ui-outline); background: #3a3a3a; box-shadow: 0 3px 0 var(--ui-outline); }
+.guild-request-actions .guild-request-accept { border-color: #18371b; background: linear-gradient(#63ad5c, #347536); box-shadow: 0 3px 0 #18371b; }
+.guild-request-actions .guild-request-deny { border-color: #594515; background: linear-gradient(#e0bd55, #ac812c); box-shadow: 0 3px 0 #594515; }
 
 .chat-conversation-heading[role="button"] { cursor: pointer; }
 .chat-conversation-heading[role="button"]:focus-visible,
@@ -5015,3 +5016,8 @@ html.text-outline-shadow .death-countdown { text-shadow: var(--text-outline-ring
 .inventory-loadout .equipment-slot.slot-tool > span:not(.slot-tool-art) { place-self: center; font-size: var(--font-readable-min); }
 .inventory-loadout .slot-tool .slot-tool-art { grid-area: 1 / 1; width: 100%; height: 100%; margin: 0; background: center / contain no-repeat; transform: rotate(-35deg); }
 .inventory-loadout .slot-tool .slot-tool-art.slot-tool-crossed { transform: rotate(35deg) scaleX(-1); }
+
+/* Server announcements in chat (chat-announcement-line.ts): a player's line with a label and an outlined bubble. */
+.chat-announcement-label { display: inline-block; margin-left: 8px; padding: 1px 8px; border: 1px solid rgba(255,255,255,.3); border-radius: 999px; color: #fff; font-size: 13px; font-weight: 900; line-height: 1.3; vertical-align: middle; -webkit-text-stroke: 0; }
+#chatPanel.is-large .chat-announcement .chat-text { box-shadow: inset 0 0 0 1px rgba(255,255,255,.3); }
+#chatPanel:not(.is-large) .chat-announcement-label { display: none; }

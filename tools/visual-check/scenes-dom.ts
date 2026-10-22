@@ -14,8 +14,11 @@ import { createGearSellerController, type GearSellerDeps } from "../../src/ui/ge
 import { renderProfileGuild } from "../../src/ui/profile-guild";
 import { createProfileActionsMenu } from "../../src/ui/profile-actions-menu";
 import { createGemShopController } from "../../src/ui/gem-shop-controller";
+import { markChatAnnouncement } from "../../src/ui/chat-announcement-line";
 import { createDiamondLookDrawer } from "../../src/game/runtime/diamond-look-preview";
 import { installServerBoostHud } from "../../src/ui/server-boost-hud";
+import { createItemInspectionController } from "../../src/ui/item-inspection-controller";
+import { gradeShopSalePrice } from "../../shared/grade-shop";
 import { settleFrames, settleImages } from "./determinism";
 import { GROUND, playerAppearance } from "./world";
 
@@ -272,5 +275,68 @@ async function serverBoost() {
   await settleCssImages();
 }
 
+/** Public chat, compact and expanded: a player's line, the server's Server Boost and Patreon banners, and the same words typed by a player. */
+async function chatAnnouncement() {
+  const unpin = document.createElement("style");
+  unpin.textContent = `
+    html, body { position: static !important; height: auto !important; overflow: visible !important; }
+    #chatPanel { position: relative !important; inset: auto !important; transform: none !important; margin: 12px auto !important; }
+    #chatPanel.is-large { width: 100% !important; height: auto !important; }
+    #chatPanel #chatMessages { height: auto !important; max-height: none !important; overflow: visible !important; }
+  `;
+  document.head.append(unpin);
+  const boost = "Started a Server Boost: 2x Rewards for 15 min";
+  const playerLine = (name: string, words: string) => {
+    const line = document.createElement("div");
+    line.className = "chat-line";
+    line.innerHTML = '<span class="chat-profile-icon"></span><div class="chat-message-content"><span class="chat-name"></span>'
+      + '<span class="chat-text"><span class="chat-message-body"><span></span></span></span></div>';
+    line.querySelector(".chat-name")!.textContent = name;
+    line.querySelector(".chat-message-body span")!.textContent = words;
+    return line;
+  };
+  const announcement = (name: string, words: string, kind: "server-boost" | "patreon") => {
+    const line = playerLine(name, words);
+    markChatAnnouncement(line, line.querySelector<HTMLElement>(".chat-name")!, kind);
+    return line;
+  };
+  for (const large of [false, true]) {
+    const panel = await importById("chatPanel");
+    panel.classList.toggle("is-large", large);
+    const messages = panel.querySelector("#chatMessages")!;
+    const rows = [
+      playerLine("Moss", "anyone up for the boss?"),
+      announcement("Oogway", boost, "server-boost"),
+      announcement("Oogway", "Extended a Server Boost by 15 min", "server-boost"),
+      announcement("Fern", "Became a Gold supporter on Patreon. Thank you for supporting WildStat! ♥", "patreon"),
+      playerLine("Faker", boost),
+    ];
+    messages.append(...(large ? rows : rows.slice(1, 2).concat(rows.slice(4))));
+  }
+  await settleCssImages();
+}
+
+/** The item window on a graded bow from the bag: its skills, Equip, and the trash can that sells it (greyed while worn). */
+async function itemWindow(worn: boolean) {
+  const doc = await gameMarkup();
+  document.body.style.background = GROUND;
+  for (const node of doc.body.children) document.body.append(document.importNode(node, true));
+  await import("../../src/ui/game-shell");
+  const itemId = "rare_bow";
+  const controller = createItemInspectionController({
+    panel: byId("itemInspectionPanel"), title: byId("itemInspectionTitle"), content: byId("itemInspectionContent"),
+    back: byId<HTMLButtonElement>("itemInspectionBack"),
+  });
+  controller.open({
+    itemId, refine: 7, ownItem: true, skills: { arrowStorm: 2.4, ricochet: 1.1, piercingShot: 3.2 },
+    actions: [
+      { label: worn ? "Unequip" : "Equip", kind: worn ? "SECONDARY" : "PRIMARY", onActivate: () => {} },
+      { label: worn ? "Take It Off Before Selling It" : `Sell for ${gradeShopSalePrice(itemId)} Gold`, kind: "DESTROY", blocked: worn, onActivate: () => {} },
+    ],
+  });
+  await settleCssImages();
+}
+
 export const DOM_SCENES: Record<string, () => Promise<void>> = { icons, hud, wordmark, shops, "gem-shop": gemShop, "server-boost": serverBoost,
+  "chat-announcement": chatAnnouncement, "item-window": () => itemWindow(false), "item-window-worn": () => itemWindow(true),
   "profile-own": () => profileWindow(true), "profile-other": () => profileWindow(false) };

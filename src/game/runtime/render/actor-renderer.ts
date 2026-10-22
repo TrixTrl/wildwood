@@ -417,7 +417,7 @@ export function createActorRenderer(options: {
         const amount = capped ? "Capped" : stat === "critDamage" ? `+${+(detail.reward * multiplier * 100).toFixed(1)}%` : soulRewardText(stat, multiplier);
         return [{ text: `${amount} `, color: "#ffffff" }, { text: detail.label, color: detail.color }];
       }),
-      dps: { text: "DPS not implemented yet", color: "#ffffff" },
+      //dps: { text: "DPS not implemented yet", color: "#ffffff" },
     };
   }
 
@@ -442,14 +442,14 @@ export function createActorRenderer(options: {
   function enemyLabels(type: string, reward: EnemyDefinition["reward"]) {
     const amountText = liveRewardText(reward, options.rewardContext?.()) ?? rewardAmountLabel(reward);
     const enemyDefinition = ENEMY_BASE_VALUES[type as EnemyKind];
-    const dps = enemyDefinition ? enemyDefinition.damage * enemyDefinition.attackSpeed : -1;
+    //const dps = enemyDefinition ? enemyDefinition.damage * enemyDefinition.attackSpeed : -1;
     return {
       name: type,
       reward: cachedLabel(`reward:${reward.type}:${amountText}`, () => [
         { text: `${amountText} `, color: "#ffffff" },
         { text: reward.type === "speed" ? "Atk Speed" : reward.type === "crit" ? "Crit Multiplier" : rewardStatLabel(reward), color: REWARD_DATA[reward.type].color },
       ]),
-      dps: { text: dps != -1 ? `DPS ${formatCompactNumber(dps)}` : `???`, color: "#ffffff" },
+      //dps: { text: dps != -1 ? `DPS ${formatCompactNumber(dps)}` : `???`, color: "#ffffff" },
     };
   }
 
@@ -987,7 +987,7 @@ export function createActorRenderer(options: {
         ctx.textAlign = "center";
         ctx.textBaseline = "alphabetic";
         options.outlinedSegments(labels.reward, 0, rewardY + rewardDrop(), 4);
-        options.outlinedSegments([labels.dps], 0, rewardY + rewardDrop() * 2.5, 4);
+        //options.outlinedSegments([labels.dps], 0, rewardY + rewardDrop() * 2.5, 4);
       }
     });
   }

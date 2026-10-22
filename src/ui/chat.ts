@@ -1,4 +1,6 @@
 import { createChatGuildRequests } from "./chat-guild-requests";
+import { markChatAnnouncement } from "./chat-announcement-line";
+import type { ChatAnnouncementKind } from "../../shared/chat-announcement";
 import { CHAT_CLOSED_EVENT } from "./town-teleport-button";
 import type { GuildApi } from "../coop/services/guild-service";
 import { createChatViewport } from "./chat-viewport";
@@ -104,6 +106,9 @@ type CoopClient = {
   sendChatMessage?: (message: string, replyToMessageId?: bigint) => Promise<{ ok: boolean; error?: string }>;
   reportChatMessage?: (messageId: bigint, reason: ChatReportReason) => Promise<{ ok: boolean; error?: string }>;
   chatMute?: () => ChatMuteRecord | null;
+  /** The announcement a public message is (chat-announcement-service.ts), or null for a player's own words. */
+  chatAnnouncement?: (messageId: bigint) => ChatAnnouncementKind | null;
+  chatAnnouncementRevision?: () => number;
 };
 
 type ChatElements = {
@@ -457,13 +462,15 @@ export function createChatController({ elements, getCoop, showMessage, onOpenRep
     const reactionOverride = reactionOverrides.get(`${reactionChannel}:${message.id}`);
     const reactionCountsJson = reactionOverride?.source === message.reactionCountsJson ? reactionOverride?.value : message.reactionCountsJson;
     const rowKey = `${identity}:${conversationKey()}:${large}:${message.id}`;
-    const signature = JSON.stringify([
+    // Only the world channel's messages can be announcements; the mark is the server's, never the text.
+    const announcement = channel === "public" ? coop?.chatAnnouncement?.(message.id) ?? null : null;
+    const signature = JSON.stringify([announcement,
       message.sender, message.senderName, message.message, String(message.replayId), message.guildReplayKey,
       message.powerLevel, displayedGender, message.moderated, String(message.replyToMessageId),
       message.replyToSenderName, message.replyToMessage, message.sentAtMs, guest, iconIndex, nameColor,
       playerNamePrefix(message.sender), large ? reactionCountsJson : "", large && chatTimestampsEnabled(),
     ]);
-    return { displayedGender, guest, iconIndex, nameColor, reactionChannel, reactionCountsJson, rowKey, signature };
+    return { announcement, displayedGender, guest, iconIndex, nameColor, reactionChannel, reactionCountsJson, rowKey, signature };
   }
 
   function refresh() {
@@ -509,7 +516,7 @@ export function createChatController({ elements, getCoop, showMessage, onOpenRep
     const readingLatest = enabled && large && !guildRequests.isSelected() && document.visibilityState !== "hidden"
       && (renderedRevision === "" || (!historyState.frozen && atLatest));
     // The name tags' revision moves when Show Guild Tags is switched, which no chat row does.
-    const revision = `${playerNameTagsRevision()}:${viewportRevision}:${Math.floor(now / 60_000)}:${reactionRevision}:${readingLatest}:${conversationKey()}:${coop?.chatRevision?.() ?? -1}:${coop?.social?.revision() ?? -1}:${coop?.localIdentity?.() ?? ""}:${enabled}:${large}:${historyState.revision}`;
+    const revision = `${playerNameTagsRevision()}:${viewportRevision}:${Math.floor(now / 60_000)}:${reactionRevision}:${readingLatest}:${conversationKey()}:${coop?.chatRevision?.() ?? -1}:${coop?.chatAnnouncementRevision?.() ?? -1}:${coop?.social?.revision() ?? -1}:${coop?.localIdentity?.() ?? ""}:${enabled}:${large}:${historyState.revision}`;
     if (revision === renderedRevision && now < nextExpiryAt) return;
     // Scrolling changes only the message window, not conversation metadata.
     const metadata = `${readingLatest}:${conversationKey()}:${coop?.chatRevision?.() ?? -1}:${coop?.social?.revision() ?? -1}:${identity}:${enabled}:${large}`;
@@ -618,9 +625,33 @@ export function createChatController({ elements, getCoop, showMessage, onOpenRep
     // elements: recreating them makes gender/power icons flash while repainting.
     const nextRows = new Map<string, { signature: string; element: HTMLDivElement }>();
     for (const message of messages) {
-      const { displayedGender, guest, iconIndex, nameColor, reactionChannel, reactionCountsJson, rowKey, signature } = presentMessage(coop, identity, message);
+      const { announcement, displayedGender, guest, iconIndex, nameColor, reactionChannel, reactionCountsJson, rowKey, signature } = presentMessage(coop, identity, message);
       const previous = renderedRows.get(rowKey);
       if (previous?.signature === signature) { nextRows.set(rowKey, previous); continue; }
+      const displayName = message.senderName || (message.replayId > 0n ? "DUEL" : "PLAYER");
+      const displayIdentity = message.sender;
+      const openPlayer = (event: Event) => {
+        event.stopPropagation();
+        if (!large) {
+          event.preventDefault();
+          setLarge(true);
+          return;
+        }
+        onOpenPlayer?.(displayIdentity, displayName);
+      };
+      const icon = document.createElement("span");
+      icon.className = "chat-profile-icon";
+      if (large) applyAvatarFrame(icon, displayIdentity);
+      icon.setAttribute("role", "button");
+      icon.setAttribute("tabindex", large ? "0" : "-1");
+      icon.setAttribute("aria-label", `View ${displayName}'s profile`);
+      icon.addEventListener("click", openPlayer);
+      icon.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        openPlayer(event);
+      });
+      applyProfileIcon(icon, iconIndex, displayIdentity);
       const line = document.createElement("div");
       line.className = "chat-line";
       line.dataset.messageId = String(message.id);
@@ -650,21 +681,11 @@ export function createChatController({ elements, getCoop, showMessage, onOpenRep
         messageBody.prepend(replyPrefix);
       }
       text.appendChild(messageBody);
-      const displayName = message.senderName || (message.replayId > 0n ? "DUEL" : "PLAYER");
-      const displayIdentity = message.sender;
       const displayedPower = message.powerLevel;
       const name = document.createElement("span");
       name.className = "chat-name";
       appendPlayerIdentity(name, { identity: displayIdentity, name: displayName, power: displayedPower, gender: displayedGender, guest, nameColor }, { chat: true });
-      const openPlayer = (event: Event) => {
-        event.stopPropagation();
-        if (!large) {
-          event.preventDefault();
-          setLarge(true);
-          return;
-        }
-        onOpenPlayer?.(displayIdentity, displayName);
-      };
+      if (announcement) markChatAnnouncement(line, name, announcement);
       const openMessageActions = (event: Event) => {
         event.stopPropagation();
         messageActions.open({
@@ -679,19 +700,6 @@ export function createChatController({ elements, getCoop, showMessage, onOpenRep
           replyToMessageId: message.replyToMessageId,
         });
       };
-      const icon = document.createElement("span");
-      icon.className = "chat-profile-icon";
-      if (large) applyAvatarFrame(icon, displayIdentity);
-      icon.setAttribute("role", "button");
-      icon.setAttribute("tabindex", large ? "0" : "-1");
-      icon.setAttribute("aria-label", `View ${displayName}'s profile`);
-      icon.addEventListener("click", openPlayer);
-      icon.addEventListener("keydown", (event) => {
-        if (event.key !== "Enter" && event.key !== " ") return;
-        event.preventDefault();
-        openPlayer(event);
-      });
-      applyProfileIcon(icon, iconIndex, displayIdentity);
       const content = document.createElement("div");
       content.className = "chat-message-content";
       content.append(name, text);
