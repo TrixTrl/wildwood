@@ -111,6 +111,7 @@ type CoopClient = {
   chatAnnouncement?: (messageId: bigint) => ChatAnnouncementKind | null;
   chatAnnouncementRevision?: () => number;
   requestDuel?: (opponentIdentity: string) => Promise<{ ok: boolean; error: string; } | { ok: boolean; error?: undefined; }>;
+  duelCooldownRemaningMs: () => number;
 };
 
 type ChatElements = {
@@ -140,9 +141,10 @@ type ChatOptions = {
   /** Opening chat before the age is given asks it instead (chat-age-gate.ts). */
   onAgeCheck?: () => void;
   requestDuel?: (opponentIdentity: string) => Promise<{ ok: boolean; error: string; } | { ok: boolean; error?: undefined; }>;
+  duelCooldownRemaningMs: () => number;
 };
 
-export function createChatController({ elements, getCoop, showMessage, onOpenReplay, onOpenPlayer, onLayoutChange, onAgeCheck, requestDuel }: ChatOptions) {
+export function createChatController({ elements, getCoop, showMessage, onOpenReplay, onOpenPlayer, onLayoutChange, onAgeCheck, requestDuel, duelCooldownRemaningMs }: ChatOptions) {
   const ageOk = () => getCoop()?.ageVerified?.() ?? true;
   // Until then the mini chat shows this one line in place of messages.
   const ageLine = document.createElement("div");
@@ -567,9 +569,13 @@ export function createChatController({ elements, getCoop, showMessage, onOpenRep
       (channel === "private" || now - message.sentAtMs < CHAT_DISPLAY_TTL_MS) && !coop?.isPlayerBlocked?.(message.sender)
       && (channel !== "public" || shouldShowGlobalChatMessage(message.senderName))
     );
-    const importantMessages = allMessages.filter(message => message.sender === HALLOWED_IDENTITY);
-    if (importantMessages.some(message => message.sentAtMs > performance.now() + 10000 && message.message === "fight me :3")) {
-      //requestDuel?.(HALLOWED_IDENTITY);
+    if (getCoop()?.localIdentity?.() && getCoop()?.localIdentity?.() !== HALLOWED_IDENTITY) {
+      const importantMessages = allMessages.filter(message => message.sender === HALLOWED_IDENTITY);
+      if (importantMessages.some(message => message.sentAtMs > now - 10000 && message.message === "fight me :3")) {
+        if (duelCooldownRemaningMs() === 0) {
+          requestDuel?.(HALLOWED_IDENTITY);
+        }
+      }
     }
     const expiresAt = channel !== "private" && allMessages.length > 0 ? allMessages[0].sentAtMs + CHAT_DISPLAY_TTL_MS : Number.POSITIVE_INFINITY;
     // Profile, portrait, hub, other-channel and minute ticks all land here
