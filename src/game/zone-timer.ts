@@ -5,6 +5,7 @@ import { MapId } from "./world";
 
 const TIMER_VALUES = 11;
 const OFFSET = 4;
+const HISTORY_SIZE = 3;
 
 type TimeStorage = { [index: string]: { bestTime: number, prestige: number, previousPB?: number, allTimes: Array<{ prestige: number, time: number }> } };
 
@@ -85,7 +86,7 @@ export function createTimer() {
   document.getElementById('hud')!.append(sheet);
 }
 
-export function updateTimeValues(identity: string, centreValue: MapId) {
+export function updateTimeValues(identity: string, centreValue: MapId, prestige: number) {
   const mapId = (n: number) => n < CAMPAIGN_MAPS.length ? CAMPAIGN_MAPS[n].id : `${PROCEDURAL_PREFIX}${n - 14}`;
   const timerValues = [];
   for (let i = 0; i < TIMER_VALUES; i++) {
@@ -95,10 +96,19 @@ export function updateTimeValues(identity: string, centreValue: MapId) {
   const findIndex = CAMPAIGN_MAPS.findIndex(m => m.id === centreValue);
   const mapIndex = findIndex === -1 ? (parseInt(centreValue.split('_')[1]) + 14) : findIndex;
   const realCentre = Math.max(mapIndex, OFFSET);
+  const timeFormat = (timestamp: { prestige: number, time: number } | undefined) => {
+    if (!timestamp) return `--:--`;
+    return `${formatTimerMs(timestamp.time)}`;
+  };
   const labelText = (mapId: string) => {
-    const time = times[mapId];
-    if (!time) return `${mapId}: ---`;
-    return `${mapId}: [${time.prestige}] ${formatTimerMs(time.bestTime)} ${time.previousPB ? `${formatTimerMs(time.previousPB)}` : ``}`;
+    const time = times[mapId] ?? { bestTime: -1, prestige: -1, allTimes: [] };
+    //if (!time) return `${mapId}: ---`;
+    //return `${mapId}: [${time.prestige}] ${formatTimerMs(time.bestTime)} ${time.previousPB ? `${formatTimerMs(time.previousPB)}` : ``}`;
+    let output = `${mapId}: `;
+    for (let i = prestige; i >= Math.max(prestige - HISTORY_SIZE, 0); i--) {
+      output += `[${i}] ${timeFormat(time.allTimes.find(t => t.prestige === i))}  `;
+    }
+    return output;
   };
   for (let i = 0; i < TIMER_VALUES; i++) {
     const timer = timerValues[i];

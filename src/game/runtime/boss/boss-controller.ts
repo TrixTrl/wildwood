@@ -564,7 +564,7 @@ export function createBossController(options: {
         const prestige = options.prestige?.();
         if (identity && prestige) {
           saveTime(timeMap.endTime - timeMap.startTime, options.currentMapId() as MapId, prestige, identity);
-          updateTimeValues(identity, options.currentMapId() as MapId);
+          updateTimeValues(identity, options.currentMapId() as MapId, prestige);
         }
       }
     }
@@ -649,7 +649,7 @@ export function createBossController(options: {
         const prestige = options.prestige?.();
         if (identity && prestige) {
           saveTime(timeMap.endTime - timeMap.startTime, options.currentMapId() as MapId, prestige, identity);
-          updateTimeValues(identity, options.currentMapId() as MapId);
+          updateTimeValues(identity, options.currentMapId() as MapId, prestige);
         }
       }
     }
