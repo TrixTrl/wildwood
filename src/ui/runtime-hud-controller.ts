@@ -26,6 +26,7 @@ import type { PlayerGender } from "../../shared/player-gender";
 import { statPopupsEnabled } from "./stat-popup-setting";
 import { setHidden, setText } from "./dom-write";
 import { replaceChildrenIfChanged } from "./replace-children-if-changed";
+import { HALLOWED_IDENTITY } from "../../shared/developer-identity";
 
 
 const GEM_DROP_ART = "assets/wildstat/gems/gem-icon-v2.webp";
@@ -316,6 +317,9 @@ export function createRuntimeHudController(dependencies: RuntimeHudDependencies)
     elements.shareDuelBtn.removeAttribute("aria-busy");
     elements.shareDuelBtn.textContent = "SHARE TO CHAT";
     elements.watchDuelReplay.hidden = false;
+    if (replay.opponentIdentity === HALLOWED_IDENTITY) {
+      shareDuelResult();
+    }
   }
 
   async function shareDuelResult() {
