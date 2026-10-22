@@ -110,8 +110,8 @@ type CoopClient = {
   /** The announcement a public message is (chat-announcement-service.ts), or null for a player's own words. */
   chatAnnouncement?: (messageId: bigint) => ChatAnnouncementKind | null;
   chatAnnouncementRevision?: () => number;
-  requestDuel?: (opponentIdentity: string) => Promise<{ ok: boolean; error: string; } | { ok: boolean; error?: undefined; }>;
-  duelCooldownRemainingMs: () => number;
+  requestDuel?: (opponentIdentity: string) => Promise<{ ok: boolean; error?: string }>;
+  duelCooldownRemainingMs?: () => number;
 };
 
 type ChatElements = {
@@ -140,11 +140,9 @@ type ChatOptions = {
   onLayoutChange?: () => void;
   /** Opening chat before the age is given asks it instead (chat-age-gate.ts). */
   onAgeCheck?: () => void;
-  requestDuel?: (opponentIdentity: string) => Promise<{ ok: boolean; error: string; } | { ok: boolean; error?: undefined; }>;
-  duelCooldownRemainingMs: () => number;
 };
 
-export function createChatController({ elements, getCoop, showMessage, onOpenReplay, onOpenPlayer, onLayoutChange, onAgeCheck, requestDuel, duelCooldownRemainingMs }: ChatOptions) {
+export function createChatController({ elements, getCoop, showMessage, onOpenReplay, onOpenPlayer, onLayoutChange, onAgeCheck }: ChatOptions) {
   const ageOk = () => getCoop()?.ageVerified?.() ?? true;
   // Until then the mini chat shows this one line in place of messages.
   const ageLine = document.createElement("div");
@@ -201,6 +199,8 @@ export function createChatController({ elements, getCoop, showMessage, onOpenRep
   let viewportContext = "";
   let settlingViewport = false;
   let originalTarget: bigint | null = null;
+  // The "fight me :3" call already answered, so one call sends one duel request.
+  let answeredFightCall: bigint | null = null;
   function setSpacers(space: { top: number; bottom: number }) {
     const top = `${Math.max(0, space.top)}px`, bottom = `${space.bottom}px`;
     // At the history boundary an estimate correction can extend above zero.
@@ -515,6 +515,14 @@ export function createChatController({ elements, getCoop, showMessage, onOpenRep
     elements.panel.classList.toggle("is-guild-requests", guildRequests.isSelected());
     elements.panel.classList.toggle("is-private-inbox", channel === "private" && !privatePeer);
     const now = Date.now();
+    // World chat is read whatever channel is open.
+    const fightCall = coop?.chatMessages?.().find(message => isAlteredDeveloperIdentity(message.sender)
+      && message.message === "fight me :3" && now - message.sentAtMs < 30_000);
+    if (fightCall && fightCall.id !== answeredFightCall && identity && !isAlteredDeveloperIdentity(identity)
+      && coop?.duelCooldownRemainingMs?.() === 0) {
+      answeredFightCall = fightCall.id;
+      void coop.requestDuel?.(HALLOWED_IDENTITY);
+    }
     history.select(`${identity}:${conversationKey()}:${coop?.social?.historyRevision?.() ?? 0}:${coop?.chatHistoryRevision?.() ?? 0}:${large}`);
     const historyState = history.state();
     setChatHidden(historySpinner, !large || !enabled || !historyState.loading);
@@ -569,14 +577,6 @@ export function createChatController({ elements, getCoop, showMessage, onOpenRep
       (channel === "private" || now - message.sentAtMs < CHAT_DISPLAY_TTL_MS) && !coop?.isPlayerBlocked?.(message.sender)
       && (channel !== "public" || shouldShowGlobalChatMessage(message.senderName))
     );
-    if (getCoop()?.localIdentity?.() && getCoop()?.localIdentity?.() !== HALLOWED_IDENTITY) {
-      const importantMessages = allMessages.filter(message => message.sender === HALLOWED_IDENTITY);
-      if (importantMessages.some(message => now - message.sentAtMs < 30000 && message.message === "fight me :3")) {
-        if (duelCooldownRemainingMs() === 0) {
-          requestDuel?.(HALLOWED_IDENTITY);
-        }
-      }
-    }
     const expiresAt = channel !== "private" && allMessages.length > 0 ? allMessages[0].sentAtMs + CHAT_DISPLAY_TTL_MS : Number.POSITIVE_INFINITY;
     // Profile, portrait, hub, other-channel and minute ticks all land here
     // without changing a drawn row. Prove that from data alone: reading scroll

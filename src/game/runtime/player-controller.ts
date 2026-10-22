@@ -5,7 +5,6 @@ import { createSpawnSites, type MapId, type SpawnSite, type WorldDecor, type Wor
 import type { Movement } from "./player-input-controller";
 import type { DragonBossState, EnemyState, PlayerState, DuelScene, RuntimeDuelReplay, RuntimeDuelState } from "./types";
 import { setPlayerBaseMaxHealth } from "./player-health";
-import { HALLOWED_IDENTITY } from "../../../shared/developer-identity";
 
 type LocalState = { x: number; y: number; facing?: number };
 type DuelPresentation = { state: { challengerHp: number; opponentHp: number } };
