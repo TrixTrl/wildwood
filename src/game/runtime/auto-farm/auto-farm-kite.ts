@@ -44,9 +44,6 @@ export function smartMove(player: PlayerState & { realRegen: number }, enemies: 
 
   const allEnemies = enemies.filter(e => validEnemy(e));
 
-  console.log(shares);
-  console.log(allEnemies.map(e => soulStatFromEnemyId(e.campName)));
-
   const usableEnemies = allEnemies.filter(e => e.engaged || shares[`stat:${e.reward.type}`] > 0 || shares[`soul:${soulStatFromEnemyId(e.campName)}`] > 0);
 
   const followingEnemies = usableEnemies.filter(e => e.engaged);
