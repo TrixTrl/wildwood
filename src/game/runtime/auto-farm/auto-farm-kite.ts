@@ -148,8 +148,9 @@ function norm(v: Position): Position {
 }
 
 function distanceBoost(enemy: EnemyState, player: PlayerState & { realRegen: number }): number {
+  const enemyReward = ({ "armor": "armor", "attackSpeed": "speed", "critDamage": "crit", "damage": "damage", "health": "health", "regen": "regen", "": enemy.reward.type } as { [index: string]: RewardType })[soulStatFromEnemyId(enemy.campName) ?? ""];
   const priorities: Array<RewardType> = ["regen", "health", "armor", "damage", "speed", "crit"];
-  return (priorities.indexOf(enemy.reward.type)) ** 2 * (enemy.reward.type === "health" ? (player.maxHp / (player.realRegen * 5)) ** 1 : 1) * (enemy.reward.type === "regen" ? ((player.realRegen * 5) / player.maxHp) ** 1 : 1) + (enemy.reward.type === "speed" || enemy.reward.type === "crit" ? 1000000 : 0);
+  return (priorities.indexOf(enemyReward)) ** 2 * (enemy.reward.type === "health" ? (player.maxHp / (player.realRegen * 5)) ** 1 : 1) * (enemy.reward.type === "regen" ? ((player.realRegen * 5) / player.maxHp) ** 1 : 1) + (enemy.reward.type === "speed" || enemy.reward.type === "crit" ? 1000000 : 0);
 }
 
 function closenessBoost(enemy: EnemyState, enemies: EnemyState[], player: PlayerState & { realRegen: number }) {
