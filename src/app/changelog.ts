@@ -1,4 +1,21 @@
 export const RELEASE_NOTES: Record<string, string[]> = {
+  "0.916.32.16": [
+    "The Shop thanks everyone who started or extended the Server Boost, not just the last",
+  ],
+  "0.916.32.15": [
+    "DPS Display setting: your damage per second on screen",
+    "Thinner HUD borders; the Stat Tracker's frame matches the rest",
+  ],
+  "0.916.32.14": [
+    "Verdant Catacombs' big blocky mushrooms are back to their small size",
+  ],
+  "0.916.32.13": [
+    "Swordplay's Momentum now speeds up swings on bosses too",
+    "Profile Attack Speed shows Momentum and the cap it reaches",
+  ],
+  "0.916.32.12": [
+    "The Starter Stone can be worn as a cosmetic",
+  ],
   "0.916.32.11": [
     "The Smith, Slot Upgrades bench and other Town stops reopen only after you walk a bit away",
   ],
@@ -3885,6 +3902,11 @@ const RELEASE_DATES: Record<string, string> = {
 };
 
 export const RELEASE_DAYS: Record<string, string> = {
+  "0.916.32.16": "2026-10-22",
+  "0.916.32.15": "2026-10-22",
+  "0.916.32.14": "2026-10-22",
+  "0.916.32.13": "2026-10-22",
+  "0.916.32.12": "2026-10-22",
   "0.916.32.11": "2026-10-22",
   "0.916.32.10": "2026-10-22",
   "0.916.32.9": "2026-10-22",
