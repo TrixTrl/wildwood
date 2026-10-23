@@ -88,7 +88,7 @@ export function createTownRuntimes(deps: TownRuntimeDeps) {
     inForest: () => deps.currentMapId() === TUTORIAL_FOREST_MAP_ID && !deps.isMapTransitioning(),
   });
 
-  const openAfterClearingInput = (open: () => void) => () => { clearInput(); open(); };
+  const openAfterClearingInput = (open: () => void) => () => { clearInput(); console.log(`Cleared input`); open(); };
   const updateHomeStations = createHomeStationTouchHandler(
     () => inTown() && !deps.isMapTransitioning(), player,
     openAfterClearingInput(() => deps.techTree.open()),
