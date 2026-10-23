@@ -201,5 +201,5 @@ export function createChatChannelPicker(
     setChatText(conversationHeader, peer);
   }
   update();
-  return { root, conversations: contacts, select, refresh };
+  return { root, conversations: contacts, select, refresh, buttonFor: (channel: ChatChannel) => buttons.get(channel) };
 }
