@@ -1,4 +1,5 @@
 import { ENEMY_BASE_VALUES } from '../../../../shared/enemy-base-values';
+import { SOUL_STAT_ORDER, SoulStatId } from '../../../../shared/soul-dimension';
 import { formatCompactNumber } from '../../../ui/number-format';
 import { armorDamageReduction } from '../../combat';
 import { RewardType } from '../../enemies';
@@ -43,7 +44,10 @@ export function smartMove(player: PlayerState & { realRegen: number }, enemies: 
 
   const allEnemies = enemies.filter(e => validEnemy(e));
 
-  const usableEnemies = allEnemies.filter(e => e.engaged || shares[`stat:${e.reward.type}`] > 0);
+  console.log(shares);
+  console.log(allEnemies.map(e => soulStatFromEnemyId(e.campName)));
+
+  const usableEnemies = allEnemies.filter(e => e.engaged || shares[`stat:${e.reward.type}`] > 0 || shares[`soul:${soulStatFromEnemyId(e.campName)}`] > 0);
 
   const followingEnemies = usableEnemies.filter(e => e.engaged);
 
@@ -187,3 +191,8 @@ function sub(pos0: Position | PlayerState | EnemyState, pos1: Position | PlayerS
   return { x: pos0.x - pos1.x, y: pos0.y - pos1.y };
 }
 
+export function soulStatFromEnemyId(enemy: string): SoulStatId | null {
+  if (!enemy.startsWith("soul:")) return null;
+  const stat = enemy.split(':')[1] as SoulStatId;
+  return SOUL_STAT_ORDER.includes(stat) ? stat : null;
+}
