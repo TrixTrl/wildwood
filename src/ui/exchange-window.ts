@@ -142,11 +142,12 @@ export function createExchangeController(deps: ExchangeDeps) {
     card.classList.add(fill.buy ? "is-buy" : "is-sell");
     const bar = el("span", "exchange-progress");
     bar.style.setProperty("--done", String(fill.quantity ? fill.filled / fill.quantity : 0));
+    const cancel = el("button", "exchange-step exchange-cancel", "Cancel");
+    cancel.type = "button"; cancel.disabled = busy;
+    cancel.addEventListener("click", fill.cancel);
     card.append(el("span", "exchange-tag", fill.buy ? "Buying" : "Selling"), tile(fill.itemId, fill.refine),
-      el("span", "exchange-price", short(fill.price)), el("span", "exchange-count", `${short(BigInt(fill.filled))}/${short(BigInt(fill.quantity))}`), bar);
-    card.addEventListener("click", fill.cancel);
-    card.setAttribute("role", "button");
-    card.setAttribute("aria-label", `${fill.buy ? "Buying" : "Selling"} ${itemName(fill.itemId)}, ${fill.filled} of ${fill.quantity}. Tap to cancel.`);
+      el("span", "exchange-price", `${short(fill.price)} ea`), el("span", "exchange-count", `${short(BigInt(fill.filled))}/${short(BigInt(fill.quantity))}`), bar, cancel);
+    card.setAttribute("aria-label", `${fill.buy ? "Buying" : "Selling"} ${itemName(fill.itemId)}, ${fill.filled} of ${fill.quantity} done, ${fill.price} gold each.`);
     return card;
   }
 
@@ -227,18 +228,36 @@ export function createExchangeController(deps: ExchangeDeps) {
     text.append(el("span", "exchange-hit-name", `${itemName(sale.itemId)}${sale.refine ? ` ★${sale.refine}` : ""}`),
       seller(sale.name, sale.color), ...(skills ? [el("span", "exchange-hit-skills", skills)] : []));
     const figures = el("span", "exchange-hit-figures");
-    figures.append(goldChip(sale.price, "exchange-hit-price"), el("span", "exchange-hit-amount", `×${short(BigInt(sale.amount))}`));
+    const each = goldChip(sale.price, "exchange-hit-price");
+    each.append(el("span", "exchange-each", "ea"));
+    figures.append(each, el("span", "exchange-hit-amount", `×${short(BigInt(sale.amount))}`));
     row.append(tile(sale.itemId, sale.refine), text, figures);
     row.addEventListener("click", () => { if (sale.listing) viewGear(sale.listing); else go(buyDraft(sale.itemId, sale.price)); });
     return row;
   }
 
-  /** One gear item's listings, cheapest first: what a gear tile in Buy opens. */
+  /** How many of an item others have on sale: the price table's count less the player's own. */
+  function othersSelling(itemId: string) {
+    const own = myOffers().filter(offer => !offer.buy && offer.itemId === itemId).reduce((sum, offer) => sum + offer.quantity - offer.filled, 0)
+      + myListings().filter(listing => listing.itemId === itemId).length;
+    return Math.max(0, (priceOf(itemId)?.forSale ?? 0) - own);
+  }
+
+  /** One item: who sells it, cheapest first, and for a resource a buy offer of your own. What a tile in Buy opens. */
   function itemScreen(itemId: string) {
     deps.watch([itemId]);
     const sales = forSale().filter(sale => sale.itemId === itemId).slice(0, SHOWN_SELLERS);
-    return [heading(itemName(itemId), goldChip(deps.gold())),
-      ...(sales.length ? sales.map(hitRow) : [el("p", "exchange-empty", priceOf(itemId)?.forSale ? "Loading…" : "None")])];
+    // Only the player's own on sale, or nothing: there is nobody else to wait for.
+    const empty = othersSelling(itemId) > 0 ? "Loading…" : "Nobody else is selling this";
+    const parts: HTMLElement[] = [heading(itemName(itemId), goldChip(deps.gold())),
+      ...(sales.length ? sales.map(hitRow) : [el("p", "exchange-empty", empty)])];
+    if (isExchangeResource(itemId)) {
+      const offer = el("button", "exchange-confirm is-buy exchange-item-offer", "Place Buy Offer");
+      offer.type = "button";
+      offer.addEventListener("click", () => go(buyDraft(itemId, best(itemId, false) ?? last(itemId))));
+      parts.push(offer);
+    }
+    return parts;
   }
 
   /** Buy: a search box over the market. Empty, the resources and the gear for sale as grids; typed, a row per seller. */
@@ -246,7 +265,7 @@ export function createExchangeController(deps: ExchangeDeps) {
     const field = el("label", "exchange-search");
     field.innerHTML = SEARCH;
     const search = el("input");
-    search.type = "search"; search.placeholder = "Search"; search.value = query;
+    search.type = "search"; search.placeholder = "Search to see who sells it"; search.value = query;
     search.setAttribute("aria-label", "Search items");
     field.append(search);
     const results = el("div", "exchange-results");
@@ -255,10 +274,10 @@ export function createExchangeController(deps: ExchangeDeps) {
         const resources = el("div", "exchange-grid");
         for (const itemId of ORE_ORDER) {
           const price = best(itemId, false);
-          resources.append(tile(itemId, 0, price === null ? "" : short(price), () => go(buyDraft(itemId, price ?? last(itemId)))));
+          resources.append(tile(itemId, 0, price === null ? "" : short(price), () => go({ kind: "item", itemId })));
         }
         // Gear on sale, one tile per item with its lowest price: thousands of listings stay a short grid.
-        const gearForSale = deps.prices().filter(row => !isExchangeResource(row.itemId) && row.forSale > 0 && row.lowestAsk !== null)
+        const gearForSale = deps.prices().filter(row => !isExchangeResource(row.itemId) && othersSelling(row.itemId) > 0 && row.lowestAsk !== null)
           .sort((a, b) => (a.lowestAsk! < b.lowestAsk! ? -1 : 1));
         const gear = el("div", "exchange-grid");
         for (const row of gearForSale) gear.append(tile(row.itemId, 0, short(row.lowestAsk!), () => go({ kind: "item", itemId: row.itemId })));
@@ -268,7 +287,7 @@ export function createExchangeController(deps: ExchangeDeps) {
       }
       // Matched the way the leaderboard matches names (whole name, then its start, then a word's start, then anywhere),
       // over the items on sale; only the best few items' sellers are followed.
-      const onSale = deps.prices().filter(row => row.forSale > 0);
+      const onSale = deps.prices().filter(row => othersSelling(row.itemId) > 0);
       const entries = onSale.map(row => ({ identity: row.itemId, name: itemName(row.itemId), key: foldPlayerName(itemName(row.itemId)) }));
       const matched = searchPlayerDirectory(entries, query, { limit: EXCHANGE_WATCHED_ITEMS }).map(entry => entry.identity);
       deps.watch(matched);
@@ -295,17 +314,20 @@ export function createExchangeController(deps: ExchangeDeps) {
   function sellScreen() {
     const held = deps.ores();
     const resources = el("div", "exchange-grid");
-    for (const itemId of ORE_ORDER.filter(id => (held[id] ?? 0) > 0)) {
+    // Every resource that trades, the ones not held greyed, so a player sees what could be sold.
+    for (const itemId of ORE_ORDER) {
       const have = held[itemId] ?? 0;
-      resources.append(tile(itemId, 0, short(BigInt(have)), () => go({ kind: "offer",
-        draft: { buy: false, itemId, refine: 0, quantity: have, max: have, price: best(itemId, true) ?? last(itemId) ?? 1n } })));
+      const piece = tile(itemId, 0, short(BigInt(have)), have > 0 ? () => go({ kind: "offer",
+        draft: { buy: false, itemId, refine: 0, quantity: have, max: have, price: best(itemId, true) ?? last(itemId) ?? 1n } }) : undefined);
+      piece.classList.toggle("is-none", have <= 0);
+      resources.append(piece);
     }
     const gear = el("div", "exchange-grid");
     for (const piece of deps.gear().filter(each => isExchangeGear(each.itemId))) {
       gear.append(tile(piece.itemId, piece.refine, "", () => go({ kind: "offer",
         draft: { buy: false, itemId: piece.itemId, copyId: piece.copyId, refine: piece.refine, quantity: 1, max: 1, price: gearStartPrice(piece.itemId) } })));
     }
-    return [heading("Sell"), section("Resources"), resources.childElementCount ? resources : el("p", "exchange-empty", "None"),
+    return [heading("Sell"), section("Resources"), resources,
       section("Gear"), gear.childElementCount ? gear : el("p", "exchange-empty", "None")];
   }
 
@@ -344,7 +366,7 @@ export function createExchangeController(deps: ExchangeDeps) {
       ]));
     }
     const nudge = (percent: bigint) => { const step = draft.price * percent / 100n; draft.price = draft.price + (step === 0n ? (percent > 0n ? 1n : -1n) : step); if (draft.price < 1n) draft.price = 1n; redraw(); };
-    parts.push(stepper("Price", draft.price.toString(), text => { if (/^\d{1,13}$/.test(text)) draft.price = BigInt(text); updateTotal(); }, [
+    parts.push(stepper("Price Each", draft.price.toString(), text => { if (/^\d{1,13}$/.test(text)) draft.price = BigInt(text); updateTotal(); }, [
       ["−5%", () => nudge(-5n)], ["+5%", () => nudge(5n)],
     ]));
     const total = el("div", "exchange-total");
@@ -353,8 +375,11 @@ export function createExchangeController(deps: ExchangeDeps) {
     const updateTotal = () => {
       const sum = draft.price * BigInt(draft.quantity);
       const short = draft.buy && sum > deps.gold();
-      total.replaceChildren(el("span", "exchange-total-label", draft.buy ? "Total" : `You Get · ${EXCHANGE_FEE_PERCENT}% Fee`),
-        goldChip(draft.buy ? sum : sum - sum * EXCHANGE_FEE_PERCENT / 100n, `exchange-total-gold${short ? " is-short" : ""}`));
+      // The sum spelled out, so the price above reads as each, not for all.
+      const sumLabel = el("span", "exchange-total-label");
+      sumLabel.append(el("span", "", draft.buy ? "Total" : `You Get · ${EXCHANGE_FEE_PERCENT}% Fee`),
+        el("small", "exchange-sum", `${draft.quantity.toLocaleString("en-US")} × ${draft.price.toLocaleString("en-US")} each`));
+      total.replaceChildren(sumLabel, goldChip(draft.buy ? sum : sum - sum * EXCHANGE_FEE_PERCENT / 100n, `exchange-total-gold${short ? " is-short" : ""}`));
       // Whether it trades the moment it goes up, or waits for someone: a price at or past the other side's best trades now.
       const now = gear ? false : draft.buy ? lowest !== null && draft.price >= lowest : highest !== null && draft.price <= highest;
       timing.textContent = gear ? "Waits for a buyer" : now ? (draft.buy ? "Buys now" : "Sells now") : (draft.buy ? "Waits for a seller" : "Waits for a buyer");

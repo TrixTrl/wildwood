@@ -3,6 +3,8 @@
  * brown outline), as the Town's signpost is: the chrysanthemum bed in the square's middle and its banners.
  * Each is drawn from its foot, in world units.
  */
+import { freezeEntry, type FrozenImage } from "../render/frozen-canvas";
+
 const OUTLINE = "#3b2a1e";
 
 export type ExchangeProp = "chrysanthemumBed" | "exchangeBanner";
@@ -34,8 +36,6 @@ function bloom(c: CanvasRenderingContext2D, x: number, y: number, r: number, col
 }
 
 const GOLD = ["#e9a426", "#f5c13e", "#ffe08a", "#b5651d"] as const;
-const AMBER = ["#d9762b", "#ee9a3e", "#f8c36a", "#8f4a17"] as const;
-const CREAM = ["#e6dcc4", "#f5efe0", "#fffaf0", "#c9a246"] as const;
 
 /** A raised round bed of stone, soil and leaves, one great golden chrysanthemum in its middle and smaller ones round it. */
 function drawBed(c: CanvasRenderingContext2D) {
@@ -64,19 +64,12 @@ function drawBed(c: CanvasRenderingContext2D) {
     const angle = leaf / 14 * Math.PI * 2, lx = Math.cos(angle) * (rx - 26), ly = cy + Math.sin(angle) * (ry - 20);
     c.beginPath(); c.ellipse(lx, ly - 3, 11, 6, angle, 0, Math.PI * 2); c.fill(); c.stroke();
   }
-  // The small blooms round the edge, back to front, then the great one, raised on its stems.
-  const small = Array.from({ length: 10 }, (_, index) => {
-    const angle = index / 10 * Math.PI * 2 + .3;
-    return { x: Math.cos(angle) * (rx - 30), y: cy + Math.sin(angle) * (ry - 22) - 6, colors: [AMBER, CREAM, GOLD][index % 3] };
-  }).sort((a, b) => a.y - b.y);
-  const back = small.filter(item => item.y < cy - 6), front = small.filter(item => item.y >= cy - 6);
-  for (const item of back) bloom(c, item.x, item.y, 15, item.colors);
+  // One great bloom, raised on its stems.
   c.strokeStyle = "#2f5a2a"; c.lineWidth = 4;
   c.beginPath(); c.moveTo(0, cy + 4); c.lineTo(0, cy - 22); c.stroke();
   c.fillStyle = "#4f8a40"; c.strokeStyle = OUTLINE; c.lineWidth = 1.5;
   for (const side of [-1, 1]) { c.beginPath(); c.ellipse(side * 12, cy - 8, 13, 6, side * -.5, 0, Math.PI * 2); c.fill(); c.stroke(); }
   bloom(c, 0, cy - 32, 36, GOLD);
-  for (const item of front) bloom(c, item.x, item.y, 15, item.colors);
 }
 
 /** A banner pole: a charcoal cloth, gold-trimmed, with a gold chrysanthemum on it, hung from a crossbar. */
@@ -100,10 +93,33 @@ function drawBanner(c: CanvasRenderingContext2D) {
   bloom(c, 0, -94, 13, GOLD);
 }
 
-export function drawExchangeProp(c: CanvasRenderingContext2D, kind: ExchangeProp, x: number, y: number) {
-  c.save();
-  c.translate(x, y);
+/** Draws one prop's paths from its foot. Hundreds of petals: only ever into a cache, never per frame. */
+function paint(c: CanvasRenderingContext2D, kind: ExchangeProp) {
   c.lineJoin = "round";
   if (kind === "chrysanthemumBed") drawBed(c); else drawBanner(c);
-  c.restore();
+}
+
+/** Room round each prop's extents for its outlines. */
+const PAD = 4;
+/** Painted once per kind and screen scale (to a quarter step), then copied: a frame draws two images, not hundreds of paths. */
+const cached = new Map<string, FrozenImage>();
+
+export function drawExchangeProp(c: CanvasRenderingContext2D, kind: ExchangeProp, x: number, y: number) {
+  const e = EXCHANGE_PROP_EXTENTS[kind], w = e.left + e.right + PAD * 2, h = e.up + e.down + PAD * 2;
+  const transform = typeof c.getTransform === "function" ? c.getTransform() : null;
+  const scale = Math.min(4, Math.max(.25, Math.round(Math.hypot(transform?.a ?? 1, transform?.b ?? 0) * 4) / 4));
+  const key = `${kind}:${scale}`;
+  let art = cached.get(key);
+  if (!art) {
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(w * scale); canvas.height = Math.ceil(h * scale);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.scale(scale, scale);
+    ctx.translate(e.left + PAD, e.up + PAD);
+    paint(ctx, kind);
+    cached.set(key, art = canvas);
+    freezeEntry(cached, key, canvas);
+  }
+  c.drawImage(art, x - e.left - PAD, y - e.up - PAD, w, h);
 }
