@@ -222,13 +222,18 @@ import { updateTimeValues } from "./game/zone-timer";
   const inTutorial = () => currentMapId === ONBOARDING_MAP_ID;
 
   const timeMap: Map<MapId, { startTime: number, endTime?: number }> = new Map<MapId, { startTime: number, endTime?: number }>();
+  let timeMapPrestige = 0;
   function setCurrentMap(mapId: MapId) {
+    if (coop && coop.prestige()?.level !== timeMapPrestige) {
+      timeMap.clear();
+      timeMapPrestige = coop.prestige()?.level ?? -1;
+    }
     timeMap.forEach((t, k) => { if (k !== mapId && t.endTime === undefined) t.endTime = Infinity });
     if (![ONBOARDING_MAP_ID, SOUL_MAP_ID, TOWN_MAP_ID].includes(mapId) && !mapId.startsWith(GUILD_HALL_MAP_PREFIX)) {
       if (!timeMap.has(mapId)) timeMap.set(mapId, { startTime: Date.now() });
       if (coop) updateTimeValues(coop.localIdentity(), mapId, coop.prestige()?.level ?? 0);
     }
-    console.log(timeMap);
+    //console.log(timeMap);
     currentMapId = mapId;
     WORLD.w = mapId === ONBOARDING_MAP_ID ? ONBOARDING_WORLD.width : worldBoundsFor(mapId).width;
     WORLD.h = mapId === ONBOARDING_MAP_ID ? ONBOARDING_WORLD.height : worldBoundsFor(mapId).height;

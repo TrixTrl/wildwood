@@ -161,7 +161,7 @@ export function createProceduralBossController(options: {
       const timeMap = options.timeMap().get(options.mapId() as MapId);
       if (timeMap && timeMap?.endTime === undefined) {
         timeMap.endTime = Date.now();
-        console.log(options.timeMap());
+        //console.log(options.timeMap());
         const identity = options.identity?.();
         const prestige = options.prestige?.();
         if (identity && prestige) {

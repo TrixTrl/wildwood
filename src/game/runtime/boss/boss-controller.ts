@@ -559,7 +559,7 @@ export function createBossController(options: {
       const timeMap = options.timeMap().get(options.currentMapId() as MapId);
       if (timeMap && timeMap?.endTime === undefined) {
         timeMap.endTime = Date.now();
-        console.log(options.timeMap());
+        //console.log(options.timeMap());
         const identity = options.identity?.();
         const prestige = options.prestige?.();
         if (identity && prestige) {
@@ -584,7 +584,6 @@ export function createBossController(options: {
   }
 
   function syncDragonState() {
-    console.log(`Is this run?`);
     const shared = options.sharedBoss("dragon");
     if (!shared) return;
     const encounter = encounters.dragon;
@@ -640,11 +639,11 @@ export function createBossController(options: {
     boss.hp = shared.hp;
     if (!shared.alive) {
       boss.dead = true;
-      console.log(`boss kill caught`);
+      //console.log(`boss kill caught`);
       const timeMap = options.timeMap().get(options.currentMapId() as MapId);
       if (timeMap && timeMap?.endTime === undefined) {
         timeMap.endTime = Date.now();
-        console.log(options.timeMap());
+        //console.log(options.timeMap());
         const identity = options.identity?.();
         const prestige = options.prestige?.();
         if (identity && prestige) {
