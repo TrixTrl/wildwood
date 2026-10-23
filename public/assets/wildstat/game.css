@@ -2931,6 +2931,7 @@
     place-items: center;
     padding: 13px;
     background: transparent;
+    pointer-events: auto;
   }
 
   #duelResult[hidden],
@@ -5191,6 +5192,7 @@ html.text-outline-shadow .death-countdown { text-shadow: var(--text-outline-ring
   background-color: #00000070;
   top: calc(var(--hud-safe-top) + var(--player-hud-visual-height) + 115px);
   border-radius: 4px;
+  z-index: 10;
 }
 
 #timerSheet * {
