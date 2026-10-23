@@ -12,31 +12,34 @@ type TimeStorage = { [index: string]: { bestTime: number, prestige: number, prev
 let lastChangedMap: MapId | undefined;
 
 export function saveTime(time: number, mapId: MapId, prestige: number, identity: string) {
+  //console.log(`${prestige} | ${mapId} | ${formatTimerMs(time)}`);
   const currentStorage = localStorage.getItem(`wildjank:timerValues-${identity}`);
-  console.log(currentStorage);
+  //console.log(currentStorage);
   if (currentStorage) {
     try {
       const data = JSON.parse(currentStorage) as TimeStorage;
-      console.log(data);
-      console.log(typeof (data));
+      //console.log(data);
+      //console.log(typeof (data));
       if (typeof (data) !== "object") throw `Failed to parse timer values`;
       const relevantTime = data[mapId];
-      console.log(relevantTime);
+      //console.log(relevantTime);
       if (relevantTime) {
-        if (relevantTime.prestige < prestige && relevantTime.bestTime > time) {
-          if (relevantTime.previousPB === undefined || relevantTime.bestTime < relevantTime.previousPB) {
-            relevantTime.previousPB = relevantTime.bestTime;
-            lastChangedMap = mapId;
+        if (relevantTime.prestige < prestige) {
+          if (relevantTime.bestTime > time) {
+            if (relevantTime.previousPB === undefined || relevantTime.bestTime < relevantTime.previousPB) {
+              relevantTime.previousPB = relevantTime.bestTime;
+              lastChangedMap = mapId;
+            }
+            relevantTime.bestTime = time;
+            relevantTime.prestige = prestige;
           }
-          relevantTime.bestTime = time;
-          relevantTime.prestige = prestige;
           relevantTime.allTimes.push({ prestige: prestige, time: time });
         }
       } else {
         data[mapId] = { bestTime: time, prestige: prestige, allTimes: [{ prestige: prestige, time: time }] };
       }
-      console.log(data);
-      console.log(JSON.stringify(data));
+      //console.log(data);
+      //console.log(JSON.stringify(data));
       localStorage.setItem(`wildjank:timerValues-${identity}`, JSON.stringify(data));
       return;
     } catch (e) {
