@@ -116,7 +116,9 @@ export function updateTimeValues(identity: string, centreValue: MapId, prestige:
   for (let i = 0; i < TIMER_VALUES; i++) {
     const timer = timerValues[i];
     if (timer) {
-      timer.textContent = labelText(mapId(realCentre - OFFSET + i)) + (realCentre - OFFSET + i === mapIndex ? ` <--` : ``);
+      timer.classList.remove('highlighted-row');
+      timer.textContent = labelText(mapId(realCentre - OFFSET + i));
+      if (realCentre - OFFSET + i === mapIndex) timer.classList.add('highlighted-row');
     }
   }
 }
