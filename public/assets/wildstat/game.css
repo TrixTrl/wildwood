@@ -5207,3 +5207,7 @@ html.text-outline-shadow .death-countdown { text-shadow: var(--text-outline-ring
 #timerSheet .highlighted-row {
   border: 4px solid #045801;
 }
+
+.chat-channel-tabs button.unread-highlight {
+  background-color: #700000;
+}

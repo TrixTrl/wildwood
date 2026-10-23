@@ -141,6 +141,11 @@ export function createChatChannelPicker(
       setChatText(badge, formatChatUnreadCount(count));
       setChatHidden(badge, count === 0);
       setChatAttribute(button, "aria-label", count ? `${label}, ${count} unread messages` : label);
+      if (count > 0) {
+        button.classList.add('unread-highlight');
+      } else {
+        button.classList.remove('unread-highlight');
+      }
     }
     const signature = JSON.stringify([people, [...unread.conversations]]);
     if (!contacts.hidden && signature !== contactSignature) {
