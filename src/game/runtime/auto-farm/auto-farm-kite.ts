@@ -10,7 +10,7 @@ const INFLUENCE_CONSTANT = 300000;
 const mapSize = 5000;
 const CENTER_PULL_STRENGTH = 10;
 const CENTER_PULL_RADIUS = 2000;
-const CENTER_PUSH_RADIUS = 600;
+const CENTER_PUSH_RADIUS = 500;
 
 const BOSS_CORNER_SIZE = 800;
 const BOSS_CORNER_BUFFER = 200;
@@ -44,7 +44,7 @@ export function smartMove(player: PlayerState & { realRegen: number }, enemies: 
 
   const allEnemies = enemies.filter(e => validEnemy(e));
 
-  const usableEnemies = allEnemies.filter(e => e.engaged || shares[`stat:${e.reward.type}`] > 0 || shares[`soul:${soulStatFromEnemyId(e.campName)}`] > 0);
+  const usableEnemies = allEnemies.filter(e => e.engaged || (shares[`stat:${e.reward.type}`] > 0 || shares[`soul:${soulStatFromEnemyId(e.campName)}`] > 0) && Math.hypot(e.x - mapSize / 2, e.y - mapSize / 2) > CENTER_PUSH_RADIUS + player.attackRange);
 
   const followingEnemies = usableEnemies.filter(e => e.engaged);
 
@@ -148,8 +148,9 @@ function norm(v: Position): Position {
 }
 
 function distanceBoost(enemy: EnemyState, player: PlayerState & { realRegen: number }): number {
+  const enemyReward = ({ "armor": "armor", "attackSpeed": "speed", "critDamage": "crit", "damage": "damage", "health": "health", "regen": "regen", "": enemy.reward.type } as { [index: string]: RewardType })[soulStatFromEnemyId(enemy.campName) ?? ""];
   const priorities: Array<RewardType> = ["regen", "health", "armor", "damage", "speed", "crit"];
-  return (priorities.indexOf(enemy.reward.type)) ** 2 * (enemy.reward.type === "health" ? (player.maxHp / (player.realRegen * 5)) ** 1 : 1) * (enemy.reward.type === "regen" ? ((player.realRegen * 5) / player.maxHp) ** 1 : 1) + (enemy.reward.type === "speed" || enemy.reward.type === "crit" ? 1000000 : 0);
+  return (priorities.indexOf(enemyReward)) ** 2 * (enemy.reward.type === "health" ? (player.maxHp / (player.realRegen * 5)) ** 1 : 1) * (enemy.reward.type === "regen" ? ((player.realRegen * 5) / player.maxHp) ** 1 : 1) + (enemy.reward.type === "speed" || enemy.reward.type === "crit" ? 1000000 : 0);
 }
 
 function closenessBoost(enemy: EnemyState, enemies: EnemyState[], player: PlayerState & { realRegen: number }) {
