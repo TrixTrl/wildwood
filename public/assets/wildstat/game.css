@@ -5183,16 +5183,24 @@ html.text-outline-shadow .death-countdown { text-shadow: var(--text-outline-ring
   flex-direction: column;
   gap: 8px;
   min-height: 500;
-  padding: 2px 14px 6px;
+  padding: 2px 4px 6px;
   overflow-y: auto;
   overscroll-behavior: contain;
   touch-action: pan-y;
   scrollbar-width: none;
   background-color: #00000070;
   top: calc(var(--hud-safe-top) + var(--player-hud-visual-height) + 115px);
+  border-radius: 4px;
 }
 
-.timer-line {
-  height: fit-content;
-  width: 200px;
+#timerSheet * {
+  font: 700 14px "Wildstat Chat", sans-serif;
+  border: 2px solid rgba(0, 0, 0, .24);
+  padding: 2px 4px 6px;
+  border-radius: 4px;
+  text-align: left;
+}
+
+#timerSheet .highlighted-row {
+  border: 4px solid #045801;
 }
