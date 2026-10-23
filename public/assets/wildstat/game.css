@@ -5176,6 +5176,7 @@ html.text-outline-shadow .death-countdown { text-shadow: var(--text-outline-ring
   :is(.inventory-item, .equipment-slot)[data-grade="13"] { --grade: #f5dc45; } /* Divine: gold */
   :is(.inventory-item, .equipment-slot)[data-grade="14"] { --grade: #eeeaf5; } /* Eternal: pearl */
 
+
 #timerSheet {
   position: absolute;
   height: fit-content;
