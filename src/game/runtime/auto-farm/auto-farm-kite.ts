@@ -107,7 +107,7 @@ export function smartMove(player: PlayerState & { realRegen: number }, enemies: 
             closestEnemy = enemy;
         }
     }*/
-    const closestEnemy = usableEnemies.filter(e => !e.engaged && (!filtering || !filteredEnemies.includes(e.reward.type))).map(e => { return { data: e, distance: Math.hypot(player.x - e.x, player.y - e.y) * (distanceBoost(e, player) + 1) * closenessBoost(e, enemies, player) }; }).sort((a, b) => a.distance - b.distance)[0]?.data;
+    const closestEnemy = usableEnemies.filter(e => !e.engaged && (!filtering || !filteredEnemies.includes(({ "armor": "armor", "attackSpeed": "speed", "critDamage": "crit", "damage": "damage", "health": "health", "regen": "regen", "": e.reward.type } as { [index: string]: RewardType })[soulStatFromEnemyId(e.campName) ?? ""]))).map(e => { return { data: e, distance: Math.hypot(player.x - e.x, player.y - e.y) * (distanceBoost(e, player) + 1) * closenessBoost(e, enemies, player) }; }).sort((a, b) => a.distance - b.distance)[0]?.data;
     if (closestEnemy) {
       return moveAroundCentre({ x: closestEnemy.x, y: closestEnemy.y }, player);
     }
