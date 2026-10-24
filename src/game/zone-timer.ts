@@ -2,6 +2,7 @@ import { CAMPAIGN_MAPS } from "../../shared/campaign-registry";
 import { GUILD_HALL_MAP_PREFIX } from "../../shared/guild-hall";
 import { ONBOARDING_MAP_ID } from "../../shared/onboarding";
 import { PROCEDURAL_PREFIX } from "../../shared/procedural-map-core";
+import { MAP_DISPLAY_NAMES } from "../../shared/rules";
 import { SOUL_MAP_ID } from "../../shared/soul-dimension";
 import { formatTimerMs } from "../../shared/timer-format";
 import { TOWN_MAP_ID } from "../../shared/town";
@@ -222,14 +223,56 @@ export function updateZoneTimeTracker(identity: string, prestige: number) {
     if (typeof (data) !== "object") throw new Error(`Failed to parse timer values`);
     const max = maxMap(data);
     const mapId = (n: number) => n < CAMPAIGN_MAPS.length ? CAMPAIGN_MAPS[n].id : `${PROCEDURAL_PREFIX}${n - 14}`;
-    const timestamp = (n?: number) => n === undefined ? `--:--` : `${formatTimerMs(n)}`;
+    const timestamp = (n?: number) => n === undefined ? `--:--:--` : `${Math.floor(n / (1000 * 60 * 60)).toString().padStart(2, '0')}:${formatTimerMs(n % (1000 * 60 * 60))}`;
     for (let i = 0; i <= max.index; i++) {
       const element = document.createElement('div');
       const map = mapId(i);
-      element.textContent = `${map}: ${timestamp(data[prestige]?.mapTimes[map]?.time)} ${timestamp(data[prestige - 1]?.mapTimes[map]?.time)} ${timestamp(bestTime(data, map))}`;
+      const bestTimeValue = bestTime(data, map, prestige);
+      const bestTimePrevValue = bestTime(data, i > 0 ? mapId(i - 1) : '', prestige);
+      const zoneTime = i > 0 && data[prestige]?.mapTimes[map] && data[prestige]?.mapTimes[mapId(i - 1)] ? (data[prestige]?.mapTimes[map]?.time - data[prestige]?.mapTimes[mapId(i - 1)].time) : (i == 0 && data[prestige]?.mapTimes[map] ? data[prestige]?.mapTimes[map]?.time : 0);
+      const zoneTimeText = zoneTime > 0 ? ` ${formatTimerMs(zoneTime)}` : '';
+      const bestZoneTime = i > 0 && bestTimeValue && bestTimePrevValue ? bestTimeValue - bestTimePrevValue : (i == 0 && bestTimeValue ? bestTimeValue : 0);
+      const timeSplit = bestZoneTime > 0 && zoneTime > 0 ? zoneTime - bestZoneTime : 0;
+      const splitText = ` ${timeSplit < 0 ? `-${formatTimerMs(-timeSplit)}` : `+${formatTimerMs(timeSplit)}`}`;
+      //element.textContent = `${map}: ${timestamp(data[prestige]?.mapTimes[map]?.time)}${zoneTimeText} ${splitText} ${timestamp(data[prestige - 1]?.mapTimes[map]?.time)} ${timestamp(bestTime(data, map))}`;
+      const mapLabel = MAP_DISPLAY_NAMES[map] ?? `Endless - ${i - 14}`;
+      const totalTimeSplit = data[prestige]?.mapTimes[map] && bestTimeValue !== undefined ? data[prestige]?.mapTimes[map].time - bestTimeValue : undefined;
+      const totalTimeSplitText = totalTimeSplit !== undefined ? ` ${totalTimeSplit < 0 ? `-${formatTimerMs(-totalTimeSplit)}` : `+${formatTimerMs(totalTimeSplit)}`}` : '+00:00';
+      const mapLabelElement = document.createElement('div');
+      mapLabelElement.classList.add('time-tracker-map-label');
+      mapLabelElement.textContent = mapLabel;
+      element.appendChild(mapLabelElement);
+      const currentPrestigeTimestampElement = document.createElement('div');
+      currentPrestigeTimestampElement.classList.add('time-tracker-current-prestige');
+      currentPrestigeTimestampElement.textContent = timestamp(data[prestige]?.mapTimes[map]?.time);
+      element.appendChild(currentPrestigeTimestampElement);
+      if (zoneTimeText.length > 0) {
+        const zoneTimeTextElement = document.createElement('div');
+        zoneTimeTextElement.classList.add('time-tracker-zone-time');
+        zoneTimeTextElement.textContent = zoneTimeText;
+        element.append(zoneTimeTextElement);
+      }
+      const splitTextElement = document.createElement('div');
+      splitTextElement.classList.add('time-tracker-split-text');
+      splitTextElement.classList.add(timeSplit == 0 ? 'grey' : timeSplit > 0 ? 'red' : 'green');
+      splitTextElement.textContent = splitText;
+      element.appendChild(splitTextElement);
+      const totalSplitTextElement = document.createElement('div');
+      totalSplitTextElement.classList.add('time-tracker-total-split-text');
+      totalSplitTextElement.classList.add(totalTimeSplit == 0 || totalTimeSplit === undefined ? 'grey' : totalTimeSplit > 0 ? 'red' : 'green');
+      totalSplitTextElement.textContent = totalTimeSplitText;
+      element.appendChild(totalSplitTextElement);
+      const previousPrestigeTimestampElement = document.createElement('div');
+      previousPrestigeTimestampElement.classList.add('time-tracker-previous-prestige');
+      previousPrestigeTimestampElement.textContent = timestamp(data[prestige - 1]?.mapTimes[map]?.time);
+      element.appendChild(previousPrestigeTimestampElement);
+      const bestTimeElement = document.createElement('div');
+      bestTimeElement.classList.add('time-tracker-best-time');
+      bestTimeElement.textContent = timestamp(bestTimeValue);
+      element.appendChild(bestTimeElement);
       tracker.appendChild(element);
     }
-  } catch (e) { }
+  } catch (e) { console.error(e); }
   //for () {}
 }
 
@@ -248,9 +291,10 @@ function maxMap(storage: OtherTimeStorage): { mapId: MapId, index: number } {
   return { mapId: mapId(highestMapFound) as MapId, index: highestMapFound };
 }
 
-function bestTime(storage: OtherTimeStorage, mapId: string): number | undefined {
+function bestTime(storage: OtherTimeStorage, mapId: string, prestige: number): number | undefined {
   let lowestValueFound;
   for (const key of Object.keys(storage)) {
+    if (Number(key) === prestige) continue;
     const s = storage[Number(key)];
     if (!s) continue;
     if (s.mapTimes[mapId]) {
