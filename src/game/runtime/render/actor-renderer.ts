@@ -43,6 +43,8 @@ import { boltSprite, drawBolt, staffBoltColor } from "../../staff-look";
 import { createEnemyAnimationSampler } from "../enemies/enemy-animation";
 import { ENEMY_HP_LOSS_FLASH_SECONDS } from "../../constants";
 import { ENEMY_BASE_VALUES } from "../../../../shared/enemy-base-values";
+import { ALT_RENDERER_KEY } from "../../../ui/feedback-settings";
+import { REWARD_COLORS } from "../../../balance/reward-health-data";
 
 
 type Viewport = { width: number; height: number };
@@ -633,6 +635,14 @@ export function createActorRenderer(options: {
 
   function drawPlayer(identity: string | undefined, name: string, power: number) {
     const player = options.player;
+    if (localStorage.getItem(ALT_RENDERER_KEY) === "true") {
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#1010ae';
+      ctx.beginPath();
+      ctx.arc(screenX(player.x), screenY(player.y), player.r, 0, 360);
+      ctx.stroke();
+      return;
+    }
     const equipment = {
       headItem: options.localHeadItem(),
       chestItem: options.localChestItem(),
@@ -777,6 +787,14 @@ export function createActorRenderer(options: {
   }
 
   function drawEnemy(enemy: EnemyState, opacity = 1) {
+    if (localStorage.getItem(ALT_RENDERER_KEY) === "true") {
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = REWARD_COLORS[enemy.reward.type];
+      ctx.beginPath();
+      ctx.arc(screenX(enemy.x), screenY(enemy.y), enemy.r, 0, 360);
+      ctx.stroke();
+      return;
+    }
     const deathProgress = clamp(enemy.remoteCombatDeathProgress ?? 0, 0, 1);
     const visibility = clamp(opacity * (1 - deathProgress), 0, 1);
     if (visibility <= 0) return;

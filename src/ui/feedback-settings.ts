@@ -19,6 +19,8 @@ const CARD_FOUND_POPUPS_KEY = "wildstat-card-found-popups-v1";
 const OWN_NAME_PLATE_KEY = "wildstat-own-name-plate-v1";
 const GUILD_TAGS_KEY = "wildstat-guild-tags-v1";
 
+export const ALT_RENDERER_KEY = "wildjank-alt-renderer-v1";
+
 /** Device preferences apply immediately, even when storage is unavailable. */
 export function installFeedbackSettings(doc: Document, storage: Pick<Storage, "getItem" | "setItem"> | undefined, haptic: () => void) {
   const read = (key: string, fallback: boolean) => {
@@ -32,7 +34,7 @@ export function installFeedbackSettings(doc: Document, storage: Pick<Storage, "g
     onChange?.(enabled);
     button.addEventListener("click", () => {
       enabled = !enabled;
-      try { storage?.setItem(key, String(enabled)); } catch {}
+      try { storage?.setItem(key, String(enabled)); } catch { }
       renderBooleanSetting(button, enabled);
       onChange?.(enabled);
     });
@@ -52,6 +54,7 @@ export function installFeedbackSettings(doc: Document, storage: Pick<Storage, "g
   if (doc.getElementById("enemyHpNumbersToggle")) toggle("enemyHpNumbersToggle", ENEMY_HP_NUMBERS_KEY, true, setEnemyHpNumbersEnabled);
   if (doc.getElementById("damageNumbersToggle")) toggle("damageNumbersToggle", DAMAGE_NUMBERS_KEY, true, setDamageNumbersEnabled);
   if (doc.getElementById("cardFoundPopupsToggle")) toggle("cardFoundPopupsToggle", CARD_FOUND_POPUPS_KEY, true, setCardFoundPopupsEnabled);
+  if (doc.getElementById("altRenderer")) toggle("altRenderer", ALT_RENDERER_KEY, false, (enabled) => { });
   // Capture before navigation; only direct toolbar buttons, not settings inside it.
   doc.addEventListener("click", event => {
     const target = event.target as Element | null;
@@ -82,6 +85,7 @@ export function installFeedbackControls(doc: Document) {
     // Account-scoped and server-backed, so this only builds the row; the
     // binding lives with the connection that owns the preference.
     ["offlineProgressToggle", "Offline Progress", true],
+    ["altRenderer", "Alternative Renderer", false],
   ] as const) {
     if (doc.getElementById(id)) continue;
     const row = doc.createElement("div");
