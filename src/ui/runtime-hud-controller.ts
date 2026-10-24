@@ -298,6 +298,7 @@ export function createRuntimeHudController(dependencies: RuntimeHudDependencies)
   }
 
   function showDuelResult(replay: RuntimeDuelReplay | null) {
+    //console.log(`Trying to show duel result`);
     if (!replay) return;
     const localName = dependencies.localDisplayName() || "PLAYER";
     const selfIsChallenger = replay.challengerName === localName;
@@ -320,7 +321,7 @@ export function createRuntimeHudController(dependencies: RuntimeHudDependencies)
     elements.shareDuelBtn.removeAttribute("aria-busy");
     elements.shareDuelBtn.textContent = "SHARE TO CHAT";
     elements.watchDuelReplay.hidden = false;
-    if (replay.opponentIdentity === HALLOWED_IDENTITY) {
+    if (selfIsChallenger && replay.opponentIdentity === HALLOWED_IDENTITY) {
       shareDuelResult();
     }
   }
