@@ -153,7 +153,7 @@ export function createWoodcuttingRuntime(deps: {
     // What it gives before the hatchet's bonus, which the server rolls.
     const color = LOG_COLORS[tree.log].face;
     const gives = boostedYield(woodcuttingYield(tree), source.serverBoostMultiplier?.() ?? 1);
-    deps.logPickup?.(`+${gives[tree.log] ?? 0} ${REFINE_ORES[tree.log].name}`, color);
+    deps.logPickup?.(`${deps.bag?.()?.ores[tree.log] ?? "0"} (+${gives[tree.log] ?? 0}) ${REFINE_ORES[tree.log].name}`, color);
     deps.burst?.(tree.x, tree.y - 30, color, 12, 95);
   }
 

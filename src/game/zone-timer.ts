@@ -1,6 +1,10 @@
 import { CAMPAIGN_MAPS } from "../../shared/campaign-registry";
+import { GUILD_HALL_MAP_PREFIX } from "../../shared/guild-hall";
+import { ONBOARDING_MAP_ID } from "../../shared/onboarding";
 import { PROCEDURAL_PREFIX } from "../../shared/procedural-map-core";
+import { SOUL_MAP_ID } from "../../shared/soul-dimension";
 import { formatTimerMs } from "../../shared/timer-format";
+import { TOWN_MAP_ID } from "../../shared/town";
 import { MapId } from "./world";
 
 const TIMER_VALUES = 11;
@@ -9,9 +13,12 @@ const HISTORY_SIZE = 3;
 
 type TimeStorage = { [index: string]: { bestTime: number, prestige: number, previousPB?: number, allTimes: Array<{ prestige: number, time: number }> } };
 
+type OtherTimeStorage = { [index: number]: { startTime: number, currentTime: number, mapTimes: { [index: string]: { time: number } } } };
+
 let lastChangedMap: MapId | undefined;
 
 export function saveTime(time: number, mapId: MapId, prestige: number, identity: string) {
+  saveZoneTime(mapId, identity, prestige);
   //console.log(`${prestige} | ${mapId} | ${formatTimerMs(time)}`);
   const currentStorage = localStorage.getItem(`wildjank:timerValues-${identity}`);
   //console.log(currentStorage);
@@ -121,4 +128,137 @@ export function updateTimeValues(identity: string, centreValue: MapId, prestige:
       if (realCentre - OFFSET + i === mapIndex) timer.classList.add('highlighted-row');
     }
   }
+}
+
+export function installZoneTimeTracker(mapId?: () => MapId, identity?: () => string | undefined, prestige?: () => number | undefined) {
+  let installed = false;
+  window.setInterval(() => {
+    if (identity?.() === undefined) return;
+    if (!installed) {
+      const i = identity();
+      const p = prestige?.();
+      if (i !== undefined && p !== undefined) {
+        createZoneTimeTracker(i, p);
+        installed = true;
+      }
+    }
+    const currentStorage = localStorage.getItem(`wildjank:otherTimer-${identity?.()}`);
+    console.log(currentStorage);
+    //console.log(currentStorage);
+    if (currentStorage) {
+      try {
+        const data = JSON.parse(currentStorage) as OtherTimeStorage;
+        if (typeof (data) !== "object") throw new Error(`Failed to parse timer values`);
+        const prestigeValue = prestige?.();
+        if (!prestigeValue) throw new Error(`Failed to get prestige`);
+        const relevantSlot = data[prestigeValue];
+        //console.log(relevantTime);
+        if (relevantSlot) {
+          const timePassed = Date.now() - relevantSlot.startTime;
+          if (timePassed < 110 && ![ONBOARDING_MAP_ID, SOUL_MAP_ID, TOWN_MAP_ID].includes(mapId?.() ?? "") && !mapId?.()?.startsWith(GUILD_HALL_MAP_PREFIX)) {
+            relevantSlot.currentTime += timePassed;
+          }
+          relevantSlot.startTime = Date.now();
+        } else {
+          data[prestigeValue] = { startTime: Date.now(), currentTime: 0, mapTimes: {} };
+        }
+        localStorage.setItem(`wildjank:otherTimer-${identity?.()}`, JSON.stringify(data));
+        return;
+      } catch (e) {
+
+      }
+    } else {
+      const prestigeValue = prestige?.();
+      if (!prestigeValue) return;
+      const data: OtherTimeStorage = { [prestigeValue]: { startTime: Date.now(), currentTime: 0, mapTimes: {} } };
+      localStorage.setItem(`wildjank:otherTimer-${identity?.()}`, JSON.stringify(data));
+    }
+  }, 100);
+}
+
+export function saveZoneTime(mapId: string, identity: string, prestige: number) {
+  const currentStorage = localStorage.getItem(`wildjank:otherTimer-${identity}`);
+  if (!currentStorage) return;
+  try {
+    const data = JSON.parse(currentStorage) as OtherTimeStorage;
+    if (typeof (data) !== "object") throw new Error(`Failed to parse timer values`);
+    const relevantSlot = data[prestige];
+    if (!relevantSlot) return;
+    if (relevantSlot.mapTimes[mapId]) return;
+    relevantSlot.mapTimes[mapId] = { time: relevantSlot.currentTime };
+    localStorage.setItem(`wildjank:otherTimer-${identity}`, JSON.stringify(data));
+    updateZoneTimeTracker(identity, prestige);
+  } catch (e) { }
+}
+
+export function getZoneTime(mapId: string, identity: string, prestige: number): { time: number } | undefined {
+  const currentStorage = localStorage.getItem(`wildjank:otherTimer-${identity}`);
+  if (!currentStorage) return;
+  try {
+    const data = JSON.parse(currentStorage) as OtherTimeStorage;
+    if (typeof (data) !== "object") throw new Error(`Failed to parse timer values`);
+    const relevantSlot = data[prestige];
+    if (!relevantSlot) return;
+    return relevantSlot.mapTimes[mapId];
+  } catch (e) { }
+}
+
+export function createZoneTimeTracker(identity: string, prestige: number) {
+  const sheet = document.createElement('section');
+  sheet.id = 'zoneTimerSheet';
+  //sheet.style.bottom = '200px';//`calc(${document.getElementById('chatPannel')?.style.top} + 5px)`;
+  document.getElementById('hud')!.append(sheet);
+  updateZoneTimeTracker(identity, prestige);
+}
+
+export function updateZoneTimeTracker(identity: string, prestige: number) {
+  const tracker = document.getElementById('zoneTimerSheet');
+  if (!tracker) return;
+  //tracker.childNodes.forEach(c => c.remove());
+  while (tracker.childNodes.length > 0) tracker.childNodes[0].remove();
+  const currentStorage = localStorage.getItem(`wildjank:otherTimer-${identity}`);
+  if (!currentStorage) return;
+  try {
+    const data = JSON.parse(currentStorage) as OtherTimeStorage;
+    if (typeof (data) !== "object") throw new Error(`Failed to parse timer values`);
+    const max = maxMap(data);
+    const mapId = (n: number) => n < CAMPAIGN_MAPS.length ? CAMPAIGN_MAPS[n].id : `${PROCEDURAL_PREFIX}${n - 14}`;
+    const timestamp = (n?: number) => n === undefined ? `--:--` : `${formatTimerMs(n)}`;
+    for (let i = 0; i <= max.index; i++) {
+      const element = document.createElement('div');
+      const map = mapId(i);
+      element.textContent = `${map}: ${timestamp(data[prestige]?.mapTimes[map]?.time)} ${timestamp(data[prestige - 1]?.mapTimes[map]?.time)} ${timestamp(bestTime(data, map))}`;
+      tracker.appendChild(element);
+    }
+  } catch (e) { }
+  //for () {}
+}
+
+function maxMap(storage: OtherTimeStorage): { mapId: MapId, index: number } {
+  const mapId = (n: number) => n < CAMPAIGN_MAPS.length ? CAMPAIGN_MAPS[n].id : `${PROCEDURAL_PREFIX}${n - 14}`;
+  let highestMapFound = 0;
+  for (const key of Object.keys(storage)) {
+    const s = storage[Number(key)];
+    if (!s) continue;
+    for (const mapKey of Object.keys(s.mapTimes)) {
+      const findIndex = CAMPAIGN_MAPS.findIndex(m => m.id === mapKey);
+      const mapIndex = findIndex === -1 ? (parseInt(mapKey.split('_')[1]) + 14) : findIndex;
+      highestMapFound = Math.max(highestMapFound, mapIndex);
+    }
+  }
+  return { mapId: mapId(highestMapFound) as MapId, index: highestMapFound };
+}
+
+function bestTime(storage: OtherTimeStorage, mapId: string): number | undefined {
+  let lowestValueFound;
+  for (const key of Object.keys(storage)) {
+    const s = storage[Number(key)];
+    if (!s) continue;
+    if (s.mapTimes[mapId]) {
+      if (!lowestValueFound || s.mapTimes[mapId].time < lowestValueFound) {
+        lowestValueFound = s.mapTimes[mapId].time;
+      }
+    }
+  }
+  return lowestValueFound;
 }
