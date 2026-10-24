@@ -97,7 +97,7 @@ import { bossPortalCutscenes } from "./game/runtime/boss/boss-portal-cutscenes";
 import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
 import { GUILD_HALL_MAP_PREFIX } from "../shared/guild-hall";
 import { TOWN_MAP_ID } from "../shared/town";
-import { updateTimeValues } from "./game/zone-timer";
+import { installZoneTimeTracker, updateTimeValues } from "./game/zone-timer";
 
 (() => {
   "use strict";
@@ -880,7 +880,7 @@ import { updateTimeValues } from "./game/zone-timer";
   chatRuntime.init();
   installGameTicker(gameElements.chatPanel, localStorage, () => coop?.patreonSupporterNames?.() ?? []);
   offlineProgressSetting = installOfflineProgressSetting(document, () => coop);
-
+  installZoneTimeTracker(() => currentMapId, () => coop?.localIdentity(), () => coop?.prestige()?.level);
   createAutoFarmPanel({
     farm: autoFarm, mapName: () => MAP_CONFIG[currentMapId].name, aggro: () => coop?.aggroChallenge?.(), identity: coopAccess.localIdentity,
     rewardMultiplier: researchRewardMultiplier, soulRewardMultiplier: () => soulDimension.rewardMultiplier(),

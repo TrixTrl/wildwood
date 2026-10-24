@@ -5160,3 +5160,17 @@ html.text-outline-shadow .death-countdown { text-shadow: var(--text-outline-ring
 .chat-channel-tabs button.unread-highlight {
   background-color: #700000;
 }
+
+#zoneTimerSheet {
+  position: absolute;
+  width: fit-content;
+  max-height: 200px;
+  border-radius: 4px;
+  z-index: 4;
+  background-color: #00000070;
+  bottom: calc(var(--toolbar-height) + var(--mini-chat-height) + 2px);
+  left: 2px;
+  overflow-y: scroll;
+  scrollbar-width: none;
+  pointer-events: all;
+}
