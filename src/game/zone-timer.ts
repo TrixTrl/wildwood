@@ -18,7 +18,6 @@ type OtherTimeStorage = { [index: number]: { startTime: number, currentTime: num
 let lastChangedMap: MapId | undefined;
 
 export function saveTime(time: number, mapId: MapId, prestige: number, identity: string) {
-  saveZoneTime(mapId, identity, prestige);
   //console.log(`${prestige} | ${mapId} | ${formatTimerMs(time)}`);
   const currentStorage = localStorage.getItem(`wildjank:timerValues-${identity}`);
   //console.log(currentStorage);
