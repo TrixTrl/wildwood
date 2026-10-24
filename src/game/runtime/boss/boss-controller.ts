@@ -49,7 +49,7 @@ import type { PlayerGender } from "../../../../shared/player-gender";
 import type { BossCone, PlayerState, SpiderWeb } from "../types";
 import { BOSSES, BOSS_KINDS, bossForMap, clearBossAttack, perBoss, type BossHazards, type BossKind, type BossStates } from "./boss-registry";
 import { MapId } from "../../world";
-import { saveTime, updateTimeValues } from "../../zone-timer";
+import { saveTime, saveZoneTime, updateTimeValues } from "../../zone-timer";
 
 /** How far past a boss's edge still counts as touching it, as a share of the edge distance. */
 const BOSS_CONTACT_SLACK = 1.02;
@@ -556,13 +556,13 @@ export function createBossController(options: {
     state.maxHp = shared.maxHp;
     state.hp = shared.hp;
     if (!shared.alive) {
-      const timeMap = options.timeMap().get(options.currentMapId() as MapId);
-      if (timeMap && timeMap?.endTime === undefined) {
-        timeMap.endTime = Date.now();
-        //console.log(options.timeMap());
-        const identity = options.identity?.();
-        const prestige = options.prestige?.();
-        if (identity && prestige) {
+      const identity = options.identity?.();
+      const prestige = options.prestige?.();
+      if (identity !== undefined && prestige !== undefined) {
+        saveZoneTime(options.currentMapId(), identity, prestige);
+        const timeMap = options.timeMap().get(options.currentMapId() as MapId);
+        if (timeMap && timeMap?.endTime === undefined) {
+          timeMap.endTime = Date.now();
           saveTime(timeMap.endTime - timeMap.startTime, options.currentMapId() as MapId, prestige, identity);
           updateTimeValues(identity, options.currentMapId() as MapId, prestige);
         }
@@ -639,14 +639,13 @@ export function createBossController(options: {
     boss.hp = shared.hp;
     if (!shared.alive) {
       boss.dead = true;
-      //console.log(`boss kill caught`);
-      const timeMap = options.timeMap().get(options.currentMapId() as MapId);
-      if (timeMap && timeMap?.endTime === undefined) {
-        timeMap.endTime = Date.now();
-        //console.log(options.timeMap());
-        const identity = options.identity?.();
-        const prestige = options.prestige?.();
-        if (identity && prestige) {
+      const identity = options.identity?.();
+      const prestige = options.prestige?.();
+      if (identity !== undefined && prestige !== undefined) {
+        saveZoneTime(options.currentMapId(), identity, prestige);
+        const timeMap = options.timeMap().get(options.currentMapId() as MapId);
+        if (timeMap && timeMap?.endTime === undefined) {
+          timeMap.endTime = Date.now();
           saveTime(timeMap.endTime - timeMap.startTime, options.currentMapId() as MapId, prestige, identity);
           updateTimeValues(identity, options.currentMapId() as MapId, prestige);
         }
