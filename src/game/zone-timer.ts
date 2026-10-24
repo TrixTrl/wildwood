@@ -19,6 +19,7 @@ type OtherTimeStorage = { [index: number]: { startTime: number, currentTime: num
 let lastChangedMap: MapId | undefined;
 
 export function saveTime(time: number, mapId: MapId, prestige: number, identity: string) {
+  return;
   //console.log(`${prestige} | ${mapId} | ${formatTimerMs(time)}`);
   const currentStorage = localStorage.getItem(`wildjank:timerValues-${identity}`);
   //console.log(currentStorage);
@@ -86,6 +87,7 @@ export function rollBackTime(mapId: string, identity: string) {
 }
 
 export function createTimer() {
+  return;
   const sheet = document.createElement('section');
   sheet.id = 'timerSheet';
   for (let i = 0; i < TIMER_VALUES; i++) {
@@ -97,6 +99,7 @@ export function createTimer() {
 }
 
 export function updateTimeValues(identity: string, centreValue: MapId, prestige: number) {
+  return;
   const mapId = (n: number) => n < CAMPAIGN_MAPS.length ? CAMPAIGN_MAPS[n].id : `${PROCEDURAL_PREFIX}${n - 14}`;
   const timerValues = [];
   for (let i = 0; i < TIMER_VALUES; i++) {
