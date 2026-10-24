@@ -233,7 +233,7 @@ export function updateZoneTimeTracker(identity: string, prestige: number) {
       const bestTimeValue = bestTime(data, map, prestige);
       const bestTimePrevValue = bestTime(data, i > 0 ? mapId(i - 1) : '', prestige);
       const zoneTime = i > 0 && data[prestige]?.mapTimes[map] && data[prestige]?.mapTimes[mapId(i - 1)] ? (data[prestige]?.mapTimes[map]?.time - data[prestige]?.mapTimes[mapId(i - 1)].time) : (i == 0 && data[prestige]?.mapTimes[map] ? data[prestige]?.mapTimes[map]?.time : 0);
-      const zoneTimeText = zoneTime > 0 ? ` ${formatTimerMs(zoneTime)}` : '';
+      const zoneTimeText = zoneTime > 0 ? ` ${formatTimerMs(zoneTime)}` : '--:--';
       const bestZoneTime = i > 0 && bestTimeValue && bestTimePrevValue ? bestTimeValue - bestTimePrevValue : (i == 0 && bestTimeValue ? bestTimeValue : 0);
       const timeSplit = bestZoneTime > 0 && zoneTime > 0 ? zoneTime - bestZoneTime : 0;
       const splitText = ` ${timeSplit < 0 ? `-${formatTimerMs(-timeSplit)}` : `+${formatTimerMs(timeSplit)}`}`;
