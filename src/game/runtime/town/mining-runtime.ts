@@ -176,7 +176,7 @@ export function createMiningRuntime(deps: {
     deps.burst?.(rock.x, rock.y - 18, "#c7ced3", 14, 120);
     // What it gives before the server's rolls (cards, the pickaxe's bonus): the same rule the bag counts.
     const color = ORE_COLORS[rock.ore].light, gives = boostedYield(miningYield(rock, 1), source.serverBoostMultiplier?.() ?? 1);
-    deps.logPickup?.(`+${gives[rock.ore] ?? 0} ${REFINE_ORES[rock.ore].name}`, color);
+    deps.logPickup?.(`${deps.bag?.()?.ores[rock.ore] ?? "0"} (+${gives[rock.ore] ?? 0}) ${REFINE_ORES[rock.ore].name}`, color);
     if (gives.starshard) deps.logPickup?.(`+${gives.starshard} Starshard`, STARSHARD_COLOR);
     deps.burst?.(rock.x, rock.y - 24, color, 12, 95);
   }
