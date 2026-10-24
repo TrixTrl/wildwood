@@ -2497,7 +2497,7 @@
   /* Chat's age check: the start screen's slider in a small window over the game (chat-age-gate.ts). */
   #chatAgeGate { position: fixed; inset: 0; z-index: 14; display: grid; place-items: center; padding: 16px; background: rgba(0,0,0,.55); }
   #chatAgeGate[hidden] { display: none; }
-  .modal.chat-age-gate-modal { display: grid; justify-items: center; gap: 14px; width: var(--game-window-width); padding: 18px 16px 0; border-color: var(--ui-outline); background: var(--window-surface); text-align: center; transform: none; }
+  .modal.chat-age-gate-modal { display: grid; justify-items: center; gap: 14px; width: var(--game-window-width); padding: 18px 16px 0; border-color: var(--ui-outline); background: var(--window-surface); text-align: center; transform: none; pointer-events: all; }
   .chat-age-gate-note { margin: 0; color: var(--muted); font-size: 13px; }
   .chat-age-gate-modal > .window-back-footer { justify-self: stretch; }
   .chat-age-gate-modal .legal-age-control { margin-top: 40px; }
