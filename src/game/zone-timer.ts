@@ -143,7 +143,7 @@ export function installZoneTimeTracker(mapId?: () => MapId, identity?: () => str
       }
     }
     const currentStorage = localStorage.getItem(`wildjank:otherTimer-${identity?.()}`);
-    console.log(currentStorage);
+    //console.log(currentStorage);
     //console.log(currentStorage);
     if (currentStorage) {
       try {
@@ -155,7 +155,7 @@ export function installZoneTimeTracker(mapId?: () => MapId, identity?: () => str
         //console.log(relevantTime);
         if (relevantSlot) {
           const timePassed = Date.now() - relevantSlot.startTime;
-          if (timePassed < 110 && ![ONBOARDING_MAP_ID, SOUL_MAP_ID, TOWN_MAP_ID].includes(mapId?.() ?? "") && !mapId?.()?.startsWith(GUILD_HALL_MAP_PREFIX)) {
+          if (timePassed < 1000 && ![ONBOARDING_MAP_ID, SOUL_MAP_ID, TOWN_MAP_ID].includes(mapId?.() ?? "") && !mapId?.()?.startsWith(GUILD_HALL_MAP_PREFIX)) {
             relevantSlot.currentTime += timePassed;
           }
           relevantSlot.startTime = Date.now();
