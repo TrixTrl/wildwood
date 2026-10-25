@@ -17,6 +17,10 @@ import {
   writeFarmAdvance, writeSavedShares, type FarmReward, type FarmShares,
   readFarmKite,
   writeFarmKite,
+  readBossPull,
+  readPortalPull,
+  writeBossPull,
+  writePortalPull,
 } from './auto-farm-plan';
 import { formatCompactNumber } from '../../../../shared/compact-number';
 import { isSoulMap, SOUL_STAT_DETAILS, type SoulStatId } from '../../../../shared/soul-dimension';
@@ -196,6 +200,8 @@ export function createAutoFarmController(options: {
   let pullPicks = readAutoFarmPullGroups(options.priorityStorage);
   let advance = readFarmAdvance(options.priorityStorage);
   let kite = readFarmKite(options.priorityStorage);
+  let bossPull = readBossPull(options.priorityStorage);
+  let portalPull = readPortalPull(options.priorityStorage);
   /** Move At: the share of the next map's power to have before going (1 is even); the boss holding that map waits for it too. */
   let movePower = readMovePower(options.priorityStorage);
   /** This map's sliders, and its groups above 0%, the largest first. */
@@ -419,7 +425,7 @@ export function createAutoFarmController(options: {
   }
   const pulledEnemy = (enemy: EnemyState) => !enemy.dead && !enemy.remoteCombatGhost && !enemy.generatedBoss && enemy.hp > 0 && pulledGroups().has(choiceKey(enemy));
   /** Pull Whole Group on: every enemy of the pulled groups comes while it farms, and at the boss for a build that feeds on them. */
-  const pullsEnemy = (enemy: EnemyState) => pulling() && active && (phase === 'farm' || (phase === 'boss' && Boolean(options.feedsOnAdds?.()))) && !recovering && !pendingResume && !options.paused() && pulledEnemy(enemy);
+  const pullsEnemy = (enemy: EnemyState) => pulling() && active && (phase === 'farm' || (phase === 'boss' && bossPull) || (phase === 'portal' && portalPull)) && !recovering && !pendingResume && !options.paused() && pulledEnemy(enemy);
 
   // ---- Move On ----
   /** The power Move On waits for: Move At times the map's recommended power. */
@@ -1075,6 +1081,10 @@ export function createAutoFarmController(options: {
     setAdvance(next: boolean) { advance = next; writeFarmAdvance(next, options.priorityStorage); },
     kite: () => kite,
     setKite(next: boolean) { kite = next; writeFarmKite(next, options.priorityStorage); },
+    bossPull: () => bossPull,
+    setBossPull(next: boolean) { bossPull = next; writeBossPull(next, options.priorityStorage) },
+    portalPull: () => portalPull,
+    setPortalPull(next: boolean) { portalPull = next; writePortalPull(next, options.priorityStorage) },
     /** Move At, 0.1x to 10x the next map's power: Move On goes, and the boss holding the way is fought, once it is reached. */
     movePower: () => movePower,
     setMovePower(next: number) { movePower = powerStep(next); writeMovePower(movePower, options.priorityStorage); },
