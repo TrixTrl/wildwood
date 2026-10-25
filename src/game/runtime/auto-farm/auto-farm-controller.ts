@@ -15,6 +15,8 @@ import type { createAutoFarmResumeStore } from '../../../app/auto-farm-resume';
 import {
   SHARE_REPLAN_SECONDS, decodeFarmPlan, encodeFarmPlan, legacyShares, readMovePower, writeMovePower, powerStep, readFarmAdvance, readSavedShares, sharesForGroups, shareFarmKey,
   writeFarmAdvance, writeSavedShares, type FarmReward, type FarmShares,
+  readFarmKite,
+  writeFarmKite,
 } from './auto-farm-plan';
 import { formatCompactNumber } from '../../../../shared/compact-number';
 import { isSoulMap, SOUL_STAT_DETAILS, type SoulStatId } from '../../../../shared/soul-dimension';
@@ -193,6 +195,7 @@ export function createAutoFarmController(options: {
   /** The groups switched to Aggro beside their sliders; null until one is touched, when Pull Whole Group's own picks apply. */
   let pullPicks = readAutoFarmPullGroups(options.priorityStorage);
   let advance = readFarmAdvance(options.priorityStorage);
+  let kite = readFarmKite(options.priorityStorage);
   /** Move At: the share of the next map's power to have before going (1 is even); the boss holding that map waits for it too. */
   let movePower = readMovePower(options.priorityStorage);
   /** This map's sliders, and its groups above 0%, the largest first. */
@@ -887,7 +890,7 @@ export function createAutoFarmController(options: {
     // On the way to the boss or the next map it shoots what it passes but chases nobody. A pulled group is coming anyway.
     if (phase === 'farm') {
       const regenMultiplier = options.playerStats().regenerationPerSecond();
-      const smartTarget = smartMove({ ...player, realRegen: regenMultiplier }, enemies, shares, advance);
+      const smartTarget = smartMove({ ...player, realRegen: regenMultiplier }, enemies, shares, advance, kite);
       const length = distance(smartTarget), magnitude = Math.min(1, length / Math.max(1, options.speed() * dt));
       return { x: (smartTarget.x - player.x) / length * magnitude, y: (smartTarget.y - player.y) / length * magnitude, source: 'steer' };
     }
@@ -1070,6 +1073,8 @@ export function createAutoFarmController(options: {
     holdsGround: () => pullCoversFarm(),
     advance: () => advance,
     setAdvance(next: boolean) { advance = next; writeFarmAdvance(next, options.priorityStorage); },
+    kite: () => kite,
+    setKite(next: boolean) { kite = next; writeFarmKite(next, options.priorityStorage); },
     /** Move At, 0.1x to 10x the next map's power: Move On goes, and the boss holding the way is fought, once it is reached. */
     movePower: () => movePower,
     setMovePower(next: number) { movePower = powerStep(next); writeMovePower(movePower, options.priorityStorage); },

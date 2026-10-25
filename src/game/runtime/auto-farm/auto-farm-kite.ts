@@ -26,7 +26,7 @@ let runningFromBoss = false;
 const filtering = false;
 const filteredEnemies = ["speed", "crit"];
 
-export function smartMove(player: PlayerState & { realRegen: number }, enemies: EnemyState[], shares: Readonly<Record<string, number>>, advance: boolean): Position {
+export function smartMove(player: PlayerState & { realRegen: number }, enemies: EnemyState[], shares: Readonly<Record<string, number>>, advance: boolean, kite: boolean): Position {
   const boss = { x: 4000, y: 4000 };
   const bossCornerDist = Math.hypot(player.x - boss.x, player.y - boss.y);
   //console.log(bossCornerDist);
@@ -77,7 +77,7 @@ export function smartMove(player: PlayerState & { realRegen: number }, enemies: 
     return { x: mapSize / 2 + (player.x - mapSize / 2) * 5, y: mapSize / 2 + (player.y - mapSize / 2) * 5 };
   }
 
-  if (timeTillDeath > 0 && timeTillDeath < 3 || player.hp < player.maxHp * 0.3) {
+  if (kite && (timeTillDeath > 0 && timeTillDeath < 3 || player.hp < player.maxHp * 0.3)) {
     //console.log(`Running`);
     const position = { x: player.x, y: player.y };
     //console.log(position);

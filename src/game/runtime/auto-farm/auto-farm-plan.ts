@@ -163,6 +163,7 @@ export function decodeFarmPlan(choice: string): FarmShares | null {
 }
 
 export const AUTO_FARM_ADVANCE_KEY = 'wildstat:autofarm-advance:v1';
+export const AUTO_FARM_KITE_KEY = 'wildstat:autofarm-kite:v1';
 function readSwitch(key: string, storage: () => Storage | undefined) {
   try { return storage()?.getItem(key) === '1'; } catch { return false; }
 }
@@ -171,6 +172,8 @@ function writeSwitch(key: string, on: boolean, storage: () => Storage | undefine
 }
 export const readFarmAdvance = (storage: () => Storage | undefined = () => localStorage) => readSwitch(AUTO_FARM_ADVANCE_KEY, storage);
 export const writeFarmAdvance = (on: boolean, storage: () => Storage | undefined = () => localStorage) => writeSwitch(AUTO_FARM_ADVANCE_KEY, on, storage);
+export const readFarmKite = (storage: () => Storage | undefined = () => localStorage) => readSwitch(AUTO_FARM_KITE_KEY, storage);
+export const writeFarmKite = (on: boolean, storage: () => Storage | undefined = () => localStorage) => writeSwitch(AUTO_FARM_KITE_KEY, on, storage);
 
 /**
  * Move At, the slider under Move On: how much of the next map's recommended
