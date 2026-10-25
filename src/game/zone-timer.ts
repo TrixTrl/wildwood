@@ -151,7 +151,7 @@ export function installZoneTimeTracker(mapId?: () => MapId, identity?: () => str
         const data = JSON.parse(currentStorage) as OtherTimeStorage;
         if (typeof (data) !== "object") throw new Error(`Failed to parse timer values`);
         const prestigeValue = prestige?.();
-        if (!prestigeValue) return;
+        if (prestigeValue === undefined) return;
         const relevantSlot = data[prestigeValue];
         if (relevantSlot) {
           const timePassed = Date.now() - relevantSlot.startTime;
@@ -191,7 +191,7 @@ export function installZoneTimeTracker(mapId?: () => MapId, identity?: () => str
       } catch (e) { console.error(e); }
     } else {
       const prestigeValue = prestige?.();
-      if (!prestigeValue) return;
+      if (prestigeValue === undefined) return;
       const data: OtherTimeStorage = { [prestigeValue]: { startTime: Date.now(), currentTime: 0, mapTimes: {} } };
       localStorage.setItem(`wildjank:otherTimer-${identity?.()}`, JSON.stringify(data));
     }
@@ -253,7 +253,7 @@ export function updateZoneTimeTracker(identity: string, prestige: number) {
     const mapId = (n: number) => n < CAMPAIGN_MAPS.length ? (CAMPAIGN_MAPS[n]?.id ?? '') : `${PROCEDURAL_PREFIX}${n - 14}`;
     const timestamp = (n: number | undefined, forceHour: boolean) => n === undefined ? `--:--:--` : `${forceHour || n >= (1000 * 60 * 60) ? Math.floor(n / (1000 * 60 * 60)).toString().padStart(2, '0') + ':' : ''}${formatTimerMs(n % (1000 * 60 * 60))}`;
     //const timestamp = (n?: number) => n === undefined ? `--:--:--` : `${Math.floor(n / (1000 * 60 * 60)).toString().padStart(2, '0')}:${formatTimerMs(n % (1000 * 60 * 60))}`;
-    for (let i = 0; i <= max.index; i++) {
+    for (let i = 0; i <= Math.max(0, max.index); i++) {
       const element = document.createElement('section');
       const map = mapId(i);
       const bestTimeValue = bestTime(data, map, prestige);
