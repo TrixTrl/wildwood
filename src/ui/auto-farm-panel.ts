@@ -92,7 +92,7 @@ export function createAutoFarmPanel(options: {
     + `<div class="farm-setting farm-stats-heading"><span id="autoFarmStatsLabel" class="farm-setting-label">Stats</span><span class="farm-aggro-count" hidden></span></div>`
     + `<div class="farm-weights" role="group" aria-labelledby="autoFarmStatsLabel"></div>`
     + `<p class="farm-empty" hidden>No Enemies Here</p>`
-    + `<button type="button" class="farm-switch farm-kite" role="switch" data-switch="kite" aria-checked="false" aria-describedby="autoFarmKiteStatus">`
+    + `<button type="button" class="farm-switch farm-kite" role="switch" data-switch="kite" aria-checked="false">`
     + `<span class="farm-switch-copy"><span class="farm-switch-label">Auto Kite</span><div id="autoKiteStatus" class="farm-boss-status"></div></span><span class="farm-knob" aria-hidden="true"></span></button>`
     + `<button type="button" class="farm-switch farm-move" role="switch" data-switch="advance" aria-checked="false" aria-describedby="autoFarmBossStatus">`
     + `<span class="farm-switch-copy"><span class="farm-switch-label">Move On</span><div id="autoFarmBossStatus" class="farm-boss-status"></div></span><span class="farm-knob" aria-hidden="true"></span></button>`
@@ -100,6 +100,10 @@ export function createAutoFarmPanel(options: {
     + `<div class="farm-more">`
     + `<div class="farm-setting farm-aggro-row" hidden><span class="farm-setting-label">Chasing Groups</span><div class="farm-segment"><button type="button" class="farm-aggro-pick">Choose</button></div></div>`
     + segment('Target', 'autoFarmTargetLabel', 'farm-target', AUTO_FARM_PRIORITIES.map(entry => `<button type="button" role="radio" data-priority="${entry.id}">${entry.label}</button>`).join(''))
+    + `<button type="button" class="farm-switch farm-boss-pull" role="switch" data-switch="bossPull" aria-checked="false">`
+    + `<span class="farm-switch-copy"><span class="farm-switch-label">Pull Enemies During Boss</span><div id="bossPullStatus" class="farm-boss-status"></div></span><span class="farm-knob" aria-hidden="true"></span></button>`
+    + `<button type="button" class="farm-switch farm-portal-pull" role="switch" data-switch="portalPull" aria-checked="false">`
+    + `<span class="farm-switch-copy"><span class="farm-switch-label">Pull Enemies During Portal Walk</span><div id="portalPullStatus" class="farm-boss-status"></div></span><span class="farm-knob" aria-hidden="true"></span></button>`
     + `</div></div>`
     + `<footer class="farm-footer"><p class="farm-selection" aria-live="polite"></p>`
     + `<div class="farm-actions"><button type="button" class="window-back-button farm-close">Back</button><button type="button" class="farm-start">Start</button></div></footer></div>`;
@@ -256,6 +260,8 @@ export function createAutoFarmPanel(options: {
     for (const button of priorityButtons) button.setAttribute('aria-checked', String(button.dataset.priority === priority));
     showSwitch(advanceSwitch, options.farm.advance(), options.farm.moveStatus(), options.farm.moveReady());
     showSwitch(element<HTMLButtonElement>('[data-switch="kite"]'), options.farm.kite(), '', true);
+    showSwitch(element<HTMLButtonElement>('[data-switch="bossPull"]'), options.farm.bossPull(), '', true);
+    showSwitch(element<HTMLButtonElement>('[data-switch="portalPull"]'), options.farm.portalPull(), '', true);
     for (const power of powerRows) {
       const value = power.value(), step = String(POWER_STEPS.indexOf(value as typeof POWER_STEPS[number])), slider = power.row.querySelector('input')!;
       if (slider.value !== step) slider.value = step;
@@ -434,10 +440,12 @@ export function createAutoFarmPanel(options: {
     if (visible && !content.hidden) renderChoices();
   }
 
-  const movable = installMovableHudCard({ panel: sheet, handle: toggle, storage, positionKey: AUTO_FARM_POSITION_KEY, movable: () => content.hidden, toggle: () => {
-    // An Aggro run's window is the same one, with Stop; its chasing groups are a button inside it.
-    if (content.hidden) open(); else close();
-  } });
+  const movable = installMovableHudCard({
+    panel: sheet, handle: toggle, storage, positionKey: AUTO_FARM_POSITION_KEY, movable: () => content.hidden, toggle: () => {
+      // An Aggro run's window is the same one, with Stop; its chasing groups are a button inside it.
+      if (content.hidden) open(); else close();
+    }
+  });
   /** Stops whichever is running here: Auto Mine or Auto Chop in their areas, Auto Farm elsewhere. */
   const stopRunning = () => { const here = gather(); if (here) here.run.stop(); else options.farm.stop(); };
   backButton.addEventListener('click', () => {
@@ -458,6 +466,8 @@ export function createAutoFarmPanel(options: {
   });
   advanceSwitch.addEventListener('click', () => { options.farm.setAdvance(!options.farm.advance()); updateSelection(); });
   element<HTMLButtonElement>('[data-switch="kite"]').addEventListener('click', () => { options.farm.setKite(!options.farm.kite()); updateSelection(); });
+  element<HTMLButtonElement>('[data-switch="bossPull"]').addEventListener('click', () => { options.farm.setBossPull(!options.farm.bossPull()); updateSelection(); });
+  element<HTMLButtonElement>('[data-switch="portalPull"]').addEventListener('click', () => { options.farm.setPortalPull(!options.farm.portalPull()); updateSelection(); });
   for (const power of powerRows) {
     const slider = power.row.querySelector('input')!;
     slider.addEventListener('input', () => {
