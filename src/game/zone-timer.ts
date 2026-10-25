@@ -167,7 +167,7 @@ export function installZoneTimeTracker(mapId?: () => MapId, identity?: () => str
         }
         const activeTimer = document.getElementById('active-timer');
         if (activeTimer && ![ONBOARDING_MAP_ID, SOUL_MAP_ID, TOWN_MAP_ID].includes(mapId?.() ?? "") && !mapId?.()?.startsWith(GUILD_HALL_MAP_PREFIX)) {
-          const getMapId = (n: number) => n < CAMPAIGN_MAPS.length ? (CAMPAIGN_MAPS[n].id ?? '') : `${PROCEDURAL_PREFIX}${n - 14}`;
+          const getMapId = (n: number) => n < CAMPAIGN_MAPS.length ? (CAMPAIGN_MAPS[n]?.id ?? '') : `${PROCEDURAL_PREFIX}${n - 14}`;
           const findIndex = CAMPAIGN_MAPS.findIndex(m => m.id === mapId?.());
           const mapIndex = findIndex === -1 ? (parseInt((mapId?.() ?? "").split('_')[1]) + 14) : findIndex;
           while (activeTimer.childNodes.length > 0) activeTimer.childNodes[0].remove();
@@ -252,7 +252,7 @@ export function updateZoneTimeTracker(identity: string, prestige: number) {
     const data = JSON.parse(currentStorage) as OtherTimeStorage;
     if (typeof (data) !== "object") throw new Error(`Failed to parse timer values`);
     const max = maxMap(data);
-    const mapId = (n: number) => n < CAMPAIGN_MAPS.length ? CAMPAIGN_MAPS[n].id : `${PROCEDURAL_PREFIX}${n - 14}`;
+    const mapId = (n: number) => n < CAMPAIGN_MAPS.length ? (CAMPAIGN_MAPS[n]?.id ?? '') : `${PROCEDURAL_PREFIX}${n - 14}`;
     const timestamp = (n: number | undefined, forceHour: boolean) => n === undefined ? `--:--:--` : `${forceHour || n >= (1000 * 60 * 60) ? Math.floor(n / (1000 * 60 * 60)).toString().padStart(2, '0') + ':' : ''}${formatTimerMs(n % (1000 * 60 * 60))}`;
     //const timestamp = (n?: number) => n === undefined ? `--:--:--` : `${Math.floor(n / (1000 * 60 * 60)).toString().padStart(2, '0')}:${formatTimerMs(n % (1000 * 60 * 60))}`;
     for (let i = 0; i <= max.index; i++) {
