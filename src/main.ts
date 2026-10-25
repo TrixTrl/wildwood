@@ -537,7 +537,7 @@ import { installZoneTimeTracker, updateTimeValues } from "./game/zone-timer";
     collideEnemies: boss => playerCombat.pushEnemiesFromBoss(boss),
     timeMap: () => timeMap,
     identity: () => coop ? coop.localIdentity() : undefined,
-    prestige: () => () => coop ? coop.prestige()?.level ?? (coop.localState()?.mapId ? 0 : undefined) : undefined,
+    prestige: () => coop ? coop.prestige()?.level ?? (coop.localState()?.mapId ? 0 : undefined) : undefined,
   });
 
   const markPlayerSpriteReady = () => {
