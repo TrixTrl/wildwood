@@ -5161,6 +5161,14 @@ html.text-outline-shadow .death-countdown { text-shadow: var(--text-outline-ring
   background-color: #700000;
 }
 
+.full-timer {
+  position: absolute;
+  height: fit-content;
+  z-index: 4;
+  bottom: calc(var(--toolbar-height) + var(--mini-chat-height) + 2px);
+  left: 2px;
+}
+
 #zoneTimerSheet {
   position: absolute;
   width: fit-content;
@@ -5168,8 +5176,9 @@ html.text-outline-shadow .death-countdown { text-shadow: var(--text-outline-ring
   border-radius: 4px;
   z-index: 4;
   background-color: #00000070;
-  bottom: calc(var(--toolbar-height) + var(--mini-chat-height) + 2px);
-  left: 2px;
+  /*bottom: calc(var(--toolbar-height) + var(--mini-chat-height) + 2px);*/
+  bottom: 0px;
+  /*left: 2px;*/
   overflow-y: scroll;
   scrollbar-width: none;
   pointer-events: all;
@@ -5177,12 +5186,11 @@ html.text-outline-shadow .death-countdown { text-shadow: var(--text-outline-ring
 }
 
 #zoneTimerSheet * {
-  display: inline-block;
+  display: flex;
   font: 700 14px "Wildstat Chat", sans-serif;
   border: 2px solid rgba(0, 0, 0, .24);
   padding: 2px 4px;
   text-align: left;
-  justify-content: right;
 }
 
 #zoneTimerSheet * .time-tracker-map-label {
@@ -5202,4 +5210,33 @@ html.text-outline-shadow .death-countdown { text-shadow: var(--text-outline-ring
   color: #878787;
 }
 
+#active-timer {
+  position: absolute;
+  bottom: 402px;
+  border-radius: 4px;
+  border: 2px solid rgba(0, 0, 0, .24);
+  z-index: 4;
+  background-color: #00000070;
+  padding: 6px 8px;
+  display: flex;
+  font: 700 20px "Wildstat Chat", sans-serif;
+}
 
+#active-timer * {
+  text-align: center;
+  border: 2px solid rgba(0, 0, 0, .24);
+  padding: 6px 8px;
+  text-align: center;
+}
+
+.full-timer .green {
+  color: #01b804;
+}
+
+.full-timer .red {
+  color: #d8323c;
+}
+
+.full-timer .grey {
+  color: #878787;
+}
