@@ -316,7 +316,7 @@ export function updateZoneTimeTracker(identity: string, prestige: number) {
       splitTextElement.classList.add('time-tracker-split-text');
       splitTextElement.classList.add(timeSplit == 0 ? 'grey' : timeSplit > 0 ? 'red' : 'green');
       splitTextElement.textContent = splitText;
-      splitTextElement.title = 'Split Compared To Best Map Values';
+      splitTextElement.title = 'Zone Split Compared To Best Map Values';
       element.appendChild(splitTextElement);
       const totalSplitTextElement = document.createElement('div');
       totalSplitTextElement.classList.add('time-tracker-total-split-text');
