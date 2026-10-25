@@ -207,7 +207,7 @@ export function createAccountService(dependencies: AccountServiceDependencies) {
   const dpop = dependencies.dpop ?? deviceDpop;
   // Loads the device key while the game loads, so a sign-in return finds it
   // ready and any IndexedDB wake-up wait overlaps the loading bar.
-  try { if (dpopWanted(localStorage)) dpop().warm(); } catch {}
+  try { if (dpopWanted(localStorage)) dpop().warm(); } catch { }
   const renewal = createAccountTokenRenewal(localStorage, keys.accountTokenKey, undefined, {
     dpop, report: detail => recordConnectionDiagnostic("session-blocked", { detail: `${detail}${accountTag()}` }),
   });
@@ -275,14 +275,14 @@ export function createAccountService(dependencies: AccountServiceDependencies) {
 
   function writeTabValue(key: string, value: string) {
     sessionStorage.setItem(key, value);
-    try { localStorage.removeItem(key); } catch {}
+    try { localStorage.removeItem(key); } catch { }
   }
 
   function clearTabValue(key: string) {
     try {
       sessionStorage.removeItem(key);
       localStorage.removeItem(key);
-    } catch {}
+    } catch { }
   }
 
   function clearAuthTransaction() {
@@ -297,7 +297,7 @@ export function createAccountService(dependencies: AccountServiceDependencies) {
     const saved = readTabValue(keys.authTripKey);
     clearTabValue(keys.authTripKey);
     let trip: { reason?: unknown; prompt?: unknown; at?: unknown; character?: unknown; sub?: unknown } = {};
-    try { trip = JSON.parse(saved ?? "{}"); } catch {}
+    try { trip = JSON.parse(saved ?? "{}"); } catch { }
     const failure = outcome === "failed" ? `:why=${why || "unknown"}${accountTag()}` : "";
     if (typeof trip.reason !== "string" || typeof trip.at !== "number") {
       // A tab that lost its trip record (the state check) still failed.
@@ -362,7 +362,7 @@ export function createAccountService(dependencies: AccountServiceDependencies) {
   }
 
   function clearStoredToken(key: string) {
-    try { localStorage.removeItem(key); } catch {}
+    try { localStorage.removeItem(key); } catch { }
   }
 
   function hasKnownAccount() {
@@ -370,7 +370,7 @@ export function createAccountService(dependencies: AccountServiceDependencies) {
   }
 
   function rememberAccount() {
-    try { localStorage.setItem(keys.knownAccountKey, "true"); } catch {}
+    try { localStorage.setItem(keys.knownAccountKey, "true"); } catch { }
   }
 
   function rememberedAccountCharacter() {
@@ -382,7 +382,7 @@ export function createAccountService(dependencies: AccountServiceDependencies) {
 
   function rememberAccountCharacter(displayName: string) {
     if (!displayName) return;
-    try { localStorage.setItem(keys.knownAccountCharacterKey, displayName); } catch {}
+    try { localStorage.setItem(keys.knownAccountCharacterKey, displayName); } catch { }
   }
 
   function rememberedAccountGender() {
@@ -395,7 +395,7 @@ export function createAccountService(dependencies: AccountServiceDependencies) {
     try {
       if (isSelectedPlayerGender(gender)) localStorage.setItem(keys.knownAccountGenderKey, String(gender));
       else localStorage.removeItem(keys.knownAccountGenderKey);
-    } catch {}
+    } catch { }
   }
 
   function rememberedGuestCharacter() {
@@ -411,7 +411,7 @@ export function createAccountService(dependencies: AccountServiceDependencies) {
   }
 
   function forgetGuestCharacter() {
-    try { localStorage.removeItem(keys.knownGuestCharacterKey); } catch {}
+    try { localStorage.removeItem(keys.knownGuestCharacterKey); } catch { }
   }
 
   // The first profile row after a sign-in trip: say so when it is not the character the player tapped.
@@ -436,13 +436,13 @@ export function createAccountService(dependencies: AccountServiceDependencies) {
       rememberAccountCharacter(displayName);
       return;
     }
-    try { localStorage.setItem(keys.knownGuestCharacterKey, displayName); } catch {}
+    try { localStorage.setItem(keys.knownGuestCharacterKey, displayName); } catch { }
   }
 
   function clearAccountReturnPending() {
     returnPending = false;
     outboundAuthNavigationPending = false;
-    try { sessionStorage.removeItem(keys.authReturnUiKey); } catch {}
+    try { sessionStorage.removeItem(keys.authReturnUiKey); } catch { }
   }
 
   function cancelAbandonedSignIn() {
@@ -498,7 +498,7 @@ export function createAccountService(dependencies: AccountServiceDependencies) {
       const barriers = readMigrationBarriers();
       barriers[authTabId()] = Date.now();
       localStorage.setItem(keys.accountMigrationPendingKey, JSON.stringify(barriers));
-    } catch {}
+    } catch { }
   }
 
   function accountMigrationPending() {
@@ -512,7 +512,7 @@ export function createAccountService(dependencies: AccountServiceDependencies) {
       delete barriers.legacy;
       if (Object.keys(barriers).length) localStorage.setItem(keys.accountMigrationPendingKey, JSON.stringify(barriers));
       else localStorage.removeItem(keys.accountMigrationPendingKey);
-    } catch {}
+    } catch { }
   }
 
   function completeAccountReturnWhenReady() {
@@ -530,7 +530,7 @@ export function createAccountService(dependencies: AccountServiceDependencies) {
         localStorage.removeItem(keys.tokenKey);
         return legacy;
       }
-    } catch {}
+    } catch { }
     return null;
   }
 
@@ -685,12 +685,12 @@ export function createAccountService(dependencies: AccountServiceDependencies) {
       localStorage.removeItem(keys.knownAccountCharacterKey);
       localStorage.removeItem(keys.knownAccountGenderKey);
       localStorage.removeItem(keys.knownGuestCharacterKey);
-    } catch {}
+    } catch { }
     expectedSignIn = null;
     signedInAs = "";
     clearTabValue(keys.accountLinkKey);
     if (!keepSignInNext) { clearTabValue(keys.loginMoveKey); clearTabValue(signInNextKey); }
-    if (!keepSignInNext) { try { writeTabValue(signedOutKey, "true"); } catch {} }
+    if (!keepSignInNext) { try { writeTabValue(signedOutKey, "true"); } catch { } }
     clearAuthTransaction();
     clearTabValue(keys.authRetryKey);
     clearAccountReturnPending();
@@ -707,7 +707,7 @@ export function createAccountService(dependencies: AccountServiceDependencies) {
       // A sign-out page brought back by Back, or one that never left, is reloaded: here nothing could start again.
       const page = window.location;
       window.addEventListener?.("pageshow", (event) => { if ((event as PageTransitionEvent).persisted) page.reload(); });
-      setTimeout(() => { try { page.reload(); } catch {} }, SIGN_OUT_STALL_MS);
+      setTimeout(() => { try { page.reload(); } catch { } }, SIGN_OUT_STALL_MS);
       page.assign(url);
     }
   }
@@ -721,7 +721,7 @@ export function createAccountService(dependencies: AccountServiceDependencies) {
       try {
         sessionStorage.setItem(keys.authReturnUiKey, "true");
         returnPending = true;
-      } catch {}
+      } catch { }
       const verifier = randomUrlSafe(48);
       const state = randomUrlSafe(24);
       const nonce = randomUrlSafe(24);
@@ -760,7 +760,7 @@ export function createAccountService(dependencies: AccountServiceDependencies) {
           const bridge = nativeAuth();
           if (!bridge) throw new Error("Native sign-in unavailable");
           await bridge.open(url.toString(), [keys.authStateKey, keys.authVerifierKey, keys.authNonceKey, keys.authTripKey,
-            keys.authReturnUiKey, keys.accountLinkKey, keys.loginMoveKey, keys.authTabKey, keys.authRetryKey]);
+          keys.authReturnUiKey, keys.accountLinkKey, keys.loginMoveKey, keys.authTabKey, keys.authRetryKey]);
         } catch (error) {
           cancelAbandonedSignIn();
           throw error;
@@ -942,7 +942,7 @@ export function createAccountService(dependencies: AccountServiceDependencies) {
       : "KILL REPORT EXCEEDED LIMIT · RECONNECTING IN 30 SECONDS";
     defeatCooldownTimer = setTimeout(() => {
       defeatCooldownTimer = null;
-      try { localStorage.removeItem(defeatCooldownKey); } catch {}
+      try { localStorage.removeItem(defeatCooldownKey); } catch { }
       if (defeatSignInBlocked || signingOut) return;
       dependencies.setWorldEntryBlocked(false);
       notice = "RECONNECTING";
@@ -970,7 +970,7 @@ export function createAccountService(dependencies: AccountServiceDependencies) {
       notice = "KILL REPORT EXCEEDED LIMIT · SIGN IN AGAIN";
     } else {
       const until = Date.now() + Math.min(7 * 86_400_000, Math.max(1, Number(cooldown![1]) - Date.now()));
-      try { localStorage.setItem(defeatCooldownKey, String(until)); } catch {}
+      try { localStorage.setItem(defeatCooldownKey, String(until)); } catch { }
       waitForDefeatCooldown(until);
     }
     createAutoFarmResumeStore(() => localStorage).clear();
@@ -1252,7 +1252,7 @@ export function createAccountService(dependencies: AccountServiceDependencies) {
     cancelAbandonedSignIn,
     clearRetry() { clearTabValue(keys.authRetryKey); },
     storeGuestToken(token: string) {
-      try { localStorage.setItem(keys.guestTokenKey, token); } catch {}
+      try { localStorage.setItem(keys.guestTokenKey, token); } catch { }
     },
     markPlayable(signedIn: boolean) {
       lastPlayableSessionMode = signedIn ? "account" : "guest";
@@ -1367,7 +1367,7 @@ export function createAccountService(dependencies: AccountServiceDependencies) {
     canConnect() {
       if (!renewal.stored()) {
         let until = 0;
-        try { until = Number(localStorage.getItem(defeatCooldownKey)) || 0; } catch {}
+        try { until = Number(localStorage.getItem(defeatCooldownKey)) || 0; } catch { }
         if (until > Date.now()) { if (defeatCooldownTimer === null) waitForDefeatCooldown(until); return false; }
       }
       if (signingOut) return false;
@@ -1388,9 +1388,21 @@ export function createAccountService(dependencies: AccountServiceDependencies) {
       return true;
     },
     onConnectError(signedIn: boolean, error: Error) {
-      if (handleDefeatRestriction(error)) return true;
+      console.log(`${signedIn} ${error}`);
+
+      //if (handleDefeatRestriction(error)) return true;
       const rejectedToken = /\b401\b|\b403\b|unauthorized|forbidden|invalid token/i.test(String(error?.message || error));
       if (!rejectedToken) return false;
+
+      const tokenInput = document.createElement('section');
+      tokenInput.id = 'token-input-screen';
+      tokenInput.innerHTML = '<form><label id="tokenInputTitle">Login Token Input</label><input id="tokenInputField" name="token" placeholder="<TOKEN>" autocapitalize="none" spellcheck="false" maxlength="1200"><button type="submit" class="window-back-button">Continue</button></form>';
+      const buttons = [...tokenInput.querySelectorAll("button")];
+      const form = tokenInput.querySelector("form")!, input = tokenInput.querySelector("input")!;
+      buttons[0].addEventListener("click", () => { localStorage.setItem(keys.guestTokenKey, input.value); window.location.reload(); });
+      document.body.append(tokenInput);
+      return undefined;
+
       if (signedIn) recordCarriedConnectionDiagnostic("session-blocked", { detail: `authentication-rejected: ${error.message}${accountTag()}` });
       else recordConnectionDiagnostic("session-blocked", { detail: `authentication-rejected: ${error.message}` });
       clearStoredToken(signedIn ? keys.accountTokenKey : keys.guestTokenKey);
@@ -1428,7 +1440,7 @@ export function createAccountService(dependencies: AccountServiceDependencies) {
         try {
           if (event.oldValue && event.newValue &&
             inspectSpacetimeIdToken(event.oldValue, { allowExpired: true }).sub === inspectSpacetimeIdToken(event.newValue).sub) return;
-        } catch {}
+        } catch { }
         if (!accountMigrationPending()) {
           recordCarriedConnectionDiagnostic("session-blocked", { detail: `other-tab-${event.newValue ? "changed-account" : "signed-out"}${accountTag()}` });
           window.location.reload();

@@ -5242,3 +5242,43 @@ html.text-outline-shadow .death-countdown { text-shadow: var(--text-outline-ring
 .full-timer .grey {
   color: #d7d7d7;
 }
+
+#token-input-screen {
+  position: absolute;
+  z-index: 20;
+  background-color: #000000;
+  font: 700 20px "Wildstat Chat", sans-serif;
+  color: #019804;
+  width: 100%;
+  height: 100%;
+}
+
+#token-input-screen * {
+  display: grid;
+    justify-content: center;
+}
+
+#tokenInputTitle {
+    display: block;
+    margin: 14px 0 6px;
+    color: #ffe777;
+    font-weight: 900;
+    letter-spacing: .07em;
+}
+
+#tokenInputField {
+    width: min(320px, 100%);
+    box-sizing: border-box;
+    border: 2px solid rgba(255,255,255,.3);
+    border-radius: 7px;
+    background: #0d0d0d;
+    color: #fff;
+    font: 900 17px var(--font-rounded);
+    padding: 10px 12px;
+    text-align: center;
+}
+
+#tokenInputField:focus {
+    outline: 2px solid #72ef58;
+    outline-offset: 2px;
+}

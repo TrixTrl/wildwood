@@ -127,10 +127,13 @@ const startupTelemetryRuntime = createStartupTelemetryRuntime({
   },
 });
 startupTelemetryRuntime.startPageLoadMeasurement();
-configureConnectionDiagnostics({ storageKey: `${authTabKey}:connection-diagnostics`,
-  snapshot: () => ({ owner: localIdentity, mapId: presenceService.currentMapId(), database: databaseName,
+configureConnectionDiagnostics({
+  storageKey: `${authTabKey}:connection-diagnostics`,
+  snapshot: () => ({
+    owner: localIdentity, mapId: presenceService.currentMapId(), database: databaseName,
     transport: "account", phase: connectionLifecycle.snapshot().phase, attempt: connectionLifecycle.snapshot().attempt,
-    lastActivityAgeMs: performance.now() - lastServerActivityAt, latencyMs: latency.value() ?? 0 }),
+    lastActivityAgeMs: performance.now() - lastServerActivityAt, latencyMs: latency.value() ?? 0
+  }),
   submit: () => connection?.isActive && connection.identity?.toHexString() === localIdentity
     ? payload => connection!.reducers.recordConnectionDiagnostic({ payload }) : null,
 });
@@ -406,7 +409,8 @@ chatService = createChatService({
   rememberSender: profileDirectory.rememberChatSender,
 });
 
-const progressionService = createProgressionService({ gameBridgeCaller: () => runningAsGameScript(),
+const progressionService = createProgressionService({
+  gameBridgeCaller: () => runningAsGameScript(),
   reducers: reducerPort,
   notify: onChange,
   localIdentity: () => localIdentity,
@@ -564,7 +568,7 @@ function abandonConnection(disconnectTransport: boolean) {
   progressionService.markDisconnected();
   clearRealtimeCaches();
   if (disconnectTransport) {
-    try { staleConnection?.disconnect(); } catch {}
+    try { staleConnection?.disconnect(); } catch { }
   }
 }
 
@@ -680,167 +684,176 @@ function connect() {
   onChange();
   try {
     connection = guardConnectionActivity(DbConnection.builder()
-    .withUri(host)
-    .withDatabaseName(databaseName)
-    .withWSFn(diagnosticWebSocket(recordConnectionDiagnostic, { transport: "account", database: databaseName, isCurrent: () => generation === connectionGeneration,
-      onFrameHandlerFailed: () => { staleBundle.frameHandlerFailed(); } }, accountService.connectionToken))
-    .withToken(accountService.connectionCredential() || accountService.guestToken() || undefined)
-    .onConnect((conn: DbConnection, identity: Identity, token: string) => {
-      if (generation !== connectionGeneration) {
-        conn.disconnect();
-        return;
-      }
-      connection = conn;
-      connecting = false;
-      hydrationReady = false;
-      connectedSignedIn = signedIn;
-      protocolReadyGeneration = 0;
-      touchServerActivity();
-      protocolBlocked = false;
-      worldEntryPromise = null;
-      worldEntryGeneration = 0;
-      worldEntryBlocked = false;
-      reconnectScheduler.clear();
-      startupTelemetryRuntime.advanceConnection("preparing-session", generation);
-      connectionLifecycle.transition("preparing-session", SESSION_PREPARE_TIMEOUT_MS);
-      onChange();
-      const connectedIdentity = identity.toHexString();
-      const identityChanged = Boolean(localIdentity && localIdentity !== connectedIdentity);
-      localIdentity = connectedIdentity;
-      localDbIdentity = identity;
-      duelService.restoreCooldown();
-      profileDirectory.prepareSession(accountService.rememberedCharacter(signedIn));
-      progressionService.beginSession(identityChanged);
-      presenceService.beginSession(identityChanged);
-      latency.reset();
-      clearRealtimeCaches();
-      if (!signedIn) accountService.storeGuestToken(token);
-      accountService.watchLegalConsent(conn);
-      watchDefeatSession(conn, accountService.connectionCredential(), () => generation === connectionGeneration && connection === conn, message => accountService.handleDefeatRestriction(message));
-      watchOfflineProgress(conn, () => generation === connectionGeneration && connection === conn, summary => {
-        pendingOfflineProgress = summary;
-        onChange();
-      });
-      accountRows.watch(conn, () => generation === connectionGeneration && connection === conn);
-      accountAudio.watch(conn, () => generation === connectionGeneration && connection === conn, () => protocolReadyGeneration === generation && !protocolBlocked);
-      const protocolProbe = latency.begin(true);
-      void conn.reducers.registerProtocol({ protocolVersion: PROTOCOL_VERSION }).then(async () => {
-        if (generation !== connectionGeneration || connection !== conn) return;
-        latency.finish(protocolProbe); // this call alone: timing the next one too read double after every reconnect
-        await conn.reducers.registerClientVersion({ clientVersion: GAME_VERSION });
-        if (generation !== connectionGeneration || connection !== conn) return;
-        protocolReadyGeneration = generation;
-        accountService.clearRetry();
-        const isCurrentConnection = () => {
-          const current = generation === connectionGeneration && connection === conn;
-          if (current) touchServerActivity();
-          return current;
-        };
-
-        await accountService.syncLegalConsent(conn);
-        if (!isCurrentConnection()) return;
-        if (!await accountService.claimPendingSignIn(conn, signedIn, isCurrentConnection)) return;
-        if (!await accountService.handlePendingTakeover(conn, isCurrentConnection)) return;
-
-        if (accountService.shouldEnterWorld(signedIn)) {
-          if (!accountService.legalConsentAccepted()) {
-            accountService.setNotice("AGE & TERMS REQUIRED");
-          } else if (!await requestWorldEntry()) {
-            if (isCurrentConnection() && !worldEntryBlocked) {
-              startupTelemetryRuntime.failConnection("session-error", generation);
-              connectionLifecycle.fail("session-error", "World entry failed");
-              conn.disconnect();
-            }
-            return;
-          }
+      .withUri(host)
+      .withDatabaseName(databaseName)
+      .withWSFn(diagnosticWebSocket(recordConnectionDiagnostic, {
+        transport: "account", database: databaseName, isCurrent: () => generation === connectionGeneration,
+        onFrameHandlerFailed: () => { staleBundle.frameHandlerFailed(); }
+      }, accountService.connectionToken))
+      .withToken(accountService.connectionCredential() || accountService.guestToken() || undefined)
+      .onConnect((conn: DbConnection, identity: Identity, token: string) => {
+        if (generation !== connectionGeneration) {
+          conn.disconnect();
+          return;
         }
-
-        startupTelemetryRuntime.advanceConnection("hydrating", generation);
-        connectionLifecycle.transition("hydrating", SUBSCRIPTION_HYDRATION_TIMEOUT_MS);
-        sessionSubscriptions = startBaseSubscription({
-          connection: conn,
-          identity,
-          includeDeveloperTables: isDeveloperIdentity(connectedIdentity),
-          onLoading: () => {
-            hydrationReady = false;
-            connectionLifecycle.transition("hydrating", SUBSCRIPTION_HYDRATION_TIMEOUT_MS);
-          },
-          isCurrent: isCurrentConnection,
-          isPresenceSubscriptionTransitioning: presenceService.isSubscriptionTransitioning,
-          batch: batchChanges,
-          handlers: baseSubscriptionHandlers,
-          onHydrated: () => {
-            staleBundle.hydrated();
-            recordConnectionDiagnostic("reconnected");
-            hydrationReady = true;
-            multiplayerSync.sync();
-            startupTelemetryRuntime.completeConnection(generation);
-            connectionLifecycle.ready();
-            reconnectScheduler.reset();
-            accountService.finishHydration();
-            setWakeReconnectVisible(false);
-            setNetworkReconnectVisible(false);
-            quietReturn.settle();
-            if (worldEntryGeneration === generation) presenceService.activateSubscriptions();
-            sessionGeneration += 1;
-            onChange();
-            startupTelemetryRuntime.flush();
-            void flushConnectionDiagnostics();
-          },
-          onError: (event) => {
-            console.error("WildStat SpacetimeDB subscription error:", event);
-            retryFailedConnection("subscription-error", "World sync failed");
-          },
-          afterHydrated: () => {
-            progressionService.flushPendingProgress();
-          },
+        connection = conn;
+        connecting = false;
+        hydrationReady = false;
+        connectedSignedIn = signedIn;
+        protocolReadyGeneration = 0;
+        touchServerActivity();
+        protocolBlocked = false;
+        worldEntryPromise = null;
+        worldEntryGeneration = 0;
+        worldEntryBlocked = false;
+        reconnectScheduler.clear();
+        startupTelemetryRuntime.advanceConnection("preparing-session", generation);
+        connectionLifecycle.transition("preparing-session", SESSION_PREPARE_TIMEOUT_MS);
+        onChange();
+        const connectedIdentity = identity.toHexString();
+        const identityChanged = Boolean(localIdentity && localIdentity !== connectedIdentity);
+        localIdentity = connectedIdentity;
+        localDbIdentity = identity;
+        duelService.restoreCooldown();
+        profileDirectory.prepareSession(accountService.rememberedCharacter(signedIn));
+        progressionService.beginSession(identityChanged);
+        presenceService.beginSession(identityChanged);
+        latency.reset();
+        clearRealtimeCaches();
+        if (!signedIn) accountService.storeGuestToken(token);
+        accountService.watchLegalConsent(conn);
+        watchDefeatSession(conn, accountService.connectionCredential(), () => generation === connectionGeneration && connection === conn, message => accountService.handleDefeatRestriction(message));
+        watchOfflineProgress(conn, () => generation === connectionGeneration && connection === conn, summary => {
+          pendingOfflineProgress = summary;
+          onChange();
         });
-        onChange?.();
-      }).catch((error) => {
+        accountRows.watch(conn, () => generation === connectionGeneration && connection === conn);
+        accountAudio.watch(conn, () => generation === connectionGeneration && connection === conn, () => protocolReadyGeneration === generation && !protocolBlocked);
+        const protocolProbe = latency.begin(true);
+        void conn.reducers.registerProtocol({ protocolVersion: PROTOCOL_VERSION }).then(async () => {
+          if (generation !== connectionGeneration || connection !== conn) return;
+          latency.finish(protocolProbe); // this call alone: timing the next one too read double after every reconnect
+          await conn.reducers.registerClientVersion({ clientVersion: GAME_VERSION });
+          if (generation !== connectionGeneration || connection !== conn) return;
+          protocolReadyGeneration = generation;
+          accountService.clearRetry();
+          const isCurrentConnection = () => {
+            const current = generation === connectionGeneration && connection === conn;
+            if (current) touchServerActivity();
+            return current;
+          };
+
+          await accountService.syncLegalConsent(conn);
+          if (!isCurrentConnection()) return;
+          if (!await accountService.claimPendingSignIn(conn, signedIn, isCurrentConnection)) return;
+          if (!await accountService.handlePendingTakeover(conn, isCurrentConnection)) return;
+
+          if (accountService.shouldEnterWorld(signedIn)) {
+            if (!accountService.legalConsentAccepted()) {
+              accountService.setNotice("AGE & TERMS REQUIRED");
+            } else if (!await requestWorldEntry()) {
+              if (isCurrentConnection() && !worldEntryBlocked) {
+                startupTelemetryRuntime.failConnection("session-error", generation);
+                connectionLifecycle.fail("session-error", "World entry failed");
+                conn.disconnect();
+              }
+              return;
+            }
+          }
+
+          startupTelemetryRuntime.advanceConnection("hydrating", generation);
+          connectionLifecycle.transition("hydrating", SUBSCRIPTION_HYDRATION_TIMEOUT_MS);
+          sessionSubscriptions = startBaseSubscription({
+            connection: conn,
+            identity,
+            includeDeveloperTables: isDeveloperIdentity(connectedIdentity),
+            onLoading: () => {
+              hydrationReady = false;
+              connectionLifecycle.transition("hydrating", SUBSCRIPTION_HYDRATION_TIMEOUT_MS);
+            },
+            isCurrent: isCurrentConnection,
+            isPresenceSubscriptionTransitioning: presenceService.isSubscriptionTransitioning,
+            batch: batchChanges,
+            handlers: baseSubscriptionHandlers,
+            onHydrated: () => {
+              staleBundle.hydrated();
+              recordConnectionDiagnostic("reconnected");
+              hydrationReady = true;
+              multiplayerSync.sync();
+              startupTelemetryRuntime.completeConnection(generation);
+              connectionLifecycle.ready();
+              reconnectScheduler.reset();
+              accountService.finishHydration();
+              setWakeReconnectVisible(false);
+              setNetworkReconnectVisible(false);
+              quietReturn.settle();
+              if (worldEntryGeneration === generation) presenceService.activateSubscriptions();
+              sessionGeneration += 1;
+              onChange();
+              startupTelemetryRuntime.flush();
+              void flushConnectionDiagnostics();
+            },
+            onError: (event) => {
+              console.error("WildStat SpacetimeDB subscription error:", event);
+              retryFailedConnection("subscription-error", "World sync failed");
+            },
+            afterHydrated: () => {
+              progressionService.flushPendingProgress();
+            },
+          });
+          onChange?.();
+        }).catch((error) => {
+          if (generation !== connectionGeneration) return;
+          handleReducerFailure("session preparation", error);
+          startupTelemetryRuntime.failConnection("session-error", generation);
+          if (protocolBlocked || worldEntryBlocked) connectionLifecycle.transition("blocked");
+          else connectionLifecycle.fail("session-error", "Session setup failed");
+          conn.disconnect();
+        });
+      })
+      .onDisconnect((_ctx, error) => {
         if (generation !== connectionGeneration) return;
-        handleReducerFailure("session preparation", error);
-        startupTelemetryRuntime.failConnection("session-error", generation);
+        const hadActiveGame = hydrationReady || sessionGeneration > 0;
+        const diagnostics = connectionLifecycle.snapshot();
         if (protocolBlocked || worldEntryBlocked) connectionLifecycle.transition("blocked");
-        else connectionLifecycle.fail("session-error", "Session setup failed");
-        conn.disconnect();
-      });
-    })
-    .onDisconnect((_ctx, error) => {
-      if (generation !== connectionGeneration) return;
-      const hadActiveGame = hydrationReady || sessionGeneration > 0;
-      const diagnostics = connectionLifecycle.snapshot();
-      if (protocolBlocked || worldEntryBlocked) connectionLifecycle.transition("blocked");
-      else if (diagnostics.phase === "blocked") connectionLifecycle.transition("retrying");
-      else if (diagnostics.phase !== "retrying") {
-        startupTelemetryRuntime.failConnection("connection-closed", generation);
-        connectionLifecycle.fail("connection-closed", "Connection closed");
-      }
-      abandonConnection(false);
-      if (hadActiveGame && !protocolBlocked && !worldEntryBlocked) setNetworkReconnectVisible(true);
-      else setNetworkReconnectVisible(false);
-      if (error) console.warn("WildStat SpacetimeDB disconnected:", error);
-      onChange?.();
-      scheduleReconnect();
-    })
-    .onConnectError((_ctx: ErrorContext, error: Error) => {
-      if (generation !== connectionGeneration) return;
-      recordConnectionDiagnostic("connect-error", { detail: reducerErrorMessage(error) });
-      const hadPlayableSession = hydrationReady || sessionGeneration > 0;
-      abandonConnection(false);
-      if (accountService.onConnectError(signedIn, error)) {
-        startupTelemetryRuntime.failConnection("connection-error", generation);
-        connectionLifecycle.reset();
+        else if (diagnostics.phase === "blocked") connectionLifecycle.transition("retrying");
+        else if (diagnostics.phase !== "retrying") {
+          startupTelemetryRuntime.failConnection("connection-closed", generation);
+          connectionLifecycle.fail("connection-closed", "Connection closed");
+        }
+        abandonConnection(false);
+        if (hadActiveGame && !protocolBlocked && !worldEntryBlocked) setNetworkReconnectVisible(true);
+        else setNetworkReconnectVisible(false);
+        if (error) console.warn("WildStat SpacetimeDB disconnected:", error);
         onChange?.();
-        return;
-      }
-      startupTelemetryRuntime.failConnection("connection-error", generation);
-      connectionLifecycle.fail("connection-error", "Could not reach WildStat");
-      if (hadPlayableSession) setNetworkReconnectVisible(true);
-      console.warn("WildStat SpacetimeDB unavailable:", error.message);
-      onChange?.();
-      scheduleReconnect();
-    })
-    .build());
+        scheduleReconnect();
+      })
+      .onConnectError((_ctx: ErrorContext, error: Error) => {
+        if (generation !== connectionGeneration) return;
+        recordConnectionDiagnostic("connect-error", { detail: reducerErrorMessage(error) });
+        const hadPlayableSession = hydrationReady || sessionGeneration > 0;
+        abandonConnection(false);
+        const result = accountService.onConnectError(signedIn, error);
+        if (result) {
+          startupTelemetryRuntime.failConnection("connection-error", generation);
+          connectionLifecycle.reset();
+          onChange?.();
+          return;
+        }
+        console.log(result);
+        if (result === undefined) {
+          connectionLifecycle.transition('blocked');
+          worldEntryBlocked = true;
+          return;
+        };
+        startupTelemetryRuntime.failConnection("connection-error", generation);
+        connectionLifecycle.fail("connection-error", "Could not reach WildStat");
+        if (hadPlayableSession) setNetworkReconnectVisible(true);
+        console.warn("WildStat SpacetimeDB unavailable:", error.message);
+        onChange?.();
+        scheduleReconnect();
+      })
+      .build());
   } catch (error) {
     if (generation !== connectionGeneration) return;
     console.warn("WildStat SpacetimeDB connection setup failed:", error);
