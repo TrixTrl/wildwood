@@ -136,11 +136,13 @@ export function updateTimeValues(identity: string, centreValue: MapId, prestige:
 export function installZoneTimeTracker(mapId?: () => MapId, identity?: () => string | undefined, prestige?: () => number | undefined) {
   let installed = false;
   window.setInterval(() => {
+    console.log(`Timer tick`);
     if (identity?.() === undefined) return;
     if (!installed) {
       const i = identity();
       const p = prestige?.();
       if (i !== undefined && p !== undefined) {
+        console.log(`Timer install`);
         createZoneTimeTracker(i, p);
         installed = true;
       }
