@@ -880,7 +880,7 @@ import { installZoneTimeTracker, updateTimeValues } from "./game/zone-timer";
   chatRuntime.init();
   installGameTicker(gameElements.chatPanel, localStorage, () => coop?.patreonSupporterNames?.() ?? []);
   offlineProgressSetting = installOfflineProgressSetting(document, () => coop);
-  installZoneTimeTracker(() => currentMapId, () => coop?.localIdentity(), () => coop?.prestige()?.level);
+  installZoneTimeTracker(() => currentMapId, () => coop?.localIdentity(), () => coop ? coop.prestige()?.level ?? (coop.localState()?.mapId ? 0 : undefined) : undefined);
   createAutoFarmPanel({
     farm: autoFarm, mapName: () => MAP_CONFIG[currentMapId].name, aggro: () => coop?.aggroChallenge?.(), identity: coopAccess.localIdentity,
     rewardMultiplier: researchRewardMultiplier, soulRewardMultiplier: () => soulDimension.rewardMultiplier(),
