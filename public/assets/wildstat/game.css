@@ -5192,6 +5192,7 @@ html.text-outline-shadow .death-countdown { text-shadow: var(--text-outline-ring
   padding: 2px 4px;
   text-align: left;
   height: fit-content;
+  text-wrap: nowrap;
 }
 
 #zoneTimerSheet * .time-tracker-map-label {
