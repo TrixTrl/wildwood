@@ -166,7 +166,7 @@ export function installZoneTimeTracker(mapId?: () => MapId, identity?: () => str
           data[prestigeValue] = { startTime: Date.now(), currentTime: 0, mapTimes: {} };
         }
         const activeTimer = document.getElementById('active-timer');
-        if (activeTimer) {
+        if (activeTimer && ![ONBOARDING_MAP_ID, SOUL_MAP_ID, TOWN_MAP_ID].includes(mapId?.() ?? "") && !mapId?.()?.startsWith(GUILD_HALL_MAP_PREFIX)) {
           const getMapId = (n: number) => n < CAMPAIGN_MAPS.length ? CAMPAIGN_MAPS[n].id : `${PROCEDURAL_PREFIX}${n - 14}`;
           const findIndex = CAMPAIGN_MAPS.findIndex(m => m.id === mapId?.());
           const mapIndex = findIndex === -1 ? (parseInt((mapId?.() ?? "").split('_')[1]) + 14) : findIndex;
