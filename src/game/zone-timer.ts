@@ -241,6 +241,10 @@ export function updateZoneTimeTracker(identity: string, prestige: number) {
       const mapLabel = MAP_DISPLAY_NAMES[map] ?? `Endless - ${i - 14}`;
       const totalTimeSplit = data[prestige]?.mapTimes[map] && bestTimeValue !== undefined ? data[prestige]?.mapTimes[map].time - bestTimeValue : undefined;
       const totalTimeSplitText = totalTimeSplit !== undefined ? ` ${totalTimeSplit < 0 ? `-${formatTimerMs(-totalTimeSplit)}` : `+${formatTimerMs(totalTimeSplit)}`}` : '+00:00';
+      const previousTime = i > 0 && data[prestige - 1]?.mapTimes[map] && data[prestige - 1]?.mapTimes[mapId(i - 1)] ? data[prestige - 1]?.mapTimes[map].time - data[prestige - 1]?.mapTimes[mapId(i - 1)].time : (data[prestige - 1]?.mapTimes[map] ? data[prestige - 1]?.mapTimes[map].time : 0);
+      const previousTimeText = previousTime > 0 ? `${formatTimerMs(previousTime)}` : '--:--';
+      const previousTimeSplit = previousTime > 0 && zoneTime > 0 ? zoneTime - previousTime : 0;
+      const previousSplitText = `${previousTimeSplit < 0 ? `-${formatTimerMs(-previousTimeSplit)}` : `+${formatTimerMs(previousTimeSplit)}`}`;
       const mapLabelElement = document.createElement('div');
       mapLabelElement.classList.add('time-tracker-map-label');
       mapLabelElement.textContent = mapLabel;
@@ -249,12 +253,19 @@ export function updateZoneTimeTracker(identity: string, prestige: number) {
       currentPrestigeTimestampElement.classList.add('time-tracker-current-prestige');
       currentPrestigeTimestampElement.textContent = timestamp(data[prestige]?.mapTimes[map]?.time);
       element.appendChild(currentPrestigeTimestampElement);
-      if (zoneTimeText.length > 0) {
-        const zoneTimeTextElement = document.createElement('div');
-        zoneTimeTextElement.classList.add('time-tracker-zone-time');
-        zoneTimeTextElement.textContent = zoneTimeText;
-        element.append(zoneTimeTextElement);
-      }
+      const zoneTimeTextElement = document.createElement('div');
+      zoneTimeTextElement.classList.add('time-tracker-zone-time');
+      zoneTimeTextElement.textContent = zoneTimeText;
+      element.append(zoneTimeTextElement);
+      const previousTimeTextElement = document.createElement('div');
+      previousTimeTextElement.classList.add('time-tracker-previous-time');
+      previousTimeTextElement.textContent = previousTimeText;
+      element.append(previousTimeTextElement);
+      const previousSplitTextElement = document.createElement('div');
+      previousSplitTextElement.classList.add('time-tracker-previous-split-text');
+      previousSplitTextElement.classList.add(previousTimeSplit == 0 ? 'grey' : previousTimeSplit > 0 ? 'red' : 'green');
+      previousSplitTextElement.textContent = previousSplitText;
+      element.appendChild(previousSplitTextElement);
       const splitTextElement = document.createElement('div');
       splitTextElement.classList.add('time-tracker-split-text');
       splitTextElement.classList.add(timeSplit == 0 ? 'grey' : timeSplit > 0 ? 'red' : 'green');
