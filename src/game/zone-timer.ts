@@ -182,8 +182,8 @@ export function installZoneTimeTracker(mapId?: () => MapId, identity?: () => str
           const runningTime = data[prestigeValue].currentTime - (Object.keys(data[prestigeValue].mapTimes).length > 0 ? (data[prestigeValue].mapTimes[furthestMapId]?.time ?? 0) : 0);
           //const bestTime = data[prestigeValue - 1] && data[prestigeValue - 1].mapTimes[mapId?.() ?? ""] && data[prestigeValue - 1].mapTimes[getMapId(mapIndex - 1)] ? data[prestigeValue - 1].mapTimes[mapId?.() ?? ""].time - data[prestigeValue - 1].mapTimes[getMapId(mapIndex - 1)].time : 0;
           //const bestTimeValue = bestTime(data, furthestMapId, prestigeValue);
-          const bestTimePrevValue = mapIndex === 0 ? 0 : bestTime(data, getMapId(mapIndex - 1), prestigeValue);
-          const bestTimeSplit = bestFurthestTimeValue && bestTimePrevValue !== undefined ? bestFurthestTimeValue - bestTimePrevValue : 0;
+          const bestTimeNextValue = bestTime(data, getMapId(mapIndex + 1), prestigeValue);
+          const bestTimeSplit = bestFurthestTimeValue && bestTimeNextValue !== undefined ? bestTimeNextValue - bestFurthestTimeValue : 0;
           zoneTimer.textContent = timestamp(runningTime, false);
           zoneTimer.classList.add(bestTimeSplit === 0 ? 'green' : (runningTime < bestTimeSplit ? 'green' : 'red'));
           activeTimer.appendChild(zoneTimer);
