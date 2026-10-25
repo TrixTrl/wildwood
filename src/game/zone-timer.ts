@@ -153,7 +153,7 @@ export function installZoneTimeTracker(mapId?: () => MapId, identity?: () => str
         const data = JSON.parse(currentStorage) as OtherTimeStorage;
         if (typeof (data) !== "object") throw new Error(`Failed to parse timer values`);
         const prestigeValue = prestige?.();
-        if (!prestigeValue) throw new Error(`Failed to get prestige`);
+        if (!prestigeValue) return;//throw new Error(`Failed to get prestige`);
         const relevantSlot = data[prestigeValue];
         //console.log(relevantTime);
         if (relevantSlot) {
@@ -175,7 +175,8 @@ export function installZoneTimeTracker(mapId?: () => MapId, identity?: () => str
           mainTimer.classList.add('main-timer');
           const timestamp = (n: number | undefined, forceHour: boolean) => n === undefined ? `--:--:--` : `${forceHour || n >= (1000 * 60 * 60) ? Math.floor(n / (1000 * 60 * 60)).toString().padStart(2, '0') + ':' : ''}${formatTimerMs(n % (1000 * 60 * 60))}`;
           mainTimer.textContent = timestamp(data[prestigeValue].currentTime, true);
-          mainTimer.classList.add(!data[prestigeValue - 1] || !data[prestigeValue - 1].mapTimes[getMapId(Object.keys(data[prestigeValue].mapTimes).length - 1)] ? 'grey' : ((data[prestigeValue - 1].mapTimes[getMapId(Object.keys(data[prestigeValue].mapTimes).length - 1)].time ?? Infinity) > data[prestigeValue].currentTime ? 'green' : 'red'));
+          const bestFurthestTimeValue = bestTime(data, getMapId(Object.keys(data[prestigeValue].mapTimes).length - 1), prestigeValue);
+          mainTimer.classList.add(bestFurthestTimeValue === undefined ? 'grey' : (bestFurthestTimeValue > data[prestigeValue].currentTime ? 'green' : 'red'));
           activeTimer.appendChild(mainTimer);
           const zoneTimer = document.createElement('div');
           zoneTimer.classList.add('zone-timer');
