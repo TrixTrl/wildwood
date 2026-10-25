@@ -175,7 +175,7 @@ export function installZoneTimeTracker(mapId?: () => MapId, identity?: () => str
           mainTimer.classList.add('main-timer');
           const timestamp = (n: number | undefined, forceHour: boolean) => n === undefined ? `--:--:--` : `${forceHour || n >= (1000 * 60 * 60) ? Math.floor(n / (1000 * 60 * 60)).toString().padStart(2, '0') + ':' : ''}${formatTimerMs(n % (1000 * 60 * 60))}`;
           mainTimer.textContent = timestamp(data[prestigeValue].currentTime, true);
-          mainTimer.classList.add(!data[prestigeValue - 1] || !data[prestigeValue - 1].mapTimes[getMapId(Object.keys(data[prestigeValue].mapTimes).length-1)] ? 'grey' : ((data[prestigeValue - 1].mapTimes[getMapId(Object.keys(data[prestigeValue].mapTimes).length-1)].time ?? Infinity) > data[prestigeValue].currentTime ? 'green' : 'red'));
+          mainTimer.classList.add(!data[prestigeValue - 1] || !data[prestigeValue - 1].mapTimes[getMapId(Object.keys(data[prestigeValue].mapTimes).length - 1)] ? 'grey' : ((data[prestigeValue - 1].mapTimes[getMapId(Object.keys(data[prestigeValue].mapTimes).length - 1)].time ?? Infinity) > data[prestigeValue].currentTime ? 'green' : 'red'));
           activeTimer.appendChild(mainTimer);
           const zoneTimer = document.createElement('div');
           zoneTimer.classList.add('zone-timer');
@@ -190,7 +190,7 @@ export function installZoneTimeTracker(mapId?: () => MapId, identity?: () => str
         }
         localStorage.setItem(`wildjank:otherTimer-${identity?.()}`, JSON.stringify(data));
         return;
-      } catch (e) { }
+      } catch (e) { console.error(e); }
     } else {
       const prestigeValue = prestige?.();
       if (!prestigeValue) return;
