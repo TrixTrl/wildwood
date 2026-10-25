@@ -141,6 +141,7 @@ export function installZoneTimeTracker(mapId?: () => MapId, identity?: () => str
     if (!installed) {
       const i = identity();
       const p = prestige?.();
+      console.log(p);
       if (i !== undefined && p !== undefined) {
         console.log(`Timer install`);
         createZoneTimeTracker(i, p);
