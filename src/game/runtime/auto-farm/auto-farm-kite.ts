@@ -77,7 +77,7 @@ export function smartMove(player: PlayerState & { realRegen: number }, enemies: 
     return { x: mapSize / 2 + (player.x - mapSize / 2) * 5, y: mapSize / 2 + (player.y - mapSize / 2) * 5 };
   }
 
-  if (kite && (timeTillDeath > 0 && timeTillDeath < 3 || player.hp < player.maxHp * 0.3)) {
+  if (kite && (timeTillDeath > 0 && timeTillDeath < 3 || player.hp < player.maxHp * 0.2)) {
     //console.log(`Running`);
     const position = { x: player.x, y: player.y };
     //console.log(position);
