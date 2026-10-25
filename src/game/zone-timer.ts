@@ -245,6 +245,8 @@ export function updateZoneTimeTracker(identity: string, prestige: number) {
       const previousTimeText = previousTime > 0 ? `${formatTimerMs(previousTime)}` : '--:--';
       const previousTimeSplit = previousTime > 0 && zoneTime > 0 ? zoneTime - previousTime : 0;
       const previousSplitText = `${previousTimeSplit < 0 ? `-${formatTimerMs(-previousTimeSplit)}` : `+${formatTimerMs(previousTimeSplit)}`}`;
+      const previousFullTimeSplit = data[prestige]?.mapTimes[map] && data[prestige - 1]?.mapTimes[map] ? data[prestige]?.mapTimes[map].time - data[prestige - 1]?.mapTimes[map].time : 0;
+      const previousFullTimeSplitText = `${previousFullTimeSplit < 0 ? `-${formatTimerMs(-previousFullTimeSplit)}` : `+${formatTimerMs(previousFullTimeSplit)}`}`;
       const mapLabelElement = document.createElement('div');
       mapLabelElement.classList.add('time-tracker-map-label');
       mapLabelElement.textContent = mapLabel;
@@ -268,8 +270,14 @@ export function updateZoneTimeTracker(identity: string, prestige: number) {
       previousSplitTextElement.classList.add('time-tracker-previous-split-text');
       previousSplitTextElement.classList.add(previousTimeSplit == 0 ? 'grey' : previousTimeSplit > 0 ? 'red' : 'green');
       previousSplitTextElement.textContent = previousSplitText;
-      previousSplitTextElement.title = 'Split Compared To Last Prestige';
+      previousSplitTextElement.title = 'Zone Time Split Compared To Last Prestige';
       element.appendChild(previousSplitTextElement);
+      const previousFullSplitTextElement = document.createElement('div');
+      previousFullSplitTextElement.classList.add('time-tracker-previous-split-text');
+      previousFullSplitTextElement.classList.add(previousFullTimeSplit == 0 ? 'grey' : previousFullTimeSplit > 0 ? 'red' : 'green');
+      previousFullSplitTextElement.textContent = previousFullTimeSplitText;
+      previousFullSplitTextElement.title = 'Full Time Split Compared To Last Prestige';
+      element.appendChild(previousFullSplitTextElement);
       const splitTextElement = document.createElement('div');
       splitTextElement.classList.add('time-tracker-split-text');
       splitTextElement.classList.add(timeSplit == 0 ? 'grey' : timeSplit > 0 ? 'red' : 'green');
