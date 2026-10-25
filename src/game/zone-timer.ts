@@ -179,11 +179,11 @@ export function installZoneTimeTracker(mapId?: () => MapId, identity?: () => str
           activeTimer.appendChild(mainTimer);
           const zoneTimer = document.createElement('div');
           zoneTimer.classList.add('zone-timer');
-          const runningTime = data[prestigeValue].currentTime - (mapIndex > 0 ? (data[prestigeValue].mapTimes[furthestMapId]?.time ?? 0) : 0);
+          const runningTime = data[prestigeValue].currentTime - (Object.keys(data[prestigeValue].mapTimes).length > 0 ? (data[prestigeValue].mapTimes[furthestMapId]?.time ?? 0) : 0);
           //const bestTime = data[prestigeValue - 1] && data[prestigeValue - 1].mapTimes[mapId?.() ?? ""] && data[prestigeValue - 1].mapTimes[getMapId(mapIndex - 1)] ? data[prestigeValue - 1].mapTimes[mapId?.() ?? ""].time - data[prestigeValue - 1].mapTimes[getMapId(mapIndex - 1)].time : 0;
-          const bestTimeValue = bestTime(data, furthestMapId, prestigeValue);
-          const bestTimePrevValue = mapIndex === 0 ? 0 : bestTime(data, getMapId(mapIndex - 1), prestigeValue);
-          const bestTimeSplit = bestTimeValue && bestTimePrevValue !== undefined ? bestTimeValue - bestTimePrevValue : 0;
+          //const bestTimeValue = bestTime(data, furthestMapId, prestigeValue);
+          const bestTimeNextValue = bestTime(data, getMapId(mapIndex + 1), prestigeValue);
+          const bestTimeSplit = bestFurthestTimeValue && bestTimeNextValue !== undefined ? bestTimeNextValue - bestFurthestTimeValue : 0;
           zoneTimer.textContent = timestamp(runningTime, false);
           zoneTimer.classList.add(bestTimeSplit === 0 ? 'green' : (runningTime < bestTimeSplit ? 'green' : 'red'));
           activeTimer.appendChild(zoneTimer);
@@ -361,8 +361,7 @@ function bestTime(storage: OtherTimeStorage, mapId: string, prestige: number): n
   for (const key of Object.keys(storage)) {
     if (Number(key) === prestige) continue;
     const s = storage[Number(key)];
-    if (s.invalid === true) continue;
-    if (!s) continue;
+    if (!s || s.invalid) continue;
     if (s.mapTimes[mapId]) {
       if (!lowestValueFound || s.mapTimes[mapId].time < lowestValueFound) {
         lowestValueFound = s.mapTimes[mapId].time;
