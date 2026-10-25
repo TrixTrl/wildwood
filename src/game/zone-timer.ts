@@ -167,7 +167,7 @@ export function installZoneTimeTracker(mapId?: () => MapId, identity?: () => str
         }
         const activeTimer = document.getElementById('active-timer');
         if (activeTimer && ![ONBOARDING_MAP_ID, SOUL_MAP_ID, TOWN_MAP_ID].includes(mapId?.() ?? "") && !mapId?.()?.startsWith(GUILD_HALL_MAP_PREFIX)) {
-          const getMapId = (n: number) => n < CAMPAIGN_MAPS.length ? CAMPAIGN_MAPS[n].id : `${PROCEDURAL_PREFIX}${n - 14}`;
+          const getMapId = (n: number) => n < CAMPAIGN_MAPS.length ? (CAMPAIGN_MAPS[n].id ?? '') : `${PROCEDURAL_PREFIX}${n - 14}`;
           const findIndex = CAMPAIGN_MAPS.findIndex(m => m.id === mapId?.());
           const mapIndex = findIndex === -1 ? (parseInt((mapId?.() ?? "").split('_')[1]) + 14) : findIndex;
           while (activeTimer.childNodes.length > 0) activeTimer.childNodes[0].remove();
@@ -175,11 +175,11 @@ export function installZoneTimeTracker(mapId?: () => MapId, identity?: () => str
           mainTimer.classList.add('main-timer');
           const timestamp = (n: number | undefined, forceHour: boolean) => n === undefined ? `--:--:--` : `${forceHour || n >= (1000 * 60 * 60) ? Math.floor(n / (1000 * 60 * 60)).toString().padStart(2, '0') + ':' : ''}${formatTimerMs(n % (1000 * 60 * 60))}`;
           mainTimer.textContent = timestamp(data[prestigeValue].currentTime, true);
-          mainTimer.classList.add(!data[prestigeValue - 1] || !data[prestigeValue - 1].mapTimes[mapId?.() ?? ""] ? 'grey' : (data[prestigeValue - 1].mapTimes[mapId?.() ?? ""].time > data[prestigeValue].currentTime ? 'green' : 'red'));
+          mainTimer.classList.add(!data[prestigeValue - 1] || !data[prestigeValue - 1].mapTimes[getMapId(Object.keys(data[prestigeValue].mapTimes).length-1)] ? 'grey' : ((data[prestigeValue - 1].mapTimes[getMapId(Object.keys(data[prestigeValue].mapTimes).length-1)].time ?? Infinity) > data[prestigeValue].currentTime ? 'green' : 'red'));
           activeTimer.appendChild(mainTimer);
           const zoneTimer = document.createElement('div');
           zoneTimer.classList.add('zone-timer');
-          const runningTime = data[prestigeValue].currentTime - (mapIndex > 0 ? (data[prestigeValue].mapTimes[getMapId(mapIndex - 1)].time ?? 0) : 0);
+          const runningTime = data[prestigeValue].currentTime - (mapIndex > 0 ? (data[prestigeValue].mapTimes[getMapId(Object.keys(data[prestigeValue].mapTimes).length - 1)].time ?? 0) : 0);
           //const bestTime = data[prestigeValue - 1] && data[prestigeValue - 1].mapTimes[mapId?.() ?? ""] && data[prestigeValue - 1].mapTimes[getMapId(mapIndex - 1)] ? data[prestigeValue - 1].mapTimes[mapId?.() ?? ""].time - data[prestigeValue - 1].mapTimes[getMapId(mapIndex - 1)].time : 0;
           const bestTimeValue = bestTime(data, mapId?.() ?? "", prestigeValue);
           const bestTimePrevValue = mapIndex === 0 ? 0 : bestTime(data, getMapId(mapIndex - 1), prestigeValue);
