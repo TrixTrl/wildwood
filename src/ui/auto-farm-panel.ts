@@ -92,6 +92,8 @@ export function createAutoFarmPanel(options: {
     + `<div class="farm-setting farm-stats-heading"><span id="autoFarmStatsLabel" class="farm-setting-label">Stats</span><span class="farm-aggro-count" hidden></span></div>`
     + `<div class="farm-weights" role="group" aria-labelledby="autoFarmStatsLabel"></div>`
     + `<p class="farm-empty" hidden>No Enemies Here</p>`
+    + `<button type="button" class="farm-switch farm-kite" role="switch" data-switch="kite" aria-checked="false" aria-describedby="autoFarmKiteStatus">`
+    + `<span class="farm-switch-copy"><span class="farm-switch-label">Auto Kite</span><div id="autoKiteStatus" class="farm-boss-status"></div></span><span class="farm-knob" aria-hidden="true"></span></button>`
     + `<button type="button" class="farm-switch farm-move" role="switch" data-switch="advance" aria-checked="false" aria-describedby="autoFarmBossStatus">`
     + `<span class="farm-switch-copy"><span class="farm-switch-label">Move On</span><div id="autoFarmBossStatus" class="farm-boss-status"></div></span><span class="farm-knob" aria-hidden="true"></span></button>`
     + powerSlider('farm-move-power', 'Move At', 'Enemy Strength', 'Move On, Boss First, Once Ready For Next Map Enemies This Many Times As Strong')
@@ -253,6 +255,7 @@ export function createAutoFarmPanel(options: {
     const priority = options.farm.priority();
     for (const button of priorityButtons) button.setAttribute('aria-checked', String(button.dataset.priority === priority));
     showSwitch(advanceSwitch, options.farm.advance(), options.farm.moveStatus(), options.farm.moveReady());
+    showSwitch(element<HTMLButtonElement>('[data-switch="kite"]'), options.farm.kite(), '', true);
     for (const power of powerRows) {
       const value = power.value(), step = String(POWER_STEPS.indexOf(value as typeof POWER_STEPS[number])), slider = power.row.querySelector('input')!;
       if (slider.value !== step) slider.value = step;
@@ -454,6 +457,7 @@ export function createAutoFarmPanel(options: {
     updateSelection();
   });
   advanceSwitch.addEventListener('click', () => { options.farm.setAdvance(!options.farm.advance()); updateSelection(); });
+  element<HTMLButtonElement>('[data-switch="kite"]').addEventListener('click', () => { options.farm.setKite(!options.farm.kite()); updateSelection(); });
   for (const power of powerRows) {
     const slider = power.row.querySelector('input')!;
     slider.addEventListener('input', () => {
