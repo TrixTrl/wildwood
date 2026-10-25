@@ -136,29 +136,23 @@ export function updateTimeValues(identity: string, centreValue: MapId, prestige:
 export function installZoneTimeTracker(mapId?: () => MapId, identity?: () => string | undefined, prestige?: () => number | undefined) {
   let installed = false;
   window.setInterval(() => {
-    console.log(`Timer tick`);
     if (identity?.() === undefined) return;
     if (!installed) {
       const i = identity();
       const p = prestige?.();
-      console.log(p);
       if (i !== undefined && p !== undefined) {
-        console.log(`Timer install`);
         createZoneTimeTracker(i, p);
         installed = true;
       }
     }
     const currentStorage = localStorage.getItem(`wildjank:otherTimer-${identity?.()}`);
-    //console.log(currentStorage);
-    //console.log(currentStorage);
     if (currentStorage) {
       try {
         const data = JSON.parse(currentStorage) as OtherTimeStorage;
         if (typeof (data) !== "object") throw new Error(`Failed to parse timer values`);
         const prestigeValue = prestige?.();
-        if (!prestigeValue) return;//throw new Error(`Failed to get prestige`);
+        if (!prestigeValue) return;
         const relevantSlot = data[prestigeValue];
-        //console.log(relevantTime);
         if (relevantSlot) {
           const timePassed = Date.now() - relevantSlot.startTime;
           if (timePassed < 1000 && ![ONBOARDING_MAP_ID, SOUL_MAP_ID, TOWN_MAP_ID].includes(mapId?.() ?? "") && !mapId?.()?.startsWith(GUILD_HALL_MAP_PREFIX)) {
