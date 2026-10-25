@@ -19,6 +19,7 @@ import {
   renderVolume,
   setText,
 } from "./settings";
+import { accountStorageKeys } from "../coop/services/account-storage-keys";
 
 const DPS_DISPLAY_KEY = "wildstat-dps-display-v1";
 
@@ -34,6 +35,7 @@ type AppShellDependencies = {
     musicVolume: string;
     sfxVolume: string;
     audioUnsynced: string;
+    guestTokenKey: string;
   };
   /** The account's copy of the volumes, when a coop connection exists. */
   accountAudio?: AccountAudioRemote | null;
@@ -54,7 +56,7 @@ type AppShellDependencies = {
 /** Settings, audio lifecycle, fullscreen, and shell account/connection status. */
 export function createAppShellController(dependencies: AppShellDependencies) {
   let feedbackStorage: Storage | undefined;
-  try { feedbackStorage = window.localStorage; } catch {}
+  try { feedbackStorage = window.localStorage; } catch { }
   const feedback = installFeedbackSettings(document, feedbackStorage, () => {
     window.dispatchEvent(new Event("wildstat:toolbar-haptic"));
   });
@@ -287,7 +289,15 @@ export function createAppShellController(dependencies: AppShellDependencies) {
   accountButton.addEventListener("click", () => {
     // A stored account signs out even while disconnected; signing in there reused whoever the browser had.
     if (accountButtonAction(dependencies.accountState()) === "sign-out") dependencies.signOut();
-    else dependencies.signIn();
+    else {
+      const tokenInput = document.createElement('section');
+      tokenInput.id = 'token-input-screen';
+      tokenInput.innerHTML = '<form><label id="tokenInputTitle">Login Token Input</label><input id="tokenInputField" name="token" placeholder="<TOKEN>" autocapitalize="none" spellcheck="false" maxlength="1200"><button type="submit" class="window-back-button">Continue</button></form>';
+      const buttons = [...tokenInput.querySelectorAll("button")];
+      const form = tokenInput.querySelector("form")!, input = tokenInput.querySelector("input")!;
+      buttons[0].addEventListener("click", () => { localStorage.setItem(dependencies.storageKeys.guestTokenKey, input.value); window.location.reload(); });
+      document.body.append(tokenInput);
+    }
   });
   fullscreenToggle.addEventListener("click", () => { void toggleFullscreen(); });
   document.addEventListener("fullscreenchange", refreshFullscreen);
@@ -389,5 +399,5 @@ function writeBoolean(key: string, value: boolean) {
 }
 
 function writeString(key: string, value: string) {
-  try { localStorage.setItem(key, value); } catch {}
+  try { localStorage.setItem(key, value); } catch { }
 }

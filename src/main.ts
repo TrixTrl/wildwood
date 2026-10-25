@@ -295,7 +295,7 @@ import { installZoneTimeTracker, updateTimeValues } from "./game/zone-timer";
 
   const appShell = createAppShellController({
     mapMusic,
-    storageKeys: APP_SHELL_STORAGE_KEYS,
+    storageKeys: {...APP_SHELL_STORAGE_KEYS, guestTokenKey: 'wss://maincloud.spacetimedb.com/wildwood-coop/auth_token/guest_v1'},
     accountAudio: coop?.accountAudio,
     connected: coopAccess.connected,
     latencyMs: () => coop?.latencyMs?.(),
