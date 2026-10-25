@@ -14,7 +14,7 @@ const HISTORY_SIZE = 3;
 
 type TimeStorage = { [index: string]: { bestTime: number, prestige: number, previousPB?: number, allTimes: Array<{ prestige: number, time: number }> } };
 
-type OtherTimeStorage = { [index: number]: { startTime: number, currentTime: number, mapTimes: { [index: string]: { time: number } } } };
+type OtherTimeStorage = { [index: number]: { startTime: number, currentTime: number, mapTimes: { [index: string]: { time: number } }, invalid?: boolean } };
 
 let lastChangedMap: MapId | undefined;
 
@@ -162,6 +162,7 @@ export function installZoneTimeTracker(mapId?: () => MapId, identity?: () => str
         } else {
           data[prestigeValue] = { startTime: Date.now(), currentTime: 0, mapTimes: {} };
         }
+        invalidate(data);
         const activeTimer = document.getElementById('active-timer');
         if (activeTimer && ![ONBOARDING_MAP_ID, SOUL_MAP_ID, TOWN_MAP_ID].includes(mapId?.() ?? "") && !mapId?.()?.startsWith(GUILD_HALL_MAP_PREFIX)) {
           const getMapId = (n: number) => n < CAMPAIGN_MAPS.length ? (CAMPAIGN_MAPS[n]?.id ?? '') : `${PROCEDURAL_PREFIX}${n - 14}`;
@@ -208,6 +209,7 @@ export function saveZoneTime(mapId: string, identity: string, prestige: number) 
     if (!relevantSlot) return;
     if (relevantSlot.mapTimes[mapId]) return;
     relevantSlot.mapTimes[mapId] = { time: relevantSlot.currentTime };
+    invalidate(data);
     localStorage.setItem(`wildjank:otherTimer-${identity}`, JSON.stringify(data));
     updateZoneTimeTracker(identity, prestige);
   } catch (e) { }
@@ -343,7 +345,7 @@ function maxMap(storage: OtherTimeStorage): { mapId: MapId, index: number } {
   let highestMapFound = 0;
   for (const key of Object.keys(storage)) {
     const s = storage[Number(key)];
-    if (!s) continue;
+    if (!s || s.invalid === true) continue;
     for (const mapKey of Object.keys(s.mapTimes)) {
       const findIndex = CAMPAIGN_MAPS.findIndex(m => m.id === mapKey);
       const mapIndex = findIndex === -1 ? (parseInt(mapKey.split('_')[1]) + 14) : findIndex;
@@ -358,6 +360,7 @@ function bestTime(storage: OtherTimeStorage, mapId: string, prestige: number): n
   for (const key of Object.keys(storage)) {
     if (Number(key) === prestige) continue;
     const s = storage[Number(key)];
+    if (s.invalid === true) continue;
     if (!s) continue;
     if (s.mapTimes[mapId]) {
       if (!lowestValueFound || s.mapTimes[mapId].time < lowestValueFound) {
@@ -366,4 +369,19 @@ function bestTime(storage: OtherTimeStorage, mapId: string, prestige: number): n
     }
   }
   return lowestValueFound;
+}
+
+function invalidate(storage: OtherTimeStorage) {
+  const mapId = (n: number) => n < CAMPAIGN_MAPS.length ? (CAMPAIGN_MAPS[n]?.id ?? '') : `${PROCEDURAL_PREFIX}${n - 14}`;
+  for (const k of Object.keys(storage)) {
+    const key = Number(k);
+    const s = storage[key];
+    if (!s || s.invalid === true) continue;
+    for (let i = 0; i < Object.keys(s.mapTimes).length; i++) {
+      if (!s.mapTimes[mapId(i)]) {
+        s.invalid = true;
+        break;
+      }
+    }
+  }
 }
