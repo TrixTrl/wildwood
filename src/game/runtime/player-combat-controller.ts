@@ -44,8 +44,7 @@ import {
   attackReleaseReached,
   type AbsoluteAttackTimestamps,
 } from "../attack-timeline";
-import { formatCompactNumber } from "../../ui/number-format";
-import { trackHit } from "../dps-source-tracker";
+import type { DamageSource } from "./dps-meter";
 
 const PLAYER_PROJECTILE_VISUAL_TAIL = 36;
 // A Piercing Shot arrow reaches twice as far as a plain one, and once past
@@ -173,7 +172,7 @@ export function createPlayerCombatController(options: {
   /** The Reflect Only prestige challenge: only reflected hits deal damage. */
   reflectOnly?: () => boolean;
   /** Every hit the player lands, after its multipliers: the DPS readout. */
-  onDamageDealt?: (amount: number) => void;
+  onDamageDealt?: (amount: number, source: DamageSource) => void;
   spawnBurst: (x: number, y: number, color: string, count?: number, speed?: number) => void;
   spawnParticle: (x: number, y: number, vx: number, vy: number, life: number, maxLife: number, size: number, color: string) => void;
   spawnDamageNumber: (x: number, y: number, amount: number, critical?: boolean, damageTaken?: boolean, reflected?: boolean) => void;
@@ -250,11 +249,11 @@ export function createPlayerCombatController(options: {
     boltColor: () => staffBoltColor(options.equippedWeapon()), effects: options.skillEffects,
     blastRadius: () => STAFF_SPLASH_RADIUS * masteryBlastScale(mastery()),
     chainScale: techniques.chainScale, extraMeteorFalls: techniques.meteorFalls,
-    hit: (target, damage, critical, angle, reflected, fromCard, damageSource) => applyPlayerHit(target, damage, critical, angle, reflected, fromCard, damageSource),
+    hit: (target, damage, critical, angle, source) => applyPlayerHit(target, damage, critical, angle, source),
   });
   const cardCombat = createCardCombat({
     cards: wornCards, player, enemies, random, mapId: options.currentMapId, isDueling, spawnBurst, spawnParticle,
-    strike: (target, damage, reflected, damageSource) => applyPlayerHit(target, damage, false, 0, reflected === true, true, damageSource),
+    strike: (target, damage, source, reflected) => applyPlayerHit(target, damage, false, 0, source, reflected === true, true),
     streak: (fromX, fromY, toX, toY, color) => options.skillEffects
       ? options.skillEffects.spawnSkillStreak(fromX, fromY, toX, toY, color, 3, .28, true) : streak(fromX, fromY, toX, toY, color),
   });
@@ -281,7 +280,7 @@ export function createPlayerCombatController(options: {
           if (distance <= nearest) { nearest = distance; target = enemy; }
         }
       }
-      if (target) applyPlayerHit(target, hit.damage, hit.critical, Math.PI / 2, undefined, undefined, `arrow-storm`);
+      if (target) applyPlayerHit(target, hit.damage, hit.critical, Math.PI / 2, 'bow-storm');
     }
   }
   const targetGrid = createSpatialGrid<EnemyState>(TARGET_GRID_CELL_SIZE, WORLD.w, WORLD.h);
@@ -376,15 +375,15 @@ export function createPlayerCombatController(options: {
     // second kill can come out of one swing.
     const damage = weaponDamage(critical);
     const strikes = Math.random() < doubleStrikeChance() ? 2 : 1;
-    for (let strike = 0; strike < strikes; strike++) applyPlayerHit(hit.enemy, damage, critical, angle, undefined, undefined, `sword-strike`);
+    for (let strike = 0; strike < strikes; strike++) applyPlayerHit(hit.enemy, damage, critical, angle, 'sword-hit');
     swordSkills.swing(hit.enemy, damage, critical, angle);
     // Cleave, Bloodlust and Momentum (mastery-techniques.ts).
     for (const cleaved of techniques.cleaveTargets(hit.enemy, attackRange())) {
-      applyPlayerHit(cleaved, damage * techniques.cleaveShare, critical, Math.atan2(cleaved.y - player.y, cleaved.x - player.x), undefined, undefined, `sword-cleave`);
+      applyPlayerHit(cleaved, damage * techniques.cleaveShare, critical, Math.atan2(cleaved.y - player.y, cleaved.x - player.x), 'sword-cleave');
     }
     techniques.swingLanded();
     const second = splitShotTarget(hit.enemy);
-    if (second) applyPlayerHit(second, weaponDamage(critical), critical, Math.atan2(second.y - player.y, second.x - player.x), undefined, undefined, `sword-split-shot`);
+    if (second) applyPlayerHit(second, weaponDamage(critical), critical, Math.atan2(second.y - player.y, second.x - player.x), 'sword-split-shot');
   }
 
   function launchPlayerStone(target: AttackTarget, releasedAtSeconds: number) {
@@ -711,7 +710,7 @@ export function createPlayerCombatController(options: {
         spawnDamageNumber(player.x, player.y - 18, back, false, true);
         spawnBurst(source.x, source.y, "#c9d4ff", 10, 140);
       } else {
-        applyPlayerHit(source, reflected, false, Math.atan2(source.y - player.y, source.x - player.x), true, undefined, `reflect`);
+        applyPlayerHit(source, reflected, false, Math.atan2(source.y - player.y, source.x - player.x), 'reflect', true);
         cardCombat.afterReflect(source, reflected);
       }
     }
@@ -771,26 +770,23 @@ export function createPlayerCombatController(options: {
   }
 
   /** `fromCard` is card damage (burn, splash, chain lightning): no crit, slayer or card of its own. */
-  function applyPlayerHit(target: EnemyState | BossTarget, damage: number, critical: boolean, angle: number, reflected = false, fromCard = false, damageSource: string) {
+  function applyPlayerHit(target: EnemyState | BossTarget, damage: number, critical: boolean, angle: number, source: DamageSource, reflected = false, fromCard = false) {
     if (!reflected && options.reflectOnly?.()) return;
     const weaponHit = !reflected && !fromCard;
-    let cardCrit = false;
-    const startingDamage = damage;
+    // The share of this hit that Iaido's forced critical added, for the DPS breakdown.
+    let iaidoShare = 0;
     if (weaponHit) {
       // Iaido lands a first hit as a critical; the slayer and conditional cards multiply the rest.
-      if (cardCombat.firstHitCrit(target) && !critical) { damage *= researchCriticalDamageMultiplier(); critical = true; cardCrit = true; }
+      if (cardCombat.firstHitCrit(target) && !critical) {
+        const criticalMultiplier = researchCriticalDamageMultiplier();
+        damage *= criticalMultiplier; critical = true; iaidoShare = 1 - 1 / criticalMultiplier;
+      }
       // Hunter's Mark and Hex raise hits on a target a critical marked.
       damage *= cardCombat.hitMultiplier(target) * techniques.hitFactor(target, critical);
     }
     if ((target.isBoss || target.generatedBoss) && weaponHit) damage *= 1 + bossSlayer();
-    options.onDamageDealt?.(damage);
-    if (!cardCrit) {
-      trackHit(damage, damageSource);
-    } else {
-      const baseDamage = startingDamage * cardCombat.hitMultiplier(target) * techniques.hitFactor(target, false);
-      trackHit(baseDamage, damageSource);
-      trackHit(damage - baseDamage, 'card-koi-crit');
-    }
+    options.onDamageDealt?.(damage * (1 - iaidoShare), source);
+    if (iaidoShare > 0) options.onDamageDealt?.(damage * iaidoShare, "card-koi");
     // A reflected hit shows blue, so the player can see Reflect fire.
     if (!target.isBoss && !target.generatedBoss) spawnDamageNumber(target.x, target.y, damage, critical, false, reflected);
     target.hurt = .12;
@@ -839,7 +835,7 @@ export function createPlayerCombatController(options: {
       return;
     }
     // No spark on a hit: hits are too many to draw sparks for. Deaths keep their burst.
-    applyPlayerHit(target, projectile.damage, critical, Math.atan2(projectile.vy, projectile.vx), undefined, undefined, `bow-arrow-impact`);
+    applyPlayerHit(target, projectile.damage, critical, Math.atan2(projectile.vy, projectile.vx), 'bow-hit');
     const procs = projectile.skills;
     if (!procs?.arrowStorm && !procs?.ricochet) return;
     projectile.skills = procs.piercingShot ? PIERCE_ONLY : null;
@@ -868,7 +864,7 @@ export function createPlayerCombatController(options: {
           options.skillEffects.spawnSkillStreak(from.x, from.y, next.x, next.y, "#8fe3ff", 4, .32, true);
           options.skillEffects.spawnSkillRing(next.x, next.y, "#8fe3ff", 20, .26);
         } else streak(from.x, from.y, next.x, next.y, "#8fe3ff");
-        applyPlayerHit(next, projectile.damage * RICOCHET_DAMAGE_SHARE, critical, Math.atan2(next.y - from.y, next.x - from.x), undefined, undefined, `bow-ricochet`);
+        applyPlayerHit(next, projectile.damage * RICOCHET_DAMAGE_SHARE, critical, Math.atan2(next.y - from.y, next.x - from.x), 'bow-ricochet');
         from = next;
       }
     }
