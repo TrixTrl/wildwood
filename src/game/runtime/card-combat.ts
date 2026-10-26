@@ -134,7 +134,7 @@ export function createCardCombat(deps: {
     const threshold = cardValue(worn, "reap");
     if (!(threshold > 0) || target.hp >= target.maxHp * threshold / 100) return false;
     deps.spawnBurst(target.x, target.y, "#d7b8ff", 14, 140);
-    deps.strike(target, target.hp, undefined, `cards-reap`);
+    deps.strike(target, target.hp, undefined, `card-reap`);
     return true;
   }
 
