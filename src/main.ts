@@ -98,7 +98,6 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
 import { GUILD_HALL_MAP_PREFIX } from "../shared/guild-hall";
 import { TOWN_MAP_ID } from "../shared/town";
 import { installZoneTimeTracker, updateTimeValues } from "./game/zone-timer";
-import { createDamageSourceTracker, resetDamageSourceTracking } from "./game/dps-source-tracker";
 
 (() => {
   "use strict";
@@ -224,7 +223,6 @@ import { createDamageSourceTracker, resetDamageSourceTracking } from "./game/dps
   const timeMap: Map<MapId, { startTime: number, endTime?: number }> = new Map<MapId, { startTime: number, endTime?: number }>();
   let timeMapPrestige = 0;
   function setCurrentMap(mapId: MapId) {
-    if (currentMapId !== mapId) resetDamageSourceTracking();
     if (coop && coop.prestige()?.level !== timeMapPrestige) {
       timeMap.clear();
       timeMapPrestige = coop.prestige()?.level ?? -1;
@@ -883,7 +881,6 @@ import { createDamageSourceTracker, resetDamageSourceTracking } from "./game/dps
   installGameTicker(gameElements.chatPanel, localStorage, () => coop?.patreonSupporterNames?.() ?? []);
   offlineProgressSetting = installOfflineProgressSetting(document, () => coop);
   installZoneTimeTracker(() => currentMapId, () => coop?.localIdentity(), () => coop ? coop.prestige()?.level ?? (coop.localState()?.mapId ? 0 : undefined) : undefined);
-  createDamageSourceTracker();
   createAutoFarmPanel({
     farm: autoFarm, mapName: () => MAP_CONFIG[currentMapId].name, aggro: () => coop?.aggroChallenge?.(), identity: coopAccess.localIdentity,
     rewardMultiplier: researchRewardMultiplier, soulRewardMultiplier: () => soulDimension.rewardMultiplier(),
