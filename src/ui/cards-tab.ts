@@ -1,5 +1,5 @@
 import { CARDS, cardDefinition, cardKillChance, cardSureByKills, type CardDefinition, type CardSlot } from "../../shared/cards";
-import { CARD_SLOT_NAMES, cardName, cardOddsText, cardOrigin, cardsEffectText, cardSureText, mapName } from "../../shared/card-text";
+import { CARD_SLOT_NAMES, cardEffectText, cardName, cardOddsText, cardOrigin, cardSureText, mapName } from "../../shared/card-text";
 import {
   BASE_CARD_SLOTS, CARD_SLOT_PERKS, CARD_TYPES, CARD_TYPE_NAMES, MAX_ACTIVE_CARD_SLOTS, NO_ACTIVE_CARDS, activationError,
   activeCopies, type ActiveCards, type ActiveCardSlots,
@@ -132,7 +132,7 @@ export function cardDetailRequest(port: CardsPort, cardId: string, after: (resul
   return {
     cardId: card.id, count: owned, found: owned > 0,
     context: `${typeName} Card · ${owned > 0 ? `${owned.toLocaleString("en-US")} Owned · ${copies} Equipped` : "Not Found Yet"}`,
-    effects: card.effects.map(effect => ({ text: cardsEffectText(effect, Math.max(copies, 1)), cost: effect.value < 0 })),
+    effects: card.effects.map(effect => ({ text: cardEffectText(effect), cost: effect.value < 0 })),
     odds: `${cardOddsText(card, chance)} · ${cardSureText(card, cardSureByKills(card, port.cardHunter()))}`,
     note: slotsText || (owned > 0 && error && copies < owned ? `${error} Remove one first.` : ""),
     actions,
@@ -242,7 +242,7 @@ export function createCardsTab(options: {
   // Built once, using the same names and effect descriptions as the card details.
   const searchIndex = new Map(ordered.map(card => [card.id,
     [cardName(card), mapName(card.mapId), cardOrigin(card), ...card.effects.map(effect =>
-      `${effect.effect.replace(/([a-z])([A-Z])/g, "$1 $2")} ${cardsEffectText(effect)}`)].join(" ").toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [],
+      `${effect.effect.replace(/([a-z])([A-Z])/g, "$1 $2")} ${cardEffectText(effect)}`)].join(" ").toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [],
   ]));
   let query = "";
   // Search-only expansion never changes the player's saved area preferences.
@@ -362,7 +362,7 @@ export function createCardsTab(options: {
     effects.className = "cards-equip-effects";
     for (const effect of card.effects) {
       const line = document.createElement("li");
-      line.textContent = cardsEffectText(effect, Math.max(copies, 1));
+      line.textContent = cardEffectText(effect);
       if (effect.value < 0) line.className = "is-cost";
       effects.append(line);
     }
