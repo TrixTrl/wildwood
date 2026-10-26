@@ -224,7 +224,7 @@ import { createDamageSourceTracker, resetDamageSourceTracking } from "./game/dps
   const timeMap: Map<MapId, { startTime: number, endTime?: number }> = new Map<MapId, { startTime: number, endTime?: number }>();
   let timeMapPrestige = 0;
   function setCurrentMap(mapId: MapId) {
-    resetDamageSourceTracking();
+    if (currentMapId !== mapId) resetDamageSourceTracking();
     if (coop && coop.prestige()?.level !== timeMapPrestige) {
       timeMap.clear();
       timeMapPrestige = coop.prestige()?.level ?? -1;

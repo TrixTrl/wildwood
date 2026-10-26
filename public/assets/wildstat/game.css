@@ -509,6 +509,7 @@
   .mysterious-ore-timer button { box-sizing: border-box; height: 100%; min-height: 0; margin: 0; padding: 0 8px; border: 0; border-radius: 0; background: transparent; color: inherit; font: inherit; text-shadow: inherit; box-shadow: none; white-space: nowrap; }
   .mysterious-ore-timer button:active { transform: none; }
   .mysterious-ore-timer .mysterious-ore-timer-handle { flex: 1; text-align: left; cursor: grab; touch-action: none; }
+  .mysterious-glow { -webkit-box-shadow:0px 0px 9px 8px rgba(45,255,196,0.9); -moz-box-shadow: 0px 0px 9px 8px rgba(45,255,196,0.9); box-shadow: 0px 0px 9px 8px rgba(45,255,196,0.9); }
   .settings-tab-panel .setting-reset { margin-top: 28px; }
   /* The Graphics readout: plain read-only lines, the tip dimmer. */
   .graphics-info { display: grid; gap: 4px; padding: 6px 0 2px; }
