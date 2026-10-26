@@ -417,6 +417,7 @@ import { installZoneTimeTracker, updateTimeValues } from "./game/zone-timer";
     guildQuestBonus: () => coop?.weeklyQuests?.()?.bonus ?? 1,
     serverBoost: () => coop?.serverBoostMultiplier?.() ?? 1,
     prestigePerks: () => coop?.prestigePerks?.(), cards: () => coop?.activeCardStats?.(), equippedFeet: () => inventory.equippedFeet,
+    equippedWeapon: () => inventory.equippedRightHand || inventory.equippedLeftHand,
     itemLevel: coopAccess.itemLevel,
     player,
     getRanks: () => coop?.researchInPlay?.(),

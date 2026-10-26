@@ -20,6 +20,8 @@ import { enemyDefeatBudget, playerDefeatClock, playerMapDeparture, acceptEnemyDe
 import { grantVirtualPlayerConsent, revokeVirtualPlayerConsent } from "./virtual-player-consent";
 import { offlineProgressTables, beginOfflineWindow, grantOfflineProgress, collectOfflineProgress, setSimulatedTimeAway } from "./offline-progress";
 import { offlineGatherChoice } from "./offline-gathering";
+import { ensureRunTiming, playerRunTiming } from "./run-timing";
+import { playerNockedArrow, registerArrows } from "./arrows";
 import { offlineActivity } from "../../shared/offline-gathering";
 import { playerOfflinePreference, writeOfflinePreference } from "./offline-preference";
 import { playerAudioSetting, writeAudioSettings } from "./audio-settings";
@@ -1423,7 +1425,7 @@ const spacetimedb = schema({
   playerGemWallet,
   gemTransaction,
   dailyGemBonus,
-  playerAdReward, playerAdWatch, playerChatMute, playerClientHost, offlineGatherChoice,
+  playerAdReward, playerAdWatch, playerChatMute, playerClientHost, offlineGatherChoice, playerRunTiming, playerNockedArrow,
   balanceApologyNotice,
   playerEquipmentLock, playerItemGift, playerBowSkill, playerSwordSkill, playerStaffSkill, playerWornStaffSkill, playerEquipmentCopy, pendingEquipmentOffer, playerIgnoredDrop, playerLootSetting, playerItemRefine, playerCopyRefine, playerOre, playerRefineResult, playerCard, playerGearSlots, playerCopySlots, playerCardDrop, playerCardAttackCap, playerBossCardRoll, playerBuild, playerBuildName, playerWeaponMastery, playerMasteryLevel, playerGold, playerCardMeter, playerCardShopPurchase, playerItemCollection, playerWornSkill, playerMining, playerMinedNode, playerMiningLevel, playerWoodcutting, playerChoppedTree, playerWoodcuttingLevel, playerCraftSkill, playerCraftLevel, playerTool, oldGearPayout, playerStarterWeapon, gemKillDaily, gemLedgerTrim,
   mailboxLetter, mailboxReceipt, playerJoinDate, mailboxEquipment, accountDeletionRequest,
@@ -1902,6 +1904,7 @@ function enterWorldPresence(ctx: any, tabId: string, forceTakeover = false, supp
   // player row is written, so the entry snapshot carries the payout. A player
   // still in the tutorial has no map to have been farming.
   if (!virtualRegistration && !needsOnboarding(ctx, ctx.sender)) existingProgress = grantOfflineProgress(ctx, existingProgress, OFFLINE_GRANT_PORTS);
+  if (!virtualRegistration) ensureRunTiming(ctx, ctx.sender);
   if (!virtualRegistration && (!session.enteredWorld || session.tabId !== normalizedTabId)) {
     const updatedSession = ctx.db.playerSession.connectionId.find(ctx.connectionId);
     if (updatedSession) {
@@ -3342,6 +3345,11 @@ export const myOfflineGatherChoice = spacetimedb.view(
   { name: "my_offline_gather_choice", public: true }, t.array(offlineGatherChoice.rowType),
   ctx => { const row = ctx.db.offlineGatherChoice.identity.find(ctx.sender); return row ? [row] : []; },
 );
+/** The caller's prestige run timing (run-timing.ts): its start in active play and each boss's first clear. */
+export const myRunTiming = spacetimedb.view(
+  { name: "my_run_timing", public: true }, t.array(playerRunTiming.rowType),
+  ctx => { const row = ctx.db.playerRunTiming.identity.find(ctx.sender); return row ? [row] : []; },
+);
 
 export const myOfflinePreference = spacetimedb.view(
   { name: "my_offline_preference", public: true }, t.array(playerOfflinePreference.rowType),
@@ -3837,7 +3845,9 @@ export const { buyShopCard, myCardShopPurchases } = registerCardShop(spacetimedb
 export const { buyGradeGear } = registerGradeShop(spacetimedb, { requireControllingPlayer, activeDuelFor, inventoryForProgress, restoreItemToProgress, writeProgressAndPresentation });
 // The Starter Chest by the forest spawn (starter-chest.ts).
 export const { claimStarterWeapon, myStarterWeapon } = registerStarterChest(spacetimedb, { requireControllingPlayer, activeDuelFor });
-export const { craftGradeItem, reforgeWeapon, craftGradeGear, myCraftSkills } = registerCrafting(spacetimedb, { requireControllingPlayer, activeDuelFor, inventoryForProgress, restoreItemToProgress, writeProgressAndPresentation });
+const craftingDeps = { requireControllingPlayer, activeDuelFor, inventoryForProgress, restoreItemToProgress, writeProgressAndPresentation };
+export const { craftGradeItem, reforgeWeapon, craftGradeGear, myCraftSkills } = registerCrafting(spacetimedb, craftingDeps);
+export const { craftArrows, nockArrow, spendArrows, myNockedArrow } = registerArrows(spacetimedb, craftingDeps);
 export const { upgradeTool, myTools } = registerTools(spacetimedb, { requireControllingPlayer, activeDuelFor });
 export const myGuildJoinRequests = registerGuildJoinRequestView(spacetimedb);
 export const { myGuildHall, upgradeGuildHall, useGuildHallDoor } = registerGuildHall(spacetimedb, { requireGuildPlayer, requireControllingPlayer, playerWithMotion, transitionPlayerMap, persistWorldLocation });
