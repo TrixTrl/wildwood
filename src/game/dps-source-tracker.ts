@@ -34,6 +34,13 @@ export function resetDamageSourceTracking() {
   Object.keys(allDamage).forEach(k => allDamage[k].damage = 0);
 }
 
+function element<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text = "") {
+  const node = document.createElement(tag);
+  node.className = className;
+  if (text) node.textContent = text;
+  return node;
+}
+
 function renderTracker() {
   const tracker = document.getElementById('damage-source-tracker');
   if (!tracker) return;
@@ -52,7 +59,12 @@ function renderTracker() {
     damageTextElement.classList.add('damage-source-tracker-damage');
     damageTextElement.textContent = damageText;
     row.appendChild(damageTextElement);
-    //const bar = document.createElement();
+    const bar = element("span", "damage-source-bar");
+    bar.setAttribute("aria-hidden", "true");
+    const inner = element("span", "");
+    inner.style.width = `${d.damage / data[0].damage * 100}%`;
+    bar.append(inner);
     tracker.appendChild(row);
+    tracker.append(bar);
   }
 }
