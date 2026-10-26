@@ -1,4 +1,12 @@
 export const RELEASE_NOTES: Record<string, string[]> = {
+  "0.917.16": [
+    "Endless bosses are twice the size of their map's enemies, and their hitbox matches the art",
+    "The Soul Defense Force is drawn at its full size, matching its hitbox",
+  ],
+  "0.917.15": [
+    "The quest tracker counts quests collected from the guild pool, so it goes past 15/15",
+    "Esc closes the Auto Farm, Auto Mine and Auto Chop windows while they run, and they keep running",
+  ],
   "0.917.14": [
     "An offer that trades the moment it goes up says Sold or Bought, and a letter confirms it",
     "Craft tools lower what a craft needs in your bag, and the Smith shows the lower cost",
@@ -3975,6 +3983,8 @@ const RELEASE_DATES: Record<string, string> = {
 };
 
 export const RELEASE_DAYS: Record<string, string> = {
+  "0.917.16": "2026-10-26",
+  "0.917.15": "2026-10-26",
   "0.917.14": "2026-10-26",
   "0.917.13": "2026-10-26",
   "0.917.12": "2026-10-25",
