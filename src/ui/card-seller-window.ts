@@ -1,6 +1,6 @@
 import { cardDefinition, type CardDefinition } from "../../shared/cards";
 import { cardShopOffer, cardShopPrice, cardShopRotation, cardShopRotationEndsAt } from "../../shared/card-shop";
-import { CARD_SLOT_NAMES, cardEffectText, cardName, cardOrigin } from "../../shared/card-text";
+import { CARD_SLOT_NAMES, cardName, cardOrigin, cardsEffectText } from "../../shared/card-text";
 import { REFINE_ORES, type OreId } from "../../shared/refine";
 import { REFINE_ORE_ORDER } from "../../shared/ore-bag";
 import { cardTile } from "./cards-tab";
@@ -82,7 +82,7 @@ export function createCardSellerController(deps: {
     effects.className = "smith-card-effects card-seller-effects";
     for (const effect of card.effects) {
       const line = document.createElement("li");
-      line.textContent = cardEffectText(effect);
+      line.textContent = cardsEffectText(effect, 1);
       if (effect.value < 0) line.className = "is-cost";
       effects.append(line);
     }

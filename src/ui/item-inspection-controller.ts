@@ -15,7 +15,7 @@ import { oreIconSource } from "./ore-icon";
 import { oreDescription } from "../../shared/ore-bag";
 import { REFINE_ORES, type OreId } from "../../shared/refine";
 import { cardDefinition } from "../../shared/cards";
-import { CARD_SLOT_NAMES, cardEffectText, cardName, cardOrigin } from "../../shared/card-text";
+import { CARD_SLOT_NAMES, cardsEffectText, cardName, cardOrigin } from "../../shared/card-text";
 import { cardPortrait } from "./card-portrait";
 import { itemSkillDetails } from "./item-skill-details";
 import { armorClassPerkLine, armorClassSetLine } from "../../shared/armor-class-perks";
@@ -161,7 +161,7 @@ function cardSection({ title, cards }: { title: string; cards: readonly string[]
     const name = document.createElement("strong");
     name.textContent = card ? cardName(card) : "None Active";
     text.append(name);
-    for (const line of card ? card.effects.map(effect => cardEffectText(effect)) : ["Cards are switched on in the Cards tab"]) {
+    for (const line of card ? card.effects.map(effect => cardsEffectText(effect, 1)) : ["Cards are switched on in the Cards tab"]) {
       const effect = document.createElement("span");
       effect.textContent = line;
       text.append(effect);
@@ -413,7 +413,7 @@ export function createItemInspectionController(elements: ItemInspectionElements)
     stats.className = "item-inspection-stats";
     for (const effect of card.effects) {
       const value = document.createElement("span");
-      value.textContent = cardEffectText(effect);
+      value.textContent = cardsEffectText(effect, 1);
       value.dataset.statKind = effect.value < 0 ? "cost" : "card";
       stats.append(value);
     }
