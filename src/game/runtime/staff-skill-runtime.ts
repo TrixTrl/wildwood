@@ -63,7 +63,7 @@ export function createStaffSkillRuntime(options: {
    */
   function burst(primary: Target, x: number, y: number, damage: number, critical: boolean, angle: number, procs: BoltSkillProcs | null | undefined) {
     const struck = new Set<object>([primary]), radius = options.blastRadius?.() ?? STAFF_SPLASH_RADIUS;
-    options.hit(primary, damage, critical, angle, undefined, undefined, `direct-staff`);
+    options.hit(primary, damage, critical, angle, undefined, undefined, `staff-direct`);
     for (const enemy of enemiesAround(enemies, x, y, radius, struck).slice(0, STAFF_SPLASH_MAX_TARGETS - 1)) {
       struck.add(enemy);
       options.hit(enemy, damage, critical, Math.atan2(enemy.y - y, enemy.x - x), undefined, undefined, `staff-splash`);
