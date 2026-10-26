@@ -46,6 +46,8 @@ function renderTracker() {
   if (!tracker) return;
   while (tracker.childNodes.length > 0) tracker.lastChild?.remove();
   const data = Object.keys(allDamage).map((k) => { return ({ key: k, damage: allDamage[k].damage }); }).sort((a, b) => b.damage - a.damage).filter(d => d.damage > 0);
+  let totalDamage = 0;
+  data.forEach(d => totalDamage += d.damage);
   for (const d of data) {
     const row = document.createElement('div');
     row.classList.add('damageTrackerRow');
@@ -62,7 +64,7 @@ function renderTracker() {
     const bar = element("span", "damage-source-bar");
     bar.setAttribute("aria-hidden", "true");
     const inner = element("span", "");
-    inner.style.width = `${d.damage / data[0].damage * 100}%`;
+    inner.style.width = `${d.damage / totalDamage * 100}%`;
     bar.append(inner);
     tracker.appendChild(row);
     tracker.append(bar);
