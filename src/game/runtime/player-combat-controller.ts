@@ -774,16 +774,23 @@ export function createPlayerCombatController(options: {
   function applyPlayerHit(target: EnemyState | BossTarget, damage: number, critical: boolean, angle: number, reflected = false, fromCard = false, damageSource: string) {
     if (!reflected && options.reflectOnly?.()) return;
     const weaponHit = !reflected && !fromCard;
+    let cardCrit = false;
+    const startingDamage = damage;
     if (weaponHit) {
       // Iaido lands a first hit as a critical; the slayer and conditional cards multiply the rest.
-      if (cardCombat.firstHitCrit(target) && !critical) { damage *= researchCriticalDamageMultiplier(); critical = true; }
+      if (cardCombat.firstHitCrit(target) && !critical) { damage *= researchCriticalDamageMultiplier(); critical = true; cardCrit = true; }
       // Hunter's Mark and Hex raise hits on a target a critical marked.
       damage *= cardCombat.hitMultiplier(target) * techniques.hitFactor(target, critical);
     }
     if ((target.isBoss || target.generatedBoss) && weaponHit) damage *= 1 + bossSlayer();
     options.onDamageDealt?.(damage);
-    //console.log(`${formatCompactNumber(damage)} from ${damageSource}`);
-    trackHit(damage, damageSource);
+    if (!cardCrit) {
+      trackHit(damage, damageSource);
+    } else {
+      const baseDamage = startingDamage * cardCombat.hitMultiplier(target) * techniques.hitFactor(target, false);
+      trackHit(baseDamage, damageSource);
+      trackHit(damage - baseDamage, 'card-koi-crit');
+    }
     // A reflected hit shows blue, so the player can see Reflect fire.
     if (!target.isBoss && !target.generatedBoss) spawnDamageNumber(target.x, target.y, damage, critical, false, reflected);
     target.hurt = .12;
