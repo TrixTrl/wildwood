@@ -52,6 +52,11 @@ export function installMysteriousOreTimer(options: {
     const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
     setText(handle, !connected ? "Mysterious: Connecting…"
       : `Mysterious: ${ready}/${ROCKS.length} · ${all > 0 ? `Next ${clock(next)} · All ${clock(all)}` : "All ready"}`);
+    if (ready === 0) {
+      handle.parentElement?.classList.remove('mysterious-glow');
+    } else {
+      handle.parentElement?.classList.add('mysterious-glow');
+    }
   }
 
   function createPanel() {
