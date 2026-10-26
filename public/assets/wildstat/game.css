@@ -5327,3 +5327,6 @@ html.text-outline-shadow .death-countdown { text-shadow: var(--text-outline-ring
   display: flex;
   padding: 2px 2px;
 }
+
+.damage-source-bar { display: block; height: 4px; overflow: hidden; border-radius: 2px; background: rgba(255,255,255,.14); width: 250px; padding: 4px 4x; }
+.damage-source-bar > span { display: block; height: 100%; background: #e6e6e6; }
