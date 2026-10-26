@@ -1,4 +1,14 @@
 export const RELEASE_NOTES: Record<string, string[]> = {
+  "0.917.26": [
+    "Craft arrows at the Smith: Steel, Fire, Venom, Frost, Piercing and Star, each with its own effect",
+    "Nock a stack from the bag: your bow spends one a shot, and shoots plain arrows when they run out",
+  ],
+  "0.917.25": [
+    "Bows shoot 15% faster and have +10% crit chance, shown in the profile",
+  ],
+  "0.917.23": [
+    "A stump's shadow is a plain round one, not a small leafy tree's",
+  ],
   "0.917.22": [
     "A felled tree's stump has a stump's shadow, not the whole tree's",
   ],
@@ -4001,6 +4011,10 @@ const RELEASE_DATES: Record<string, string> = {
 };
 
 export const RELEASE_DAYS: Record<string, string> = {
+  "0.917.26": "2026-10-26",
+  "0.917.25": "2026-10-26",
+  "0.917.24": "2026-10-26",
+  "0.917.23": "2026-10-26",
   "0.917.22": "2026-10-26",
   "0.917.21": "2026-10-26",
   "0.917.20": "2026-10-26",
