@@ -1,4 +1,7 @@
 export const RELEASE_NOTES: Record<string, string[]> = {
+  "0.917.12": [
+    "New quests ask for enemies that give a stat on one map, not one enemy",
+  ],
   "0.917.11": [
     "Added a movable Mysterious Ore timer, enabled in Settings -> Display & HUD",
     "Tracker hides raw values for capped Attack Speed and Crit Damage",
@@ -3962,6 +3965,7 @@ const RELEASE_DATES: Record<string, string> = {
 };
 
 export const RELEASE_DAYS: Record<string, string> = {
+  "0.917.12": "2026-10-25",
   "0.917.11": "2026-10-24",
   "0.917.10": "2026-10-23",
   "0.917.9": "2026-10-23",
