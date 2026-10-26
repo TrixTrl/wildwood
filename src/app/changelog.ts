@@ -1,4 +1,13 @@
 export const RELEASE_NOTES: Record<string, string[]> = {
+  "0.917.22": [
+    "A felled tree's stump has a stump's shadow, not the whole tree's",
+  ],
+  "0.917.21": [
+    "The Town's countryside is open all round: walk north of the village and the hills, and into every corner",
+  ],
+  "0.917.20": [
+    "While You Were Away folds Fight, Mine and Chop into rows you open to see what each pays, so the window fits without scrolling",
+  ],
   "0.917.19": [
     "Coming back shows what fighting, mining and chopping earned while you were away; pick one to collect",
   ],
@@ -3992,6 +4001,9 @@ const RELEASE_DATES: Record<string, string> = {
 };
 
 export const RELEASE_DAYS: Record<string, string> = {
+  "0.917.22": "2026-10-26",
+  "0.917.21": "2026-10-26",
+  "0.917.20": "2026-10-26",
   "0.917.19": "2026-10-26",
   "0.917.18": "2026-10-26",
   "0.917.17": "2026-10-26",
