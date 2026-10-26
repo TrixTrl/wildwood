@@ -161,6 +161,8 @@ export function installZoneTimeTracker(mapId?: () => MapId, identity?: () => str
           relevantSlot.startTime = Date.now();
         } else {
           data[prestigeValue] = { startTime: Date.now(), currentTime: 0, mapTimes: {} };
+          const i = identity();
+          if (i !== undefined) updateZoneTimeTracker(i, prestigeValue);
         }
         invalidate(data);
         const activeTimer = document.getElementById('active-timer');
@@ -237,7 +239,6 @@ export function createZoneTimeTracker(identity: string, prestige: number) {
   sheet.id = 'zoneTimerSheet';
   fullTimer.appendChild(activeTimer);
   fullTimer.appendChild(sheet);
-  //sheet.style.bottom = '200px';//`calc(${document.getElementById('chatPannel')?.style.top} + 5px)`;
   document.getElementById('hud')!.append(fullTimer);
   updateZoneTimeTracker(identity, prestige);
 }

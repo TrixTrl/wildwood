@@ -39,7 +39,7 @@ export function createCardCombat(deps: {
   mapId: () => string;
   isDueling: () => boolean;
   /** Card damage on a target: no crit and no cards; a kill pays as any kill does. Prism's is reflected damage. */
-  strike: (target: Target, damage: number, reflected?: boolean) => void;
+  strike: (target: Target, damage: number, reflected: boolean | undefined, damageSource: string) => void;
   spawnBurst: (x: number, y: number, color: string, count?: number, speed?: number) => void;
   spawnParticle?: (x: number, y: number, vx: number, vy: number, life: number, maxLife: number, size: number, color: string) => void;
   streak?: (fromX: number, fromY: number, toX: number, toY: number, color: string) => void;
@@ -85,8 +85,10 @@ export function createCardCombat(deps: {
     const entry = dots.get(target) ?? {};
     const current = entry[kind];
     const dps = total / seconds;
-    entry[kind] = { dps: Math.max(dps, current?.dps ?? 0), left: Math.max(seconds, current?.left ?? 0), pending: current?.pending ?? 0,
-      tick: current?.tick ?? 0, color: COLORS[kind] };
+    entry[kind] = {
+      dps: Math.max(dps, current?.dps ?? 0), left: Math.max(seconds, current?.left ?? 0), pending: current?.pending ?? 0,
+      tick: current?.tick ?? 0, color: COLORS[kind]
+    };
     dots.set(target, entry);
   }
 
@@ -103,10 +105,10 @@ export function createCardCombat(deps: {
   }
 
   /** Splash and Prism reach the nearest few, as the server bounds them, not a whole pack. */
-  function splashAround(target: Target, damage: number) {
+  function splashAround(target: Target, damage: number, damageSource: string) {
     if (!(damage > 0)) return;
     deps.spawnBurst(target.x, target.y, COLORS.splash, 10, 120);
-    for (const enemy of near(target.x, target.y, CARD_SPLASH_RADIUS, new Set([target])).slice(0, CARD_SPLASH_MAX_TARGETS)) deps.strike(enemy, damage);
+    for (const enemy of near(target.x, target.y, CARD_SPLASH_RADIUS, new Set([target])).slice(0, CARD_SPLASH_MAX_TARGETS)) deps.strike(enemy, damage, undefined, damageSource);
   }
 
   function chainLightning(target: Target, damage: number, targets: number) {
@@ -117,7 +119,7 @@ export function createCardCombat(deps: {
       if (!next) return;
       deps.streak?.(from.x, from.y, next.x, next.y, COLORS.chain);
       struck.add(next);
-      deps.strike(next, damage);
+      deps.strike(next, damage, undefined, `card-chain-lightning`);
       from = next;
     }
   }
@@ -132,7 +134,7 @@ export function createCardCombat(deps: {
     const threshold = cardValue(worn, "reap");
     if (!(threshold > 0) || target.hp >= target.maxHp * threshold / 100) return false;
     deps.spawnBurst(target.x, target.y, "#d7b8ff", 14, 140);
-    deps.strike(target, target.hp);
+    deps.strike(target, target.hp, undefined, `cards-reap`);
     return true;
   }
 
@@ -143,7 +145,7 @@ export function createCardCombat(deps: {
     const steal = cardValue(worn, "lifesteal");
     if (steal > 0 && player.hp > 0) player.hp = Math.min(player.maxHp, player.hp + damage * steal / 100);
     const regular = isRegular(target) ? target : null;
-    splashAround(target, damage * cardValue(worn, "splash") / 100);
+    splashAround(target, damage * cardValue(worn, "splash") / 100, `card-splash`);
     const defaults = CARD_EFFECT_DEFAULTS;
     for (const proc of worn.procs) {
       if (deps.random() * 100 >= proc.chance) continue;
@@ -151,7 +153,7 @@ export function createCardCombat(deps: {
       else if (proc.effect === "poison") {
         damageOverTime(target, "poison", damage * defaults.poison.share, defaults.poison.seconds);
         if (regular) setStatus(regular, "weaken", defaults.poison.weaken, defaults.poison.seconds);
-      } else if (proc.effect === "splash") splashAround(target, damage * (proc.share ?? 0));
+      } else if (proc.effect === "splash") splashAround(target, damage * (proc.share ?? 0), `card-splash-proc`);
       else if (proc.effect === "chainLightning") {
         chainLightning(target, damage * (proc.share ?? defaults.chainLightning.share), proc.targets ?? defaults.chainLightning.targets);
       } else if (!regular || regular.dead) continue;
@@ -232,10 +234,10 @@ export function createCardCombat(deps: {
     deps.spawnBurst(source.x, source.y, COLORS.splash, 10, 120);
     const fresh = near(source.x, source.y, CARD_SPLASH_RADIUS, new Set([source]))
       .filter(enemy => !(clock - (prismStruckAt.get(enemy) ?? -Infinity) < PRISM_REPEAT_SECONDS)).slice(0, PRISM_MAX_TARGETS);
-    for (const enemy of fresh) { prismStruckAt.set(enemy, clock); deps.strike(enemy, damage, true); }
+    for (const enemy of fresh) { prismStruckAt.set(enemy, clock); deps.strike(enemy, damage, true, `card-reflect-splash`); }
   }
 
-  function tickDamage(target: Target, entry: DamageOverTime, dt: number) {
+  function tickDamage(target: Target, entry: DamageOverTime, dt: number, damageSource: string) {
     const step = Math.min(dt, entry.left);
     entry.left -= step;
     entry.pending += entry.dps * step;
@@ -246,7 +248,7 @@ export function createCardCombat(deps: {
     entry.pending = 0;
     if (amount > 0 && !target.dead) {
       deps.spawnParticle?.(target.x, target.y - 10, 0, -40, .5, .5, 4, entry.color);
-      deps.strike(target, amount);
+      deps.strike(target, amount, undefined, damageSource);
     }
   }
 
@@ -269,7 +271,7 @@ export function createCardCombat(deps: {
       for (const kind of ["burn", "poison"] as const) {
         const dot = entry[kind];
         if (!dot) continue;
-        tickDamage(target, dot, dt);
+        tickDamage(target, dot, dt, `card-${kind}`);
         if (dot.left <= 0) delete entry[kind];
       }
       if (target.dead || (!entry.burn && !entry.poison)) dots.delete(target);
