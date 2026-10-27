@@ -248,6 +248,8 @@ export function createMapGuideController(elements: MapGuideElements, dependencie
   const { trigger, overlay, title, canvas, zoneLabels, dropItems, back } = elements;
   const prev = overlay.querySelector<HTMLButtonElement>("#mapGuidePrev");
   const next = overlay.querySelector<HTMLButtonElement>("#mapGuideNext");
+  const firstBtn = overlay.querySelector<HTMLButtonElement>('#mapGuideFirst');
+  const lastBtn = overlay.querySelector<HTMLButtonElement>('#mapGuideLast');
   const kicker = overlay.querySelector<HTMLElement>("#mapGuideKicker");
   const enemyRows = overlay.querySelector<HTMLElement>("#mapGuideEnemyRows");
   const unlocked = (mapId: MapId) => dependencies.mapUnlocked?.(mapId) ?? true;
@@ -536,6 +538,8 @@ export function createMapGuideController(elements: MapGuideElements, dependencie
     if (kicker) kicker.textContent = index > 0 && !unlocked(mapId) ? `${place} · Locked` : live() ? `${place} · You are here` : place;
     if (prev) prev.disabled = index <= 0;
     if (next) next.disabled = index < 0 || index >= last;
+    if (firstBtn) firstBtn.disabled = index <= 0;
+    if (lastBtn) lastBtn.disabled = index < 0 || index >= last;
     renderGoal(mapId);
     // The Town has no enemies or drops: its page is the map alone, in the Town's own shape.
     if (mapFrame) mapFrame.style.aspectRatio = town ? TOWN_MAP_ASPECT : "";
@@ -601,6 +605,8 @@ export function createMapGuideController(elements: MapGuideElements, dependencie
   trigger.addEventListener("click", open);
   prev?.addEventListener("click", () => browse(-1));
   next?.addEventListener("click", () => browse(1));
+  firstBtn?.addEventListener('click', () => browse(-Infinity));
+  lastBtn?.addEventListener('click', () => browse(Infinity));
   // Arrow keys browse too, on a keyboard.
   overlay.addEventListener("keydown", (event) => {
     if (event.key === "ArrowLeft") { event.preventDefault(); browse(-1); }

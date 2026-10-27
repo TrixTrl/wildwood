@@ -257,12 +257,14 @@ const afterUpdateGateShell = String.raw`
 <div id="mapGuide" hidden>
   <section class="map-guide-window" role="dialog" aria-modal="true" aria-labelledby="mapGuideTitle">
     <header class="map-guide-header">
+      <button id="mapGuideFirst" class="map-guide-arrow is-first" type="button" aria-label="First map"></button>
       <button id="mapGuidePrev" class="map-guide-arrow is-prev" type="button" aria-label="Previous map"></button>
       <div class="map-guide-heading">
         <p id="mapGuideKicker" class="map-guide-kicker">Map 1</p>
         <h2 id="mapGuideTitle" class="window-title">Tutorial Forest</h2>
       </div>
       <button id="mapGuideNext" class="map-guide-arrow is-next" type="button" aria-label="Next map"></button>
+      <button id="mapGuideLast" class="map-guide-arrow is-last" type="button" aria-label="Last map"></button>
     </header>
     <div class="map-guide-scroll">
       <div class="map-guide-content">
