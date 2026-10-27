@@ -1,4 +1,17 @@
 export const RELEASE_NOTES: Record<string, string[]> = {
+  "0.917.32": [
+    "Fixed the Stat Tracker's attack speed with a bow at the cap",
+    "Added an optional DPS Breakdown view to Stat Tracker",
+    "Switch views in the tracker; Reset only clears the selected view",
+    "Stats and DPS now have separate timers",
+    "Auto-track bosses tracks full boss fights and pins the result",
+    "Tracker display options now expand on demand",
+  ],
+  "0.917.31": [
+    "Profile and Stat Tracker show a bow's full attack speed above the cap instead of Max",
+    "Swords turn gold at ★10 and sapphire at ★20, matching Medium armor",
+    "Whirlwind grows with your attack range, so it reaches anything your sword can hit, bosses included",
+  ],
   "0.917.30": [
     "Time away you don't collect is kept and added to your next time away, up to your offline limit",
     "The World Map has a Town page: the village, Timberwood, the Copper Hills and the Trade Chrysanthemum, and where you are",
@@ -4025,6 +4038,8 @@ const RELEASE_DATES: Record<string, string> = {
 };
 
 export const RELEASE_DAYS: Record<string, string> = {
+  "0.917.32": "2026-10-27",
+  "0.917.31": "2026-10-27",
   "0.917.30": "2026-10-26",
   "0.917.29": "2026-10-26",
   "0.917.28": "2026-10-26",
