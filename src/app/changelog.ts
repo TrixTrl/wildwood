@@ -1,4 +1,9 @@
 export const RELEASE_NOTES: Record<string, string[]> = {
+  "0.917.30": [
+    "Time away you don't collect is kept and added to your next time away, up to your offline limit",
+    "The World Map has a Town page: the village, Timberwood, the Copper Hills and the Trade Chrysanthemum, and where you are",
+    "The Town runs smoother, especially when it's busy and in Firefox and Safari",
+  ],
   "0.917.29": [
     "Faster loading and smoother play, especially on phones",
   ],
@@ -4020,6 +4025,7 @@ const RELEASE_DATES: Record<string, string> = {
 };
 
 export const RELEASE_DAYS: Record<string, string> = {
+  "0.917.30": "2026-10-26",
   "0.917.29": "2026-10-26",
   "0.917.28": "2026-10-26",
   "0.917.27": "2026-10-26",

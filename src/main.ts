@@ -684,7 +684,7 @@ import { installZoneTimeTracker, updateTimeValues } from "./game/zone-timer";
     coop: coopAccess, e: gameElements, currentMapId: () => currentMapId, mapName: mapId => MAP_CONFIG[mapId].name, inventory,
     world: bootstrap, player, rewardDisplay, rewardContext: rewardLabelContext, mapController, proceduralBoss, profileWindow,
     closeCompetingWindows: () => panels.closeAllExcept("mapGuide"), clearInput: playerInput.clear, power: () => playerPower(player),
-    prestigeExpanded: expansionNotice.unlocked, preferTravel: travel.prefer,
+    prestigeExpanded: expansionNotice.unlocked, preferTravel: travel.prefer, villageGround: () => assets.townVillageGround,
   });
 
   const { runtimeHud, rewardedRespawnAd } = createHudRuntime({
