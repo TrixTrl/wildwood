@@ -3489,9 +3489,10 @@
   /* Previous map, the map's name and place, next map: solid triangles either side. */
   .map-guide-header {
     z-index: 2;
-    display: grid;
+    display: flex;
     grid-template-columns: 44px minmax(0, 1fr) 44px;
     align-items: center;
+    justify-content: center;
     gap: 10px;
     min-height: 62px;
     padding: max(10px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right), calc((100% - 480px) / 2)) 10px max(14px, env(safe-area-inset-left), calc((100% - 480px) / 2));
@@ -3505,6 +3506,8 @@
   .map-guide-arrow { display: grid; place-items: center; width: 44px; height: 44px; margin: 0; padding: 0; border: 0; border-radius: 8px; background: rgba(255,255,255,.08); box-shadow: none; }
   .map-guide-arrow::before { width: 16px; height: 22px; background: #fff4d6; clip-path: polygon(100% 0, 0 50%, 100% 100%); content: ""; }
   .map-guide-arrow.is-next::before { clip-path: polygon(0 0, 100% 50%, 0 100%); }
+  .map-guide-arrow.is-first::before { width: 16px; height: 22px; background: #fff4d6; clip-path: polygon(70% 0, 0 50%, 70% 100%, 85% 100%, 85% 0%, 100% 0%, 100% 100%, 70% 100%); content: ""; }
+  .map-guide-arrow.is-last::before { width: 16px; height: 22px; background: #fff4d6; clip-path: polygon(30% 0, 100% 50%, 30% 100%, 15% 100%, 15% 0%, 0% 0%, 0% 100%, 30% 100%); content: ""; }
   .map-guide-arrow:disabled { opacity: .22; cursor: default; }
   .map-guide-arrow:focus-visible { outline: 2px solid #fff4d6; outline-offset: 2px; }
   .map-guide-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; touch-action: pan-y; }
