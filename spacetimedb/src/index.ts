@@ -1,4 +1,5 @@
 import { playerPrestigeChallenge, playerPrestigeChallengeParked, prestigeChallengeBackup, prestigeChallengeRun, restorePrestigeChallenge } from "./prestige-challenge";
+import { standsAtResearch } from "./research-station";
 import { playerDailyQuest, guildQuestWeek, guildMemberQuestWeek, soloQuestWeek, playerQuestWeekTotal, ensureDailyQuests, pruneOldGuildQuestWeeks, recordDailyQuestKills, memberQuestStanding, questCollectStanding, collectMemberQuests, moveSoloQuestsToGuild, refreshQuestBonus } from "./daily-quests";
 import { duelCombatSnapshot } from "./duel-combat-snapshot";
 import { playerEquipmentLock, setEquipmentLock } from "./equipment-locks";
@@ -48,7 +49,7 @@ import { playerSwordSkill } from "./sword-skills";
 import { duelStaffSkill, playerStaffSkill, playerWornStaffSkill } from "./staff-skills"; import { registerStaffs } from "./starter-staff";
 import { ensureWeaponSkillRoll } from "./weapon-skills";
 import { playerEquipmentCopy, pendingEquipmentOffer, createEquipmentCopies, publishItemDrop, offerDuplicateEquipment, expireEquipmentOffers, playerItemCollection, registerItemCollection } from "./equipment-copies";
-import { playerItemRefine, playerCopyRefine, playerOre, playerRefineResult, registerItemRefine } from "./item-refine";
+import { playerItemRefine, playerCopyRefine, playerOre, playerRefineResult, playerRefinePity, registerItemRefine } from "./item-refine";
 import { reachableStopFor } from "./door-reach";
 import { playerMining, playerMinedNode, playerMiningLevel, registerMining } from "./mining";
 import { playerWoodcutting, playerChoppedTree, playerWoodcuttingLevel, registerWoodcutting } from "./woodcutting";
@@ -1427,7 +1428,7 @@ const spacetimedb = schema({
   dailyGemBonus,
   playerAdReward, playerAdWatch, playerChatMute, playerClientHost, offlineGatherChoice, playerRunTiming, playerNockedArrow,
   balanceApologyNotice,
-  playerEquipmentLock, playerItemGift, playerBowSkill, playerSwordSkill, playerStaffSkill, playerWornStaffSkill, playerEquipmentCopy, pendingEquipmentOffer, playerIgnoredDrop, playerLootSetting, playerItemRefine, playerCopyRefine, playerOre, playerRefineResult, playerCard, playerGearSlots, playerCopySlots, playerCardDrop, playerCardAttackCap, playerBossCardRoll, playerBuild, playerBuildName, playerWeaponMastery, playerMasteryLevel, playerGold, playerCardMeter, playerCardShopPurchase, playerItemCollection, playerWornSkill, playerMining, playerMinedNode, playerMiningLevel, playerWoodcutting, playerChoppedTree, playerWoodcuttingLevel, playerCraftSkill, playerCraftLevel, playerTool, oldGearPayout, playerStarterWeapon, gemKillDaily, gemLedgerTrim,
+  playerEquipmentLock, playerItemGift, playerBowSkill, playerSwordSkill, playerStaffSkill, playerWornStaffSkill, playerEquipmentCopy, pendingEquipmentOffer, playerIgnoredDrop, playerLootSetting, playerItemRefine, playerCopyRefine, playerOre, playerRefineResult, playerRefinePity, playerCard, playerGearSlots, playerCopySlots, playerCardDrop, playerCardAttackCap, playerBossCardRoll, playerBuild, playerBuildName, playerWeaponMastery, playerMasteryLevel, playerGold, playerCardMeter, playerCardShopPurchase, playerItemCollection, playerWornSkill, playerMining, playerMinedNode, playerMiningLevel, playerWoodcutting, playerChoppedTree, playerWoodcuttingLevel, playerCraftSkill, playerCraftLevel, playerTool, oldGearPayout, playerStarterWeapon, gemKillDaily, gemLedgerTrim,
   mailboxLetter, mailboxReceipt, playerJoinDate, mailboxEquipment, accountDeletionRequest,
   playerOnboarding,
   regularEnemyLootCursor, regularEnemyStream, enemyDefeatBudget, playerDefeatClock, playerMapDeparture,
@@ -2928,7 +2929,7 @@ export const savePlayerProgress = spacetimedb.reducer(
 export const startResearch = spacetimedb.reducer(
   { researchId: t.string() },
   (ctx, { researchId }) => {
-    requireControllingPlayer(ctx);
+    if (!standsAtResearch(ctx, requireControllingPlayer(ctx))) throw new SenderError("Go to Tech Research in Town first.");
     if (!isResearchId(researchId)) throw new SenderError("Unknown research.");
     const research = researchForPlayer(ctx, ctx.sender);
     const active = ctx.db.activeResearch.identity.find(ctx.sender);
@@ -3830,7 +3831,7 @@ export const { createGuild, joinGuild, leaveGuild, transferGuildLeadership, setG
   setGuildEmblem, kickGuildMember, challengeGuild, guildAdmission, shareGuildBattle, getGuildBattleBadges } = registerGuildReducers(spacetimedb,
   { guildService, requireGuildPlayer, requireGuildConnection, effectivePowerForProgress, isPublicDisplayNameAllowed });
 // Refining (item-refine.ts, shared/refine.ts).
-export const { refineItem, destroyOre, myItemRefines, myCopyRefines, myOres, myRefineResult } = registerItemRefine(spacetimedb, { requireControllingPlayer, activeDuelFor, inventoryForProgress, writeProgressAndPresentation });
+export const { refineItem, destroyOre, myItemRefines, myCopyRefines, myOres, myRefineResult, myRefinePity } = registerItemRefine(spacetimedb, { requireControllingPlayer, activeDuelFor, inventoryForProgress, writeProgressAndPresentation });
 export const { myCosmeticRefines } = registerCosmeticRefine(spacetimedb);
 // Mining in the Copper Hills (mining.ts, shared/mining.ts).
 export const { claimPickaxe, mineNode, reportMining, myMining, myMinedNodes } = registerMining(spacetimedb, { requireControllingPlayer, activeDuelFor, inventoryForProgress });

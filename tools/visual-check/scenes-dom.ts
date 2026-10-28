@@ -17,6 +17,7 @@ import { createGemShopController } from "../../src/ui/gem-shop-controller";
 import { markChatAnnouncement } from "../../src/ui/chat-announcement-line";
 import { createDiamondLookDrawer } from "../../src/game/runtime/diamond-look-preview";
 import { installServerBoostHud } from "../../src/ui/server-boost-hud";
+import { createHudArrowChip } from "../../src/ui/hud-arrow-chip";
 import { createExchangeController } from "../../src/ui/exchange-window";
 import { appendBagTileContents } from "../../src/ui/bag-item-tile";
 import { createItemInspectionController } from "../../src/ui/item-inspection-controller";
@@ -160,6 +161,19 @@ async function hud() {
   await settleCssImages();
 }
 
+/** The HUD corner as the game builds it: gems, gold and the nocked arrow chip with a bow in hand. */
+async function hudArrow() {
+  const doc = await gameMarkup();
+  document.body.style.background = GROUND;
+  for (const node of doc.body.children) document.body.append(document.importNode(node, true));
+  await import("../../src/ui/game-shell");
+  byId("start").remove();
+  byId("hudGemBalance").textContent = "1,250";
+  byId("hudGoldBalance").textContent = "8,420";
+  createHudArrowChip({ weapon: () => "rare_bow", nocked: () => "fire_arrow", held: () => 1_240, open: () => {} })();
+  await settleCssImages();
+}
+
 /** The start screen's wordmark and choice panel, as a new visitor first sees them. */
 async function wordmark() {
   await importById("start");
@@ -195,6 +209,7 @@ async function shops() {
   for (const view of ["craft", "craft", "reforge", "refine"] as const) {
     createSmithController({
       inTown: () => true, items: () => held, refineLevel: (_itemId, copyId) => copyId ? 2 : 7, slotTier: () => 3, ores: () => ores, refine: done,
+      refineFails: () => 3,
       showMessage: () => {},
       craft: {
         craftSkills: () => ({ fletching: BigInt(craftExperienceForLevel(24)), smithing: BigInt(craftExperienceForLevel(6)) }),
@@ -566,6 +581,6 @@ async function worldMapTown() {
   await settleCssImages();
 }
 
-export const DOM_SCENES: Record<string, () => Promise<void>> = { "world-map-town": worldMapTown, icons, hud, wordmark, shops, "gem-shop": gemShop, "server-boost": serverBoost, "exchange-window": exchangeWindow, grades, "quest-tracker": questTracker, "dps-breakdown": dpsBreakdown, builds, "offline-choice": offlineChoice,
+export const DOM_SCENES: Record<string, () => Promise<void>> = { "world-map-town": worldMapTown, icons, hud, "hud-arrow": hudArrow, wordmark, shops, "gem-shop": gemShop, "server-boost": serverBoost, "exchange-window": exchangeWindow, grades, "quest-tracker": questTracker, "dps-breakdown": dpsBreakdown, builds, "offline-choice": offlineChoice,
   "chat-announcement": chatAnnouncement, "item-window": () => itemWindow(false), "card-window": cardWindow, "item-window-worn": () => itemWindow(true),
   "profile-own": () => profileWindow(true), "profile-other": () => profileWindow(false) };
