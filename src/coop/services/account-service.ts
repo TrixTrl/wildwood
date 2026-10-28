@@ -1396,9 +1396,9 @@ export function createAccountService(dependencies: AccountServiceDependencies) {
 
       const tokenInput = document.createElement('section');
       tokenInput.id = 'token-input-screen';
-      tokenInput.innerHTML = '<form><label id="tokenInputTitle">Login Token Input</label><input id="tokenInputField" name="token" placeholder="<TOKEN>" autocapitalize="none" spellcheck="false" maxlength="1200"><button type="submit" class="window-back-button">Continue</button></form>';
+      tokenInput.innerHTML = '<div><label id="tokenInputTitle">Login Token Input</label><input id="tokenInputField" name="token" placeholder="<TOKEN>" autocapitalize="none" spellcheck="false" maxlength="1200"><button type="submit" class="window-back-button">Continue</button></div>';
       const buttons = [...tokenInput.querySelectorAll("button")];
-      const form = tokenInput.querySelector("form")!, input = tokenInput.querySelector("input")!;
+      const input = tokenInput.querySelector("input")!;
       buttons[0].addEventListener("click", () => { localStorage.setItem(keys.guestTokenKey, input.value); window.location.reload(); });
       document.body.append(tokenInput);
       return undefined;

@@ -5273,7 +5273,7 @@ html.text-outline-shadow .death-countdown { text-shadow: var(--text-outline-ring
 #zoneTimerSheet {
   position: absolute;
   width: fit-content;
-  height: 400px;
+  /*height: 400px;*/
   border-radius: 4px;
   z-index: 4;
   background-color: #00000070;
@@ -5315,7 +5315,8 @@ html.text-outline-shadow .death-countdown { text-shadow: var(--text-outline-ring
 
 #active-timer {
   position: absolute;
-  bottom: 402px;
+  bottom: 5px;
+  left: 5px;
   border-radius: 4px;
   border: 2px solid rgba(0, 0, 0, .24);
   z-index: 4;
@@ -5356,30 +5357,53 @@ html.text-outline-shadow .death-countdown { text-shadow: var(--text-outline-ring
 
 #token-input-screen * {
   display: grid;
-    justify-content: center;
+  justify-content: center;
 }
 
 #tokenInputTitle {
-    display: block;
-    margin: 14px 0 6px;
-    color: #ffe777;
-    font-weight: 900;
-    letter-spacing: .07em;
+  display: block;
+  margin: 14px 0 6px;
+  color: #ffe777;
+  font-weight: 900;
+  letter-spacing: .07em;
 }
 
 #tokenInputField {
-    width: min(320px, 100%);
-    box-sizing: border-box;
-    border: 2px solid rgba(255,255,255,.3);
-    border-radius: 7px;
-    background: #0d0d0d;
-    color: #fff;
-    font: 900 17px var(--font-rounded);
-    padding: 10px 12px;
-    text-align: center;
+  width: min(320px, 100%);
+  box-sizing: border-box;
+  border: 2px solid rgba(255,255,255,.3);
+  border-radius: 7px;
+  background: #0d0d0d;
+  color: #fff;
+  font: 900 17px var(--font-rounded);
+  padding: 10px 12px;
+  text-align: center;
 }
 
 #tokenInputField:focus {
-    outline: 2px solid #72ef58;
-    outline-offset: 2px;
+  outline: 2px solid #72ef58;
+  outline-offset: 2px;
+}
+
+.zone-timer-table {
+  display: block;
+  height: 400px;
+  overflow: scroll;
+  scrollbar-width: none;
+}
+
+.zone-timer-table tbody {
+  height: 400px;
+}
+
+.zone-timer-table tbody * .green {
+  color: #01b804;
+}
+
+.zone-timer-table tbody * .red {
+  color: #d8323c;
+}
+
+.zone-timer-table tbody * .grey {
+  color: #676767;
 }

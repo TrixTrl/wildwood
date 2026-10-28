@@ -21,6 +21,8 @@ import {
   setText,
 } from "./settings";
 import { accountStorageKeys } from "../coop/services/account-storage-keys";
+import { installTimer } from "../game/zone-timer";
+import { CoopClient } from "../game/runtime/coop-access";
 
 const DPS_DISPLAY_KEY = "wildstat-dps-display-v1";
 
@@ -52,6 +54,7 @@ type AppShellDependencies = {
   /** The WebGL Drawing setting changed: off, the 2D canvas draws the whole world. */
   onWebGLChanged?: (on: boolean) => void;
   showMessage: (message: string, color: string) => void;
+  coop: CoopClient;
 };
 
 /** Settings, audio lifecycle, fullscreen, and shell account/connection status. */
@@ -249,6 +252,7 @@ export function createAppShellController(dependencies: AppShellDependencies) {
   });
   setInterval(() => { if (dpsVisible) setText(dpsStatus, `DPS: ${formatCompactNumber(Math.round(playerDps.perSecond()))}`); }, 500);
   installDpsBreakdown({ meter: playerDps, storage: () => feedbackStorage });
+  installTimer({ identity: () => dependencies.coop ? dependencies.coop.localIdentity() : undefined, prestige: () => dependencies.coop ? dependencies.coop.prestige()?.level ?? (dependencies.coop.localState()?.mapId ? 0 : undefined) : undefined, storage: () => feedbackStorage });
   latencyToggle.addEventListener("click", () => {
     latencyVisible = !latencyVisible;
     writeBoolean(dependencies.storageKeys.latency, latencyVisible);
@@ -296,9 +300,9 @@ export function createAppShellController(dependencies: AppShellDependencies) {
     else {
       const tokenInput = document.createElement('section');
       tokenInput.id = 'token-input-screen';
-      tokenInput.innerHTML = '<form><label id="tokenInputTitle">Login Token Input</label><input id="tokenInputField" name="token" placeholder="<TOKEN>" autocapitalize="none" spellcheck="false" maxlength="1200"><button type="submit" class="window-back-button">Continue</button></form>';
+      tokenInput.innerHTML = '<div><label id="tokenInputTitle">Login Token Input</label><input id="tokenInputField" name="token" placeholder="<TOKEN>" autocapitalize="none" spellcheck="false" maxlength="1200"><button type="submit" class="window-back-button">Continue</button></div>';
       const buttons = [...tokenInput.querySelectorAll("button")];
-      const form = tokenInput.querySelector("form")!, input = tokenInput.querySelector("input")!;
+      const input = tokenInput.querySelector("input")!;
       buttons[0].addEventListener("click", () => { localStorage.setItem(dependencies.storageKeys.guestTokenKey, input.value); window.location.reload(); });
       document.body.append(tokenInput);
     }
