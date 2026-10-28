@@ -164,7 +164,10 @@ export function installZoneTimeTracker(mapId?: () => MapId, identity?: () => str
         } else {
           data[prestigeValue] = { startTime: Date.now(), currentTime: 0, mapTimes: {} };
           const i = identity();
-          if (i !== undefined) updateZoneTimeTracker(i, prestigeValue);
+          if (i !== undefined) {
+            timerInvalidated = true;
+            updateZoneTimeTracker(i, prestigeValue)
+          };
         }
         invalidate(data);
         const activeTimer = document.getElementById('active-timer');
@@ -216,6 +219,7 @@ export function saveZoneTime(mapId: string, identity: string, prestige: number) 
     relevantSlot.mapTimes[mapId] = { time: relevantSlot.currentTime };
     invalidate(data);
     localStorage.setItem(`wildjank:otherTimer-${identity}`, JSON.stringify(data));
+    timerInvalidated = true;
     updateZoneTimeTracker(identity, prestige);
   } catch (e) { }
 }
@@ -407,7 +411,8 @@ const COLLAPSED_KEY = "wildjank-timer-collapsed";
 
 type Storage = Pick<globalThis.Storage, "getItem" | "setItem">;
 
-let activeTimerRefresh : () => void;
+let activeTimerRefresh: () => void;
+let timerInvalidated = true;
 
 export function installTimer(options: {
   identity: () => string | undefined;
@@ -447,6 +452,9 @@ export function installTimer(options: {
     const prestige = options.prestige();
     if (identity === undefined || prestige === undefined) return;
     const data = getTimeData(identity);
+
+    if (!timerInvalidated) return;
+    timerInvalidated = false;
 
     const rows: Node[] = [];
     const max = maxMap(data);
@@ -509,7 +517,7 @@ export function installTimer(options: {
       bestTotalSplitElement.classList.add(totalTimeSplit === undefined || totalTimeSplit == 0 ? 'grey' : totalTimeSplit > 0 ? 'red' : 'green');
       row.appendChild(bestTotalSplitElement);
       const lastTotalTimestampElement = document.createElement('td');
-      lastTotalTimestampElement.textContent = timestamp(data[prestige-1]?.mapTimes[map]?.time, true);
+      lastTotalTimestampElement.textContent = timestamp(data[prestige - 1]?.mapTimes[map]?.time, true);
       row.appendChild(lastTotalTimestampElement);
       const bestTotalTimestampElement = document.createElement('td');
       bestTotalTimestampElement.textContent = timestamp(bestTimeValue, true);
