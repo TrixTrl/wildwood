@@ -102,6 +102,7 @@ export function createTimer() {
 }
 
 export function updateTimeValues(identity: string, centreValue: MapId, prestige: number) {
+  if (activeTimerRefresh) activeTimerRefresh();
   return;
   const mapId = (n: number) => n < CAMPAIGN_MAPS.length ? CAMPAIGN_MAPS[n].id : `${PROCEDURAL_PREFIX}${n - 14}`;
   const timerValues = [];
@@ -407,6 +408,8 @@ const COLLAPSED_KEY = "wildjank-timer-collapsed";
 
 type Storage = Pick<globalThis.Storage, "getItem" | "setItem">;
 
+let activeTimerRefresh : () => void;
+
 export function installTimer(options: {
   identity: () => string | undefined;
   prestige: () => number | undefined;
@@ -532,8 +535,9 @@ export function installTimer(options: {
       refresh();
     }
   });
-  window.setInterval(() => { if (!document.hidden) refresh(); }, 500);
+  //window.setInterval(() => { if (!document.hidden) refresh(); }, 500);
   if (toggle) renderBooleanSetting(toggle, enabled);
   renderCollapsed();
   refresh();
+  activeTimerRefresh = refresh;
 }
