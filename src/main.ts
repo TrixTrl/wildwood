@@ -303,6 +303,7 @@ import { installZoneTimeTracker, updateTimeValues } from "./game/zone-timer";
     onGpuChanged: () => { staticWorldLayer?.rebuild?.(); },
     onWebGLChanged: on => { staticWorldLayer?.setWanted?.(on); },
     showMessage,
+    coop,
   });
 
   installAccountDeletion(document, {

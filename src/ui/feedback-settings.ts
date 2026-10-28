@@ -86,6 +86,7 @@ export function installFeedbackControls(doc: Document) {
     // binding lives with the connection that owns the preference.
     ["offlineProgressToggle", "Offline Progress", true],
     ["altRenderer", "Alternative Renderer", false],
+    ["timerToggle", "Timer Toggle", false],
   ] as const) {
     if (doc.getElementById(id)) continue;
     const row = doc.createElement("div");

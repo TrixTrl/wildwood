@@ -15,7 +15,7 @@ const SETTINGS_GROUPS: readonly { id: string; label: string; sections: readonly 
   { id: "controls", label: "Controls", sections: [{ selectors: ["#controlsSettings"] }] },
   { id: "audio", label: "Audio", sections: [{ selectors: ["#musicVolume", "#sfxVolume"] }] },
   { id: "account", label: "Account", sections: [{ selectors: ["#offlineProgressToggle", "#accountButton", "#accountStatus", ".setting-support", ".setting-legal", "#developerSettingsRow", ".setting-reset"] }] },
-  { id: "modded", label: "Hallowed's Corner :3", sections: [{ selectors: ["#altRenderer"] }] }
+  { id: "modded", label: "Hallowed's Corner :3", sections: [{ selectors: ["#altRenderer", '#timerToggle'] }] }
 ];
 
 export function bindSettingsTabs(tabs: HTMLButtonElement[], panels: HTMLElement[]) {

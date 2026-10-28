@@ -6,6 +6,9 @@ import { MAP_DISPLAY_NAMES } from "../../shared/rules";
 import { SOUL_MAP_ID } from "../../shared/soul-dimension";
 import { formatTimerMs } from "../../shared/timer-format";
 import { TOWN_MAP_ID } from "../../shared/town";
+import { setHidden } from "../ui/dom-write";
+import { installMovableHudCard } from "../ui/movable-hud-card";
+import { renderBooleanSetting } from "../ui/settings";
 import { MapId } from "./world";
 
 const TIMER_VALUES = 11;
@@ -238,7 +241,7 @@ export function createZoneTimeTracker(identity: string, prestige: number) {
   const sheet = document.createElement('section');
   sheet.id = 'zoneTimerSheet';
   fullTimer.appendChild(activeTimer);
-  fullTimer.appendChild(sheet);
+  //fullTimer.appendChild(sheet);
   document.getElementById('hud')!.append(fullTimer);
   updateZoneTimeTracker(identity, prestige);
 }
@@ -385,4 +388,152 @@ function invalidate(storage: OtherTimeStorage) {
       }
     }
   }
+}
+
+function getTimeData(identity: string): OtherTimeStorage {
+  const currentStorage = localStorage.getItem(`wildjank:otherTimer-${identity}`);
+  if (!currentStorage) return {};
+  try {
+    const data = JSON.parse(currentStorage) as OtherTimeStorage;
+    if (typeof (data) !== "object") throw new Error(`Failed to parse timer values`);
+    return data;
+  } catch (e) { }
+  return {};
+}
+
+const ENABLED_KEY = "wildjank-timer-enabled";
+const POSITION_KEY = "wildjank-timer-position";
+const COLLAPSED_KEY = "wildjank-timer-collapsed";
+
+type Storage = Pick<globalThis.Storage, "getItem" | "setItem">;
+
+export function installTimer(options: {
+  identity: () => string | undefined;
+  prestige: () => number | undefined;
+  storage: () => Storage | undefined;
+}) {
+  const read = (key: string) => { try { return options.storage()?.getItem(key) === "true"; } catch { return false; } };
+  const write = (key: string, value: boolean) => { try { options.storage()?.setItem(key, String(value)); } catch { /* holds for the session */ } };
+  const toggle = document.getElementById("timerToggle");
+  const panel = document.createElement("section");
+  panel.className = "dps-breakdown";
+  panel.hidden = true;
+  panel.setAttribute("aria-label", "Timer");
+  panel.innerHTML = `<header><button type="button" class="timer-handle"></button></header>`
+    + `<table><thead><tr style="position: sticky; top: 0; background: #0003;"><th scope="col">Zone</th><th scope="col">Current Total</th><th scope="col">Current Zone</th><th scope="col">Prev Zone</th><th scope="col">Best Zone</th><th scope="col">Last Zone Split</th><th scope="col">Last Total Split</th><th scope="col">Best Zone Split</th><th scope="col">Best Total Split</th><th scope="col">Last Total</th><th scope="col">Best Total</th></tr></thead><tbody></tbody></table>`;
+  document.getElementById("hud")!.append(panel);
+  const handle = panel.querySelector<HTMLButtonElement>(".timer-handle")!;
+  const table = panel.querySelector("table")!;
+  const body = panel.querySelector("tbody")!;
+  table.classList.add('zone-timer-table');
+  let enabled = read(ENABLED_KEY), collapsed = read(COLLAPSED_KEY);
+
+  function renderCollapsed() {
+    panel.classList.toggle("is-collapsed", collapsed);
+    handle.setAttribute("aria-expanded", String(!collapsed));
+    handle.setAttribute("aria-label", `${collapsed ? "Expand" : "Collapse"} Timer. Double-click or double-tap to lock or unlock position.`);
+    handle.textContent = `Timer ${collapsed ? "▸" : "▾"}`;
+    movable.place();
+  }
+  function refresh() {
+    const wasHidden = panel.hidden;
+    setHidden(panel, !enabled);
+    if (!enabled) return;
+    if (wasHidden) movable.place();
+    if (collapsed) { table.hidden = true; return; } else { table.hidden = false; }
+    const identity = options.identity();
+    const prestige = options.prestige();
+    if (identity === undefined || prestige === undefined) return;
+    const data = getTimeData(identity);
+
+    const rows: Node[] = [];
+    const max = maxMap(data);
+    const mapId = (n: number) => n < CAMPAIGN_MAPS.length ? (CAMPAIGN_MAPS[n]?.id ?? '') : `${PROCEDURAL_PREFIX}${n - 14}`;
+    const timestamp = (n: number | undefined, forceHour: boolean) => n === undefined ? `--:--:--` : `${forceHour || n >= (1000 * 60 * 60) ? Math.floor(n / (1000 * 60 * 60)).toString().padStart(2, '0') + ':' : ''}${formatTimerMs(n % (1000 * 60 * 60))}`;
+
+    for (let i = 0; i <= max.index; i++) {
+      const map = mapId(i);
+
+      const bestTimeValue = bestTime(data, map, prestige);
+      const bestTimePrevValue = bestTime(data, i > 0 ? mapId(i - 1) : '', prestige);
+      const zoneTime = i > 0 && data[prestige]?.mapTimes[map] && data[prestige]?.mapTimes[mapId(i - 1)] ? (data[prestige]?.mapTimes[map]?.time - data[prestige]?.mapTimes[mapId(i - 1)].time) : (i == 0 && data[prestige]?.mapTimes[map] ? data[prestige]?.mapTimes[map]?.time : 0);
+      const zoneTimeText = zoneTime > 0 ? ` ${timestamp(zoneTime, false)}` : '--:--';
+      const bestZoneTime = i > 0 && bestTimeValue && bestTimePrevValue ? bestTimeValue - bestTimePrevValue : (i == 0 && bestTimeValue ? bestTimeValue : 0);
+      const bestZoneTimeText = bestZoneTime > 0 ? `${timestamp(bestZoneTime, false)}` : '--:--';
+      const timeSplit = bestZoneTime > 0 && zoneTime > 0 ? zoneTime - bestZoneTime : 0;
+      const splitText = ` ${timeSplit < 0 ? `-${timestamp(-timeSplit, false)}` : `+${timestamp(timeSplit, false)}`}`;
+      //element.textContent = `${map}: ${timestamp(data[prestige]?.mapTimes[map]?.time)}${zoneTimeText} ${splitText} ${timestamp(data[prestige - 1]?.mapTimes[map]?.time)} ${timestamp(bestTime(data, map))}`;
+      const mapLabel = MAP_DISPLAY_NAMES[map] ?? `Endless - ${i - 14}`;
+      const totalTimeSplit = data[prestige]?.mapTimes[map] && bestTimeValue !== undefined ? data[prestige]?.mapTimes[map].time - bestTimeValue : undefined;
+      const totalTimeSplitText = totalTimeSplit !== undefined ? ` ${totalTimeSplit < 0 ? `-${timestamp(-totalTimeSplit, false)}` : `+${timestamp(totalTimeSplit, false)}`}` : '+00:00';
+      const previousTime = i > 0 && data[prestige - 1]?.mapTimes[map] && data[prestige - 1]?.mapTimes[mapId(i - 1)] ? data[prestige - 1]?.mapTimes[map].time - data[prestige - 1]?.mapTimes[mapId(i - 1)].time : (data[prestige - 1]?.mapTimes[map] ? data[prestige - 1]?.mapTimes[map].time : 0);
+      const previousTimeText = previousTime > 0 ? `${timestamp(previousTime, false)}` : '--:--';
+      const previousTimeSplit = previousTime > 0 && zoneTime > 0 ? zoneTime - previousTime : 0;
+      const previousSplitText = `${previousTimeSplit < 0 ? `-${timestamp(-previousTimeSplit, false)}` : `+${timestamp(previousTimeSplit, false)}`}`;
+      const previousFullTimeSplit = data[prestige]?.mapTimes[map] && data[prestige - 1]?.mapTimes[map] ? data[prestige]?.mapTimes[map].time - data[prestige - 1]?.mapTimes[map].time : 0;
+      const previousFullTimeSplitText = `${previousFullTimeSplit < 0 ? `-${timestamp(-previousFullTimeSplit, false)}` : `+${timestamp(previousFullTimeSplit, false)}`}`;
+
+
+      const row = document.createElement('tr');
+      const mapLabelElement = document.createElement('td');
+      mapLabelElement.textContent = mapLabel;
+      row.appendChild(mapLabelElement);
+      const currentPrestigeTimestampElement = document.createElement('td');
+      currentPrestigeTimestampElement.textContent = timestamp(data[prestige]?.mapTimes[map]?.time, true);
+      row.appendChild(currentPrestigeTimestampElement);
+      const currentPrestigeZoneTimeElement = document.createElement('td');
+      currentPrestigeZoneTimeElement.textContent = zoneTimeText;
+      row.appendChild(currentPrestigeZoneTimeElement);
+      const lastPrestigeTimestampElement = document.createElement('td');
+      lastPrestigeTimestampElement.textContent = previousTimeText;
+      row.appendChild(lastPrestigeTimestampElement);
+      const bestZoneTimeElement = document.createElement('td');
+      bestZoneTimeElement.textContent = bestZoneTimeText;
+      row.appendChild(bestZoneTimeElement);
+      const currentZoneSplitElement = document.createElement('td');
+      currentZoneSplitElement.textContent = previousSplitText;
+      currentZoneSplitElement.classList.add(previousTimeSplit == 0 ? 'grey' : previousTimeSplit > 0 ? 'red' : 'green');
+      row.appendChild(currentZoneSplitElement);
+      const totalSplitElement = document.createElement('td');
+      totalSplitElement.textContent = previousFullTimeSplitText;
+      totalSplitElement.classList.add(previousFullTimeSplit == 0 ? 'grey' : previousFullTimeSplit > 0 ? 'red' : 'green');
+      row.appendChild(totalSplitElement);
+      const bestSplitElement = document.createElement('td');
+      bestSplitElement.textContent = splitText;
+      bestSplitElement.classList.add(timeSplit == 0 ? 'grey' : timeSplit > 0 ? 'red' : 'green');
+      row.appendChild(bestSplitElement);
+      const bestTotalSplitElement = document.createElement('td');
+      bestTotalSplitElement.textContent = totalTimeSplitText;
+      bestTotalSplitElement.classList.add(totalTimeSplit === undefined || totalTimeSplit == 0 ? 'grey' : totalTimeSplit > 0 ? 'red' : 'green');
+      row.appendChild(bestTotalSplitElement);
+      const lastTotalTimestampElement = document.createElement('td');
+      lastTotalTimestampElement.textContent = timestamp(data[prestige-1]?.mapTimes[map]?.time, true);
+      row.appendChild(lastTotalTimestampElement);
+      const bestTotalTimestampElement = document.createElement('td');
+      bestTotalTimestampElement.textContent = timestamp(bestTimeValue, true);
+      row.appendChild(bestTotalTimestampElement);
+      rows.push(row);
+    }
+
+    body.replaceChildren(...rows);
+  }
+  function setEnabled(value: boolean) {
+    enabled = value;
+    write(ENABLED_KEY, value);
+    if (toggle) renderBooleanSetting(toggle, value);
+    refresh();
+  }
+  toggle?.addEventListener("click", () => setEnabled(!enabled));
+  const movable = installMovableHudCard({
+    panel, handle, storage: options.storage, positionKey: POSITION_KEY, lockKey: "wildjank-timer-position-locked", toggle: () => {
+      collapsed = !collapsed;
+      write(COLLAPSED_KEY, collapsed);
+      renderCollapsed();
+      refresh();
+    }
+  });
+  window.setInterval(() => { if (!document.hidden) refresh(); }, 500);
+  if (toggle) renderBooleanSetting(toggle, enabled);
+  renderCollapsed();
+  refresh();
 }
