@@ -102,8 +102,6 @@ export function createTimer() {
 }
 
 export function updateTimeValues(identity: string, centreValue: MapId, prestige: number) {
-  if (activeTimerRefresh) activeTimerRefresh();
-  return;
   const mapId = (n: number) => n < CAMPAIGN_MAPS.length ? CAMPAIGN_MAPS[n].id : `${PROCEDURAL_PREFIX}${n - 14}`;
   const timerValues = [];
   for (let i = 0; i < TIMER_VALUES; i++) {
@@ -248,6 +246,7 @@ export function createZoneTimeTracker(identity: string, prestige: number) {
 }
 
 export function updateZoneTimeTracker(identity: string, prestige: number) {
+  if (activeTimerRefresh) activeTimerRefresh();
   const tracker = document.getElementById('zoneTimerSheet');
   if (!tracker) return;
   //tracker.childNodes.forEach(c => c.remove());
