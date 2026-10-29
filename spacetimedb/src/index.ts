@@ -20,8 +20,8 @@ import { playerMultiplayerPreference, writeMultiplayerPreference } from "./multi
 import { enemyDefeatBudget, playerDefeatClock, playerMapDeparture, acceptEnemyDefeats, permittedDefeatMaps, pruneIdleDefeatBudgets, throttleKillReports, type DefeatClocks, type EnemyDefeatBatch } from "./enemy-defeats";
 import { grantVirtualPlayerConsent, revokeVirtualPlayerConsent } from "./virtual-player-consent";
 import { offlineProgressTables, beginOfflineWindow, grantOfflineProgress, collectOfflineProgress, setSimulatedTimeAway } from "./offline-progress";
-import { offlineGatherChoice } from "./offline-gathering";
-import { ensureRunTiming, playerRunTiming } from "./run-timing";
+import { offlineGatherChoice, playerGatherPicks, registerGatherPicks } from "./offline-gathering";
+import { ensureRunTiming, playerRunTiming, playerRunHistory } from "./run-timing";
 import { playerNockedArrow, registerArrows } from "./arrows";
 import { offlineActivity } from "../../shared/offline-gathering";
 import { playerOfflinePreference, writeOfflinePreference } from "./offline-preference";
@@ -95,7 +95,7 @@ import { allowedAvatarFrame, isAvatarFrame } from "../../shared/avatar-frames";
 import { createGemPurchaseService } from "./gem-purchase-service";
 import { HOME_EXTERIOR_MAP_ID } from "../../shared/home";
 import { registerTown, TOWN_ARRIVAL, TOWN_MAP_ID } from "./town";
-import { guildHallMember, memberEnteredWorld, guildHallMemberLeft, guildHallTables, isGuildHallMap, registerGuildHall } from "./guild-hall";
+import { guildHallMember, guildHallReturnPointFor, memberEnteredWorld, guildHallMemberLeft, guildHallTables, isGuildHallMap, registerGuildHall } from "./guild-hall";
 import { isSoulMap, noteEnemyDefeats, registerSoulDimension, soulDimensionOpenFor, soulDimensionTables, wideMotionMap, worldBoundsFor } from "./soul-dimension";
 import { insertSnapshotRow, updateSnapshotRow } from "./snapshot-row-writes";
 import { createPlayerMotionFrameSampler } from "../../shared/player-motion-sample";
@@ -353,7 +353,8 @@ const playerMotionIdentity = table(
     gender: t.u8().default(PLAYER_GENDER_UNSET),
     // Stable map-wide presentation. These fields change only when the player's
     // visible stats or equipment change; movement never republishes them.
-    speed: t.f32().default(PLAYER_SPEED),
+    // The column's default as published; movement itself comes from PLAYER_SPEED.
+    speed: t.f32().default(200),
     powerLevel: t.f64().default(95),
     feetItem: t.string().default(""),
     headItem: t.string().default(""),
@@ -1426,7 +1427,7 @@ const spacetimedb = schema({
   playerGemWallet,
   gemTransaction,
   dailyGemBonus,
-  playerAdReward, playerAdWatch, playerChatMute, playerClientHost, offlineGatherChoice, playerRunTiming, playerNockedArrow,
+  playerAdReward, playerAdWatch, playerChatMute, playerClientHost, offlineGatherChoice, playerGatherPicks, playerRunTiming, playerRunHistory, playerNockedArrow,
   balanceApologyNotice,
   playerEquipmentLock, playerItemGift, playerBowSkill, playerSwordSkill, playerStaffSkill, playerWornStaffSkill, playerEquipmentCopy, pendingEquipmentOffer, playerIgnoredDrop, playerLootSetting, playerItemRefine, playerCopyRefine, playerOre, playerRefineResult, playerRefinePity, playerCard, playerGearSlots, playerCopySlots, playerCardDrop, playerCardAttackCap, playerBossCardRoll, playerBuild, playerBuildName, playerWeaponMastery, playerMasteryLevel, playerGold, playerCardMeter, playerCardShopPurchase, playerItemCollection, playerWornSkill, playerMining, playerMinedNode, playerMiningLevel, playerWoodcutting, playerChoppedTree, playerWoodcuttingLevel, playerCraftSkill, playerCraftLevel, playerTool, oldGearPayout, playerStarterWeapon, gemKillDaily, gemLedgerTrim,
   mailboxLetter, mailboxReceipt, playerJoinDate, mailboxEquipment, accountDeletionRequest,
@@ -1964,8 +1965,8 @@ function enterWorldPresence(ctx: any, tabId: string, forceTakeover = false, supp
       && (!isGuildHallMap(normalizedMapId) || guildHallMember(ctx, ctx.sender, normalizedMapId)) ? normalizedMapId // Home is retired: its players arrive in the Town.
       : isSoulMap(normalizedMapId) || isGuildHallMap(normalizedMapId) || normalizedMapId === HOME_EXTERIOR_MAP_ID ? TOWN_MAP_ID : TUTORIAL_FOREST_MAP_ID;
     const fallbackPosition = entryMapId === TOWN_MAP_ID ? TOWN_ARRIVAL : MAP_ARRIVALS[entryMapId as keyof typeof MAP_ARRIVALS] ?? PLAYER_SPAWN;
-    const entryPosition = entryMapId === normalizedMapId
-      ? {
+    const entryPosition = entryMapId === normalizedMapId && isGuildHallMap(entryMapId) ? guildHallReturnPointFor(ctx, entryMapId, existing.x, existing.y)
+      : entryMapId === normalizedMapId ? {
         x: Math.max(PLAYER_RADIUS, Math.min(worldBoundsFor(entryMapId).width - PLAYER_RADIUS, existing.x)),
         y: Math.max(PLAYER_RADIUS, Math.min(worldBoundsFor(entryMapId).height - PLAYER_RADIUS, existing.y)),
       }
@@ -3354,6 +3355,10 @@ export const myRunTiming = spacetimedb.view(
   { name: "my_run_timing", public: true }, t.array(playerRunTiming.rowType),
   ctx => { const row = ctx.db.playerRunTiming.identity.find(ctx.sender); return row ? [row] : []; },
 );
+/** The caller's finished runs (run-timing.ts), for the run log and personal bests. */
+export const myRunHistory = spacetimedb.view(
+  { name: "my_run_history", public: true }, t.array(playerRunHistory.rowType), ctx => [...ctx.db.playerRunHistory.identity.filter(ctx.sender)],
+);
 
 export const myOfflinePreference = spacetimedb.view(
   { name: "my_offline_preference", public: true }, t.array(playerOfflinePreference.rowType),
@@ -3852,6 +3857,7 @@ export const { claimStarterWeapon, myStarterWeapon } = registerStarterChest(spac
 const craftingDeps = { requireControllingPlayer, activeDuelFor, inventoryForProgress, restoreItemToProgress, writeProgressAndPresentation };
 export const { craftGradeItem, reforgeWeapon, craftGradeGear, myCraftSkills } = registerCrafting(spacetimedb, craftingDeps);
 export const { craftArrows, nockArrow, spendArrows, myNockedArrow } = registerArrows(spacetimedb, craftingDeps);
+export const setGatherPicks = registerGatherPicks(spacetimedb);
 export const { upgradeTool, myTools } = registerTools(spacetimedb, { requireControllingPlayer, activeDuelFor });
 export const myGuildJoinRequests = registerGuildJoinRequestView(spacetimedb);
 export const { myGuildHall, upgradeGuildHall, useGuildHallDoor } = registerGuildHall(spacetimedb, { requireGuildPlayer, requireControllingPlayer, playerWithMotion, transitionPlayerMap, persistWorldLocation });
