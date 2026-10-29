@@ -1175,6 +1175,9 @@ export type MyResearchRanks = __Infer<typeof MyResearchRanks>;
 export const MyRewardKills = __t.object("MyRewardKills", {});
 export type MyRewardKills = __Infer<typeof MyRewardKills>;
 
+export const MyRunHistory = __t.object("MyRunHistory", {});
+export type MyRunHistory = __Infer<typeof MyRunHistory>;
+
 export const MyRunTiming = __t.object("MyRunTiming", {});
 export type MyRunTiming = __Infer<typeof MyRunTiming>;
 
@@ -1736,6 +1739,13 @@ export const PlayerFreeRespec = __t.object("PlayerFreeRespec", {
 });
 export type PlayerFreeRespec = __Infer<typeof PlayerFreeRespec>;
 
+export const PlayerGatherPicks = __t.object("PlayerGatherPicks", {
+  identity: __t.identity(),
+  mineOres: __t.string(),
+  chopTrees: __t.string(),
+});
+export type PlayerGatherPicks = __Infer<typeof PlayerGatherPicks>;
+
 export const PlayerGearSlots = __t.object("PlayerGearSlots", {
   key: __t.string(),
   identity: __t.identity(),
@@ -2293,6 +2303,17 @@ export const PlayerRewardKills = __t.object("PlayerRewardKills", {
   speed: __t.u64(),
 });
 export type PlayerRewardKills = __Infer<typeof PlayerRewardKills>;
+
+export const PlayerRunHistory = __t.object("PlayerRunHistory", {
+  id: __t.u64(),
+  identity: __t.identity(),
+  prestige: __t.u32(),
+  playedMicros: __t.u64(),
+  wholeRun: __t.bool(),
+  bossClears: __t.string(),
+  endedAt: __t.timestamp(),
+});
+export type PlayerRunHistory = __Infer<typeof PlayerRunHistory>;
 
 export const PlayerRunTiming = __t.object("PlayerRunTiming", {
   identity: __t.identity(),

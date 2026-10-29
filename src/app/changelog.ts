@@ -1,4 +1,44 @@
 export const RELEASE_NOTES: Record<string, string[]> = {
+  "0.917.40": [
+    "A nocked arrow stack that runs out stays in your bag at 0, so the next arrow no longer seems to take its place",
+    "Server Boost messages in chat leave out power, so names fit on phones",
+    "Fixed a rare black flash of the screen when the game's graphics layer hits a problem",
+  ],
+  "0.917.39": [
+    "Base movement speed is now 250 for everyone (was 200)",
+    "Bows reach 50 further",
+    "Smoother movement: no more occasional frames held twice as long, and your character no longer shifts a pixel as the camera follows",
+    "The FPS counter also shows how many milliseconds each frame's work takes",
+  ],
+  "0.917.38": [
+    "The guild hall looks better inside and out: centred on its map and minimap, a richer great hall, and every upgrade level reworked",
+    "Offline mining now also mines the Arcane Crystal rocks your Mining has unlocked",
+    "Trees, lamps and other objects no longer shift a pixel against the ground as the camera moves",
+  ],
+  "0.917.37": [
+    "The quest tracker now shows only kills the server has counted or has yet to receive, so it matches the Quest Board",
+  ],
+  "0.917.36": [
+    "Guild Hall upgrades now give every member a small bonus: gold, Weapon Mastery, offline time, boss gold, offline gathering speed and extra ore or logs",
+    "Bigger halls also add more of the guild's quest points to the hall fund",
+    "Offline mining and chopping now split your time evenly across every ore and wood your skill has unlocked",
+    "New search box in Settings finds any setting across every tab",
+  ],
+  "0.917.35": [
+    "The bag and the Smith's Refine tab sort gear by grade, best first",
+  ],
+  "0.917.34": [
+    "New Runs tab in Prestige: this run's boss splits against your best, and a log of every run from now on",
+    "New Run Timer under the minimap (turn it on in Settings) shows your run time and how far ahead or behind your best you are",
+    "Picking a grade at the Smith's Craft tab or a seller's Buy tab now shows every item at that grade",
+    "Gear from the sellers costs much more at higher grades (Divine is 1,000,000 gold); crafting is the way to get top gear",
+    "Selling gear to the sellers now pays a tenth of its price",
+    "Item grade frames look cleaner, with a soft glow by grade; Legendary and up glow, Divine and Eternal shine",
+    "Gear tiles show their grade name at the top",
+    "Tap gear you can't craft or buy yet to see what it needs",
+    "Offline mining and chopping now split your time across the ores and trees you've switched on in Auto Mine and Auto Chop",
+    "Other players' gear in their profile now shows its grade frame",
+  ],
   "0.917.33": [
     "Your nocked arrow and how many are left show beside your gold while you hold a bow; tap it to manage them",
     "Research can only be started at Tech Research in Town",
@@ -4043,6 +4083,13 @@ const RELEASE_DATES: Record<string, string> = {
 };
 
 export const RELEASE_DAYS: Record<string, string> = {
+  "0.917.40": "2026-10-29",
+  "0.917.39": "2026-10-29",
+  "0.917.38": "2026-10-29",
+  "0.917.37": "2026-10-29",
+  "0.917.36": "2026-10-29",
+  "0.917.35": "2026-10-29",
+  "0.917.34": "2026-10-29",
   "0.917.33": "2026-10-27",
   "0.917.32": "2026-10-27",
   "0.917.31": "2026-10-27",
