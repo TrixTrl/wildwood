@@ -5237,11 +5237,9 @@ html.text-outline-shadow .death-countdown { text-shadow: var(--text-outline-ring
    * the middle stays dark so names stay readable. Legendary on glows outside, Divine and Eternal also catch a shine.
    */
   :is(.inventory-item, .equipment-slot)[data-grade] {
-    border-color: color-mix(in srgb, var(--grade) 78%, #000);
-    background:
-      radial-gradient(110% 70% at 50% 108%, color-mix(in srgb, var(--grade) 34%, transparent), transparent 72%),
-      linear-gradient(180deg, color-mix(in srgb, var(--grade) 9%, #1d1d20), #111113);
-    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--grade) 30%, rgba(255,255,255,.12)), inset 0 -2px 0 rgba(0,0,0,.35);
+    border: 4px solid color-mix(in srgb, var(--grade) 80%, transparent);
+    background: linear-gradient(115deg, color-mix(in srgb, var(--grade) 15%, transparent) 0%, color-mix(in srgb, var(--grade) 45%, transparent) 50%, color-mix(in srgb, var(--grade) 15%, transparent) 100%);
+
   }
   :is(.inventory-item, .equipment-slot):is([data-grade="9"], [data-grade="10"], [data-grade="11"], [data-grade="12"], [data-grade="13"], [data-grade="14"]) {
     box-shadow: inset 0 1px 0 color-mix(in srgb, var(--grade) 40%, rgba(255,255,255,.15)), inset 0 -2px 0 rgba(0,0,0,.35),
