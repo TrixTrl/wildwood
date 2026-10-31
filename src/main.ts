@@ -96,7 +96,7 @@ import { bossPortalCutscenes } from "./game/runtime/boss/boss-portal-cutscenes";
 import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
 import { GUILD_HALL_MAP_PREFIX } from "../shared/guild-hall";
 import { TOWN_MAP_ID } from "../shared/town";
-import { installZoneTimeTracker, updateTimeValues } from "./game/zone-timer";
+import { installZoneTimeTracker, recordDeath, updateTimeValues } from "./game/zone-timer";
 
 (() => {
   "use strict";
@@ -291,7 +291,7 @@ import { installZoneTimeTracker, updateTimeValues } from "./game/zone-timer";
 
   const appShell = createAppShellController({
     mapMusic,
-    storageKeys: {...APP_SHELL_STORAGE_KEYS, guestTokenKey: 'wss://maincloud.spacetimedb.com/wildwood-coop/auth_token/guest_v1'},
+    storageKeys: { ...APP_SHELL_STORAGE_KEYS, guestTokenKey: 'wss://maincloud.spacetimedb.com/wildwood-coop/auth_token/guest_v1' },
     accountAudio: coop?.accountAudio,
     connected: coopAccess.connected,
     latencyMs: () => coop?.latencyMs?.(),
@@ -831,10 +831,14 @@ import { installZoneTimeTracker, updateTimeValues } from "./game/zone-timer";
   function recordLocalDeath() {
     const death = { id: coopAccess.localIdentity() ?? "local-player", x: player.x, y: player.y, facing: player.facing, startedAtMs: performance.now() };
     localPlayerDeath = death;
-    if (!inTutorial() && !isDueling()) localCorpses.add(coopAccess.identity(), currentMapId, {
-      ...equipmentAppearance(inventory), id: death.id, name: "", power: 0,
-      x: player.x, y: player.y, speed: player.speed, facing: player.facing, moving: false,
-    }, death, coopAccess.skinTone());
+    if (!inTutorial() && !isDueling()) {
+      localCorpses.add(coopAccess.identity(), currentMapId, {
+        ...equipmentAppearance(inventory), id: death.id, name: "", power: 0,
+        x: player.x, y: player.y, speed: player.speed, facing: player.facing, moving: false,
+      }, death, coopAccess.skinTone());
+      const i = coop?.localIdentity();
+      if (i) recordDeath(currentMapId, i, coop?.prestige()?.level ?? 0);
+    }
     mapMusic.playDeathSound();
   }
 
