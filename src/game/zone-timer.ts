@@ -17,7 +17,7 @@ const HISTORY_SIZE = 3;
 
 type TimeStorage = { [index: string]: { bestTime: number, prestige: number, previousPB?: number, allTimes: Array<{ prestige: number, time: number }> } };
 
-type OtherTimeStorage = { [index: number]: { startTime: number, currentTime: number, mapTimes: { [index: string]: { time: number } }, invalid?: boolean } };
+type OtherTimeStorage = { [index: number]: { startTime: number, currentTime: number, mapTimes: { [index: string]: { time?: number, deaths?: number } }, invalid?: boolean } };
 
 let lastChangedMap: MapId | undefined;
 
@@ -173,7 +173,8 @@ export function installZoneTimeTracker(mapId?: () => MapId, identity?: () => str
         const activeTimer = document.getElementById('active-timer');
         if (activeTimer && ![ONBOARDING_MAP_ID, SOUL_MAP_ID, TOWN_MAP_ID].includes(mapId?.() ?? "") && !mapId?.()?.startsWith(GUILD_HALL_MAP_PREFIX)) {
           const getMapId = (n: number) => n < CAMPAIGN_MAPS.length ? (CAMPAIGN_MAPS[n]?.id ?? '') : `${PROCEDURAL_PREFIX}${n - 14}`;
-          const furthestMapId = getMapId(Object.keys(data[prestigeValue].mapTimes).length);
+          const mapKeys = Object.keys(data[prestigeValue].mapTimes);
+          const furthestMapId = getMapId(mapKeys.length - (mapKeys.length > 0 && data[prestigeValue].mapTimes[mapKeys[mapKeys.length - 1]].time === undefined ? 1 : 0));
           const findIndex = CAMPAIGN_MAPS.findIndex(m => m.id === furthestMapId);
           const mapIndex = findIndex === -1 ? (parseInt(furthestMapId.split('_')[1]) + 14) : findIndex;
           while (activeTimer.childNodes.length > 0) activeTimer.childNodes[0].remove();
@@ -186,7 +187,7 @@ export function installZoneTimeTracker(mapId?: () => MapId, identity?: () => str
           activeTimer.appendChild(mainTimer);
           const zoneTimer = document.createElement('div');
           zoneTimer.classList.add('zone-timer');
-          const runningTime = data[prestigeValue].currentTime - (Object.keys(data[prestigeValue].mapTimes).length > 0 ? (data[prestigeValue].mapTimes[furthestMapId]?.time ?? 0) : 0);
+          const runningTime = data[prestigeValue].currentTime - (furthestMapId !== '' ? (data[prestigeValue].mapTimes[furthestMapId]?.time ?? 0) : 0);
           //const bestTime = data[prestigeValue - 1] && data[prestigeValue - 1].mapTimes[mapId?.() ?? ""] && data[prestigeValue - 1].mapTimes[getMapId(mapIndex - 1)] ? data[prestigeValue - 1].mapTimes[mapId?.() ?? ""].time - data[prestigeValue - 1].mapTimes[getMapId(mapIndex - 1)].time : 0;
           //const bestTimeValue = bestTime(data, furthestMapId, prestigeValue);
           const bestTimeNextValue = bestTime(data, getMapId(mapIndex + 1), prestigeValue);
@@ -224,18 +225,6 @@ export function saveZoneTime(mapId: string, identity: string, prestige: number) 
   } catch (e) { }
 }
 
-export function getZoneTime(mapId: string, identity: string, prestige: number): { time: number } | undefined {
-  const currentStorage = localStorage.getItem(`wildjank:otherTimer-${identity}`);
-  if (!currentStorage) return;
-  try {
-    const data = JSON.parse(currentStorage) as OtherTimeStorage;
-    if (typeof (data) !== "object") throw new Error(`Failed to parse timer values`);
-    const relevantSlot = data[prestige];
-    if (!relevantSlot) return;
-    return relevantSlot.mapTimes[mapId];
-  } catch (e) { }
-}
-
 export function createZoneTimeTracker(identity: string, prestige: number) {
   const fullTimer = document.createElement('section');
   fullTimer.classList.add('full-timer');
@@ -260,7 +249,7 @@ export function updateZoneTimeTracker(identity: string, prestige: number) {
   try {
     const data = JSON.parse(currentStorage) as OtherTimeStorage;
     if (typeof (data) !== "object") throw new Error(`Failed to parse timer values`);
-    const max = maxMap(data);
+    const max = maxMap(data, prestige);
     const mapId = (n: number) => n < CAMPAIGN_MAPS.length ? (CAMPAIGN_MAPS[n]?.id ?? '') : `${PROCEDURAL_PREFIX}${n - 14}`;
     const timestamp = (n: number | undefined, forceHour: boolean) => n === undefined ? `--:--:--` : `${forceHour || n >= (1000 * 60 * 60) ? Math.floor(n / (1000 * 60 * 60)).toString().padStart(2, '0') + ':' : ''}${formatTimerMs(n % (1000 * 60 * 60))}`;
     //const timestamp = (n?: number) => n === undefined ? `--:--:--` : `${Math.floor(n / (1000 * 60 * 60)).toString().padStart(2, '0')}:${formatTimerMs(n % (1000 * 60 * 60))}`;
@@ -269,7 +258,7 @@ export function updateZoneTimeTracker(identity: string, prestige: number) {
       const map = mapId(i);
       const bestTimeValue = bestTime(data, map, prestige);
       const bestTimePrevValue = bestTime(data, i > 0 ? mapId(i - 1) : '', prestige);
-      const zoneTime = i > 0 && data[prestige]?.mapTimes[map] && data[prestige]?.mapTimes[mapId(i - 1)] ? (data[prestige]?.mapTimes[map]?.time - data[prestige]?.mapTimes[mapId(i - 1)].time) : (i == 0 && data[prestige]?.mapTimes[map] ? data[prestige]?.mapTimes[map]?.time : 0);
+      const zoneTime = i > 0 && data[prestige]?.mapTimes[map] && data[prestige]?.mapTimes[mapId(i - 1)] ? ((data[prestige]?.mapTimes[map]?.time ?? 0) - (data[prestige]?.mapTimes[mapId(i - 1)].time ?? 0)) : (i == 0 && data[prestige]?.mapTimes[map] ? (data[prestige]?.mapTimes[map]?.time ?? 0) : 0);
       const zoneTimeText = zoneTime > 0 ? ` ${timestamp(zoneTime, false)}` : '--:--';
       const bestZoneTime = i > 0 && bestTimeValue && bestTimePrevValue ? bestTimeValue - bestTimePrevValue : (i == 0 && bestTimeValue ? bestTimeValue : 0);
       const bestZoneTimeText = bestZoneTime > 0 ? `${timestamp(bestZoneTime, false)}` : '--:--';
@@ -277,13 +266,13 @@ export function updateZoneTimeTracker(identity: string, prestige: number) {
       const splitText = ` ${timeSplit < 0 ? `-${timestamp(-timeSplit, false)}` : `+${timestamp(timeSplit, false)}`}`;
       //element.textContent = `${map}: ${timestamp(data[prestige]?.mapTimes[map]?.time)}${zoneTimeText} ${splitText} ${timestamp(data[prestige - 1]?.mapTimes[map]?.time)} ${timestamp(bestTime(data, map))}`;
       const mapLabel = MAP_DISPLAY_NAMES[map] ?? `Endless - ${i - 14}`;
-      const totalTimeSplit = data[prestige]?.mapTimes[map] && bestTimeValue !== undefined ? data[prestige]?.mapTimes[map].time - bestTimeValue : undefined;
+      const totalTimeSplit = data[prestige]?.mapTimes[map] && bestTimeValue !== undefined && data[prestige]?.mapTimes[map].time !== undefined ? data[prestige]?.mapTimes[map].time - bestTimeValue : undefined;
       const totalTimeSplitText = totalTimeSplit !== undefined ? ` ${totalTimeSplit < 0 ? `-${timestamp(-totalTimeSplit, false)}` : `+${timestamp(totalTimeSplit, false)}`}` : '+00:00';
-      const previousTime = i > 0 && data[prestige - 1]?.mapTimes[map] && data[prestige - 1]?.mapTimes[mapId(i - 1)] ? data[prestige - 1]?.mapTimes[map].time - data[prestige - 1]?.mapTimes[mapId(i - 1)].time : (data[prestige - 1]?.mapTimes[map] ? data[prestige - 1]?.mapTimes[map].time : 0);
+      const previousTime = i > 0 && data[prestige - 1]?.mapTimes[map] && data[prestige - 1]?.mapTimes[mapId(i - 1)] ? (data[prestige - 1]?.mapTimes[map].time ?? 0) - (data[prestige - 1]?.mapTimes[mapId(i - 1)].time ?? 0) : (data[prestige - 1]?.mapTimes[map] ? (data[prestige - 1]?.mapTimes[map].time ?? 0) : 0);
       const previousTimeText = previousTime > 0 ? `${timestamp(previousTime, false)}` : '--:--';
       const previousTimeSplit = previousTime > 0 && zoneTime > 0 ? zoneTime - previousTime : 0;
       const previousSplitText = `${previousTimeSplit < 0 ? `-${timestamp(-previousTimeSplit, false)}` : `+${timestamp(previousTimeSplit, false)}`}`;
-      const previousFullTimeSplit = data[prestige]?.mapTimes[map] && data[prestige - 1]?.mapTimes[map] ? data[prestige]?.mapTimes[map].time - data[prestige - 1]?.mapTimes[map].time : 0;
+      const previousFullTimeSplit = data[prestige]?.mapTimes[map] && data[prestige - 1]?.mapTimes[map] ? (data[prestige]?.mapTimes[map].time ?? 0) - (data[prestige - 1]?.mapTimes[map].time ?? 0) : 0;
       const previousFullTimeSplitText = `${previousFullTimeSplit < 0 ? `-${timestamp(-previousFullTimeSplit, false)}` : `+${timestamp(previousFullTimeSplit, false)}`}`;
       const mapLabelElement = document.createElement('div');
       mapLabelElement.classList.add('time-tracker-map-label');
@@ -349,12 +338,12 @@ export function updateZoneTimeTracker(identity: string, prestige: number) {
   //for () {}
 }
 
-function maxMap(storage: OtherTimeStorage): { mapId: MapId, index: number } {
+function maxMap(storage: OtherTimeStorage, prestige?:number): { mapId: MapId, index: number } {
   const mapId = (n: number) => n < CAMPAIGN_MAPS.length ? CAMPAIGN_MAPS[n].id : `${PROCEDURAL_PREFIX}${n - 14}`;
   let highestMapFound = 0;
   for (const key of Object.keys(storage)) {
     const s = storage[Number(key)];
-    if (!s || s.invalid === true) continue;
+    if (!s || (Number(key) !== prestige && s.invalid === true)) continue;
     for (const mapKey of Object.keys(s.mapTimes)) {
       const findIndex = CAMPAIGN_MAPS.findIndex(m => m.id === mapKey);
       const mapIndex = findIndex === -1 ? (parseInt(mapKey.split('_')[1]) + 14) : findIndex;
@@ -371,7 +360,7 @@ function bestTime(storage: OtherTimeStorage, mapId: string, prestige: number): n
     const s = storage[Number(key)];
     if (!s || s.invalid) continue;
     if (s.mapTimes[mapId]) {
-      if (!lowestValueFound || s.mapTimes[mapId].time < lowestValueFound) {
+      if (!lowestValueFound || (s.mapTimes[mapId].time !== undefined && s.mapTimes[mapId].time < lowestValueFound)) {
         lowestValueFound = s.mapTimes[mapId].time;
       }
     }
@@ -385,7 +374,8 @@ function invalidate(storage: OtherTimeStorage) {
     const key = Number(k);
     const s = storage[key];
     if (!s || s.invalid === true) continue;
-    for (let i = 0; i < Object.keys(s.mapTimes).length; i++) {
+    const mapKeys = Object.keys(s.mapTimes);
+    for (let i = 0; i < mapKeys.length - (mapKeys.length > 0 && s.mapTimes[mapKeys[mapKeys.length - 1]].time === undefined ? 1 : 0); i++) {
       if (!s.mapTimes[mapId(i)]) {
         s.invalid = true;
         break;
@@ -427,7 +417,7 @@ export function installTimer(options: {
   panel.hidden = true;
   panel.setAttribute("aria-label", "Timer");
   panel.innerHTML = `<header><button type="button" class="timer-handle"></button></header>`
-    + `<table><thead><tr style="position: sticky; top: 0; background: #0003;"><th scope="col">Zone</th><th scope="col">Current Total</th><th scope="col">Current Zone</th><th scope="col">Prev Zone</th><th scope="col">Best Zone</th><th scope="col">Last Zone Split</th><th scope="col">Last Total Split</th><th scope="col">Best Zone Split</th><th scope="col">Best Total Split</th><th scope="col">Last Total</th><th scope="col">Best Total</th></tr></thead><tbody></tbody></table>`;
+    + `<table><thead><tr style="position: sticky; top: 0; background: #0003;"><th scope="col">Zone</th><th scope="col">Current Total</th><th scope="col">Current Zone</th><th scope="col">Deaths</th><th scope="col">Prev Zone</th><th scope="col">Best Zone</th><th scope="col">Last Zone Split</th><th scope="col">Last Total Split</th><th scope="col">Best Zone Split</th><th scope="col">Best Total Split</th><th scope="col">Last Total</th><th scope="col">Best Total</th></tr></thead><tbody></tbody></table>`;
   document.getElementById("hud")!.append(panel);
   const handle = panel.querySelector<HTMLButtonElement>(".timer-handle")!;
   const table = panel.querySelector("table")!;
@@ -457,7 +447,7 @@ export function installTimer(options: {
     timerInvalidated = false;
 
     const rows: Node[] = [];
-    const max = maxMap(data);
+    const max = maxMap(data, prestige);
     const mapId = (n: number) => n < CAMPAIGN_MAPS.length ? (CAMPAIGN_MAPS[n]?.id ?? '') : `${PROCEDURAL_PREFIX}${n - 14}`;
     const timestamp = (n: number | undefined, forceHour: boolean) => n === undefined ? `--:--:--` : `${forceHour || n >= (1000 * 60 * 60) ? Math.floor(n / (1000 * 60 * 60)).toString().padStart(2, '0') + ':' : ''}${formatTimerMs(n % (1000 * 60 * 60))}`;
 
@@ -466,7 +456,7 @@ export function installTimer(options: {
 
       const bestTimeValue = bestTime(data, map, prestige);
       const bestTimePrevValue = bestTime(data, i > 0 ? mapId(i - 1) : '', prestige);
-      const zoneTime = i > 0 && data[prestige]?.mapTimes[map] && data[prestige]?.mapTimes[mapId(i - 1)] ? (data[prestige]?.mapTimes[map]?.time - data[prestige]?.mapTimes[mapId(i - 1)].time) : (i == 0 && data[prestige]?.mapTimes[map] ? data[prestige]?.mapTimes[map]?.time : 0);
+      const zoneTime = i > 0 && data[prestige]?.mapTimes[map] && data[prestige]?.mapTimes[mapId(i - 1)] ? ((data[prestige]?.mapTimes[map]?.time ?? 0) - (data[prestige]?.mapTimes[mapId(i - 1)].time ?? 0)) : (i == 0 && data[prestige]?.mapTimes[map] ? (data[prestige]?.mapTimes[map]?.time ?? 0) : 0);
       const zoneTimeText = zoneTime > 0 ? ` ${timestamp(zoneTime, false)}` : '--:--';
       const bestZoneTime = i > 0 && bestTimeValue && bestTimePrevValue ? bestTimeValue - bestTimePrevValue : (i == 0 && bestTimeValue ? bestTimeValue : 0);
       const bestZoneTimeText = bestZoneTime > 0 ? `${timestamp(bestZoneTime, false)}` : '--:--';
@@ -474,13 +464,13 @@ export function installTimer(options: {
       const splitText = ` ${timeSplit < 0 ? `-${timestamp(-timeSplit, false)}` : `+${timestamp(timeSplit, false)}`}`;
       //element.textContent = `${map}: ${timestamp(data[prestige]?.mapTimes[map]?.time)}${zoneTimeText} ${splitText} ${timestamp(data[prestige - 1]?.mapTimes[map]?.time)} ${timestamp(bestTime(data, map))}`;
       const mapLabel = MAP_DISPLAY_NAMES[map] ?? `Endless - ${i - 14}`;
-      const totalTimeSplit = data[prestige]?.mapTimes[map] && bestTimeValue !== undefined ? data[prestige]?.mapTimes[map].time - bestTimeValue : undefined;
+      const totalTimeSplit = data[prestige]?.mapTimes[map] && bestTimeValue !== undefined && data[prestige]?.mapTimes[map].time !== undefined ? data[prestige]?.mapTimes[map].time - bestTimeValue : undefined;
       const totalTimeSplitText = totalTimeSplit !== undefined ? ` ${totalTimeSplit < 0 ? `-${timestamp(-totalTimeSplit, false)}` : `+${timestamp(totalTimeSplit, false)}`}` : '+00:00';
-      const previousTime = i > 0 && data[prestige - 1]?.mapTimes[map] && data[prestige - 1]?.mapTimes[mapId(i - 1)] ? data[prestige - 1]?.mapTimes[map].time - data[prestige - 1]?.mapTimes[mapId(i - 1)].time : (data[prestige - 1]?.mapTimes[map] ? data[prestige - 1]?.mapTimes[map].time : 0);
+      const previousTime = i > 0 && data[prestige - 1]?.mapTimes[map] && data[prestige - 1]?.mapTimes[mapId(i - 1)] ? (data[prestige - 1]?.mapTimes[map].time ?? 0) - (data[prestige - 1]?.mapTimes[mapId(i - 1)].time ?? 0) : (data[prestige - 1]?.mapTimes[map] ? (data[prestige - 1]?.mapTimes[map].time ?? 0) : 0);
       const previousTimeText = previousTime > 0 ? `${timestamp(previousTime, false)}` : '--:--';
       const previousTimeSplit = previousTime > 0 && zoneTime > 0 ? zoneTime - previousTime : 0;
       const previousSplitText = `${previousTimeSplit < 0 ? `-${timestamp(-previousTimeSplit, false)}` : `+${timestamp(previousTimeSplit, false)}`}`;
-      const previousFullTimeSplit = data[prestige]?.mapTimes[map] && data[prestige - 1]?.mapTimes[map] ? data[prestige]?.mapTimes[map].time - data[prestige - 1]?.mapTimes[map].time : 0;
+      const previousFullTimeSplit = data[prestige]?.mapTimes[map] && data[prestige - 1]?.mapTimes[map] ? (data[prestige]?.mapTimes[map].time ?? 0) - (data[prestige - 1]?.mapTimes[map].time ?? 0) : 0;
       const previousFullTimeSplitText = `${previousFullTimeSplit < 0 ? `-${timestamp(-previousFullTimeSplit, false)}` : `+${timestamp(previousFullTimeSplit, false)}`}`;
 
 
@@ -494,6 +484,9 @@ export function installTimer(options: {
       const currentPrestigeZoneTimeElement = document.createElement('td');
       currentPrestigeZoneTimeElement.textContent = zoneTimeText;
       row.appendChild(currentPrestigeZoneTimeElement);
+      const deathElement = document.createElement('td');
+      deathElement.textContent = (data[prestige]?.mapTimes[map]?.deaths ?? 0).toString();
+      row.appendChild(deathElement);
       const lastPrestigeTimestampElement = document.createElement('td');
       lastPrestigeTimestampElement.textContent = previousTimeText;
       row.appendChild(lastPrestigeTimestampElement);
@@ -547,4 +540,23 @@ export function installTimer(options: {
   renderCollapsed();
   refresh();
   activeTimerRefresh = refresh;
+}
+
+export function recordDeath(mapId: string, identity: string, prestige: number) {
+  const currentStorage = localStorage.getItem(`wildjank:otherTimer-${identity}`);
+  if (!currentStorage) return;
+  try {
+    const data = JSON.parse(currentStorage) as OtherTimeStorage;
+    if (typeof (data) !== "object") throw new Error(`Failed to parse timer values`);
+    const relevantSlot = data[prestige];
+    if (!relevantSlot) return;
+    if (relevantSlot.mapTimes[mapId] && relevantSlot.mapTimes[mapId].time === undefined) {
+      relevantSlot.mapTimes[mapId].deaths = (relevantSlot.mapTimes[mapId].deaths ?? 0) + 1;
+    } else {
+      relevantSlot.mapTimes[mapId] = { deaths: 1 };
+    }
+    localStorage.setItem(`wildjank:otherTimer-${identity}`, JSON.stringify(data));
+    timerInvalidated = true;
+    updateZoneTimeTracker(identity, prestige);
+  } catch (e) { }
 }
