@@ -166,6 +166,8 @@ export const AUTO_FARM_ADVANCE_KEY = 'wildstat:autofarm-advance:v1';
 export const AUTO_FARM_KITE_KEY = 'wildstat:autofarm-kite:v1';
 export const AUTO_FARM_BOSS_PULL_KEY = 'wildstat:autofarm-bos-pull:v1';
 export const AUTO_FARM_PORTAL_PULL_KEY = 'wildstat:autofarm-portal-pull:v1';
+export const AUTO_FARM_SMART_AUTOFARM_KEY = 'wildstat:autofarm-smart-autofarm:v1';
+export const AUTO_FARM_SMART_BOSS_KEY = 'wildstat:autofarm-smart-boss:v1';
 function readSwitch(key: string, storage: () => Storage | undefined) {
   try { return storage()?.getItem(key) === '1'; } catch { return false; }
 }
@@ -180,6 +182,10 @@ export const readBossPull = (storage: () => Storage | undefined = () => localSto
 export const writeBossPull = (on: boolean, storage: () => Storage | undefined = () => localStorage) => writeSwitch(AUTO_FARM_BOSS_PULL_KEY, on, storage);
 export const readPortalPull = (storage: () => Storage | undefined = () => localStorage) => readSwitch(AUTO_FARM_PORTAL_PULL_KEY, storage);
 export const writePortalPull = (on: boolean, storage: () => Storage | undefined = () => localStorage) => writeSwitch(AUTO_FARM_PORTAL_PULL_KEY, on, storage);
+export const readSmartAutofarm = (storage: () => Storage | undefined = () => localStorage) => readSwitch(AUTO_FARM_SMART_AUTOFARM_KEY, storage);
+export const writeSmartAutofarm = (on: boolean, storage: () => Storage | undefined = () => localStorage) => writeSwitch(AUTO_FARM_SMART_AUTOFARM_KEY, on, storage);
+export const readSmartBoss = (storage: () => Storage | undefined = () => localStorage) => readSwitch(AUTO_FARM_SMART_BOSS_KEY, storage);
+export const writeSmartBoss = (on: boolean, storage: () => Storage | undefined = () => localStorage) => writeSwitch(AUTO_FARM_SMART_BOSS_KEY, on, storage);
 /**
  * Move At, the slider under Move On: how much of the next map's recommended
  * power the player wants before going (and before the boss that holds it),

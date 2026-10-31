@@ -21,6 +21,10 @@ import {
   readPortalPull,
   writeBossPull,
   writePortalPull,
+  readSmartAutofarm,
+  readSmartBoss,
+  writeSmartAutofarm,
+  writeSmartBoss,
 } from './auto-farm-plan';
 import { formatCompactNumber } from '../../../../shared/compact-number';
 import { isSoulMap, SOUL_STAT_DETAILS, type SoulStatId } from '../../../../shared/soul-dimension';
@@ -202,6 +206,8 @@ export function createAutoFarmController(options: {
   let kite = readFarmKite(options.priorityStorage);
   let bossPull = readBossPull(options.priorityStorage);
   let portalPull = readPortalPull(options.priorityStorage);
+  let smartAutofarm = readSmartAutofarm(options.priorityStorage);
+  let smartBoss = readSmartBoss(options.priorityStorage);
   /** Move At: the share of the next map's power to have before going (1 is even); the boss holding that map waits for it too. */
   let movePower = readMovePower(options.priorityStorage);
   /** This map's sliders, and its groups above 0%, the largest first. */
@@ -456,17 +462,18 @@ export function createAutoFarmController(options: {
    * client). `label` names what waits on it: Move On's next map, or the boss that holds it.
    */
   function readyForMap(destination: string, label = 'Next Map'): { ready: boolean; line: string } {
-    return { ready: true, line: `Always moving on` };
-    /*
-    if (!options.mapReady) {
-      const needs = mapNeeds(destination);
-      return { ready: currentPower() >= needs, line: `${label} At ${atPower(needs)}` };
+    if (smartBoss) {
+      return { ready: true, line: `Always moving on` };
+    } else {
+      if (!options.mapReady) {
+        const needs = mapNeeds(destination);
+        return { ready: currentPower() >= needs, line: `${label} At ${atPower(needs)}` };
+      }
+      const readiness = cachedReady(`map:${destination}:${movePower}`, () => options.mapReady!(destination, movePower));
+      if (readiness === undefined) return { ready: false, line: `Reading ${label}` };
+      if (readiness === null || readiness.ready) return { ready: true, line: '' };
+      return { ready: false, line: `${label}: ${needsLine(readiness)}` };
     }
-    const readiness = cachedReady(`map:${destination}:${movePower}`, () => options.mapReady!(destination, movePower));
-    if (readiness === undefined) return { ready: false, line: `Reading ${label}` };
-    if (readiness === null || readiness.ready) return { ready: true, line: '' };
-    return { ready: false, line: `Next Map: ${needsLine(readiness)}` };
-    */
   }
   /** The next map's portal, once the build is ready for it with Move At's margin. */
   function exitPortal() {
@@ -528,59 +535,65 @@ export function createAutoFarmController(options: {
    * (8 s a kill) sent players who did not yet one-shot this map's enemies into a boss they could not beat.
    */
   function readyForBoss(): { ready: boolean; line: string } {
-    const realRegen = options.playerStats().regenerationPerSecond();
-    const boss = options.bossDefinition?.();
-    const bossPower = movePower;
-    //console.log(boss);
-    if (!boss) return { ready: false, line: `Boss definition missing` };
-    /*if (!boss?.bossKind && !boss.damage) {
-      boss.bossKind = "dragon";
-    }*/
-    if (!boss.kind) {
-      if (!boss.damage) return { ready: false, line: `Boss damage missing` };
-      const bossDamage = boss.damage * (1 - armorDamageReduction(player.armor)) * ((1.0 / 1.6) * 0.3 + (1.0 / 6.0));
-      const hpThreshold = bossDamage * 3 * bossPower;
-      const regenThreshold = bossDamage * bossPower;
+    if (smartBoss) {
+      const realRegen = options.playerStats().regenerationPerSecond();
+      const boss = options.bossDefinition?.();
+      const bossPower = movePower;
+      //console.log(boss);
+      if (!boss) return { ready: false, line: `Boss definition missing` };
+      /*if (!boss?.bossKind && !boss.damage) {
+        boss.bossKind = "dragon";
+      }*/
+      if (!boss.kind) {
+        if (!boss.damage) return { ready: false, line: `Boss damage missing` };
+        const bossDamage = boss.damage * (1 - armorDamageReduction(player.armor)) * ((1.0 / 1.6) * 0.3 + (1.0 / 6.0));
+        const hpThreshold = bossDamage * 3 * bossPower;
+        const regenThreshold = bossDamage * bossPower;
+        const enoughHealth = player.hp > hpThreshold;
+        const enoughRegen = realRegen > regenThreshold;
+        if (enoughHealth && enoughRegen) return { ready: true, line: `Ready to fight boss` };
+        if (enoughRegen) return { ready: false, line: `Not enough health (${formatCompactNumber(player.hp)}/${formatCompactNumber(hpThreshold)})` };
+        if (enoughHealth) {
+          const playerDps = options.playerCombat().expectedBossDps() / bossPower;
+          const survivalTime = player.maxHp / Math.max(regenThreshold - realRegen, 0);
+          if (typeof (boss.maxHp) === "number" && boss.maxHp / playerDps < survivalTime * 0.7 / bossPower) return { ready: true, line: `Fighting boss based on DPS` };
+          return { ready: false, line: `Not enough regen (${formatCompactNumber(realRegen)}/${formatCompactNumber(regenThreshold)}) or DPS, ${formatCompactNumber((typeof (boss.maxHp) === "number" ? boss.maxHp : 0) / playerDps)}s kill time, ${formatCompactNumber(survivalTime)}s estimated survival time` };
+        }
+        return { ready: false, line: `Not enough health (${formatCompactNumber(player.hp)}/${formatCompactNumber(hpThreshold)}) or regen (${formatCompactNumber(realRegen)}/${formatCompactNumber(regenThreshold)})` };
+      }
+      let bossDamage = 0;
+      let highestAttack = 0;
+      let attacks = 0;
+      for (const attack in BOSS_DAMAGE_PROFILES[boss.kind as BossKind]) {
+        bossDamage += (BOSS_DAMAGE_PROFILES as { [key: string]: { [key: string]: number } })[boss.kind][attack] * (1 - armorDamageReduction(player.armor));
+        highestAttack = Math.max(highestAttack, (BOSS_DAMAGE_PROFILES as { [key: string]: { [key: string]: number } })[boss.kind][attack] * (1 - armorDamageReduction(player.armor)));
+        attacks++;
+      }
+      const hpThreshold = bossDamage * 2 * bossPower;
+      const regenThreshold = bossDamage / (attacks - 1) / 4 * bossPower;
       const enoughHealth = player.hp > hpThreshold;
       const enoughRegen = realRegen > regenThreshold;
       if (enoughHealth && enoughRegen) return { ready: true, line: `Ready to fight boss` };
       if (enoughRegen) return { ready: false, line: `Not enough health (${formatCompactNumber(player.hp)}/${formatCompactNumber(hpThreshold)})` };
       if (enoughHealth) {
         const playerDps = options.playerCombat().expectedBossDps() / bossPower;
-        const survivalTime = player.maxHp / Math.max(regenThreshold - realRegen, 0);
-        if (typeof (boss.maxHp) === "number" && boss.maxHp / playerDps < survivalTime * 0.7 / bossPower) return { ready: true, line: `Fighting boss based on DPS` };
-        return { ready: false, line: `Not enough regen (${formatCompactNumber(realRegen)}/${formatCompactNumber(regenThreshold)}) or DPS, ${formatCompactNumber((typeof (boss.maxHp) === "number" ? boss.maxHp : 0) / playerDps)}s kill time, ${formatCompactNumber(survivalTime)}s estimated survival time` };
+        const survivalTime = player.hp / Math.max(regenThreshold - realRegen, 0);
+        if (typeof (boss.maxHp) === "function" && boss.maxHp() / playerDps < survivalTime * 0.7 / bossPower) return { ready: true, line: `Fighting boss based on DPS` };
+        return { ready: false, line: `Not enough regen (${formatCompactNumber(realRegen)}/${formatCompactNumber(regenThreshold)}) or DPS, ${formatCompactNumber((typeof (boss.maxHp) === "function" ? boss.maxHp() : 0) / playerDps)}s kill time, ${formatCompactNumber(survivalTime)}s estimated survival time` };
       }
       return { ready: false, line: `Not enough health (${formatCompactNumber(player.hp)}/${formatCompactNumber(hpThreshold)}) or regen (${formatCompactNumber(realRegen)}/${formatCompactNumber(regenThreshold)})` };
+    } else {
+      const opens = options.lockedNextMap?.();
+      if (opens) {
+        const map = readyForMap(opens);
+        if (!map.ready) return map;
+      }
+      const readiness = options.bossReady ? cachedReady(`boss:${options.mapId()}:${movePower}`, () => options.bossReady!(movePower)) : null;
+      if (readiness === undefined) return { ready: false, line: 'Reading Boss' };
+      if (readiness) return { ready: readiness.ready, line: readiness.ready ? '' : `Boss: ${needsLine(readiness)}` };
+      const needs = bossNeeds();
+      return { ready: currentPower() >= needs, line: `Boss At ${atPower(needs)}` };
     }
-    let bossDamage = 0;
-    let highestAttack = 0;
-    let attacks = 0;
-    for (const attack in BOSS_DAMAGE_PROFILES[boss.kind as BossKind]) {
-      bossDamage += (BOSS_DAMAGE_PROFILES as { [key: string]: { [key: string]: number } })[boss.kind][attack] * (1 - armorDamageReduction(player.armor));
-      highestAttack = Math.max(highestAttack, (BOSS_DAMAGE_PROFILES as { [key: string]: { [key: string]: number } })[boss.kind][attack] * (1 - armorDamageReduction(player.armor)));
-      attacks++;
-    }
-    const hpThreshold = bossDamage * 2 * bossPower;
-    const regenThreshold = bossDamage / (attacks - 1) / 4 * bossPower;
-    const enoughHealth = player.hp > hpThreshold;
-    const enoughRegen = realRegen > regenThreshold;
-    if (enoughHealth && enoughRegen) return { ready: true, line: `Ready to fight boss` };
-    if (enoughRegen) return { ready: false, line: `Not enough health (${formatCompactNumber(player.hp)}/${formatCompactNumber(hpThreshold)})` };
-    if (enoughHealth) {
-      const playerDps = options.playerCombat().expectedBossDps() / bossPower;
-      const survivalTime = player.hp / Math.max(regenThreshold - realRegen, 0);
-      if (typeof (boss.maxHp) === "function" && boss.maxHp() / playerDps < survivalTime * 0.7 / bossPower) return { ready: true, line: `Fighting boss based on DPS` };
-      return { ready: false, line: `Not enough regen (${formatCompactNumber(realRegen)}/${formatCompactNumber(regenThreshold)}) or DPS, ${formatCompactNumber((typeof (boss.maxHp) === "function" ? boss.maxHp() : 0) / playerDps)}s kill time, ${formatCompactNumber(survivalTime)}s estimated survival time` };
-    }
-    return { ready: false, line: `Not enough health (${formatCompactNumber(player.hp)}/${formatCompactNumber(hpThreshold)}) or regen (${formatCompactNumber(realRegen)}/${formatCompactNumber(regenThreshold)})` };
-    /*
-    const readiness = options.bossReady ? cachedReady(`boss:${options.mapId()}:${bossPower}`, () => options.bossReady!(bossPower)) : null;
-    if (readiness === undefined) return { ready: false, line: 'Reading Boss' };
-    if (readiness) return { ready: readiness.ready, line: readiness.ready ? '' : `Boss: ${needsLine(readiness)}` };
-    const needs = bossNeeds();
-    return { ready: currentPower() >= needs, line: `Boss At ${atPower(needs)}` };
-    */
   }
 
   // ---- The boss's range ----
@@ -892,39 +905,38 @@ export function createAutoFarmController(options: {
       }
       routeClock = 0;
     }
-    let threat: EnemyState | null = null;
-    // On the way to the boss or the next map it shoots what it passes but chases nobody. A pulled group is coming anyway.
-    if (phase === 'farm') {
+    if (phase === 'farm' && smartAutofarm) {
       const regenMultiplier = options.playerStats().regenerationPerSecond();
       const smartTarget = smartMove({ ...player, realRegen: regenMultiplier }, enemies, shares, advance, kite);
       const length = distance(smartTarget), magnitude = Math.min(1, length / Math.max(1, options.speed() * dt));
       return { x: (smartTarget.x - player.x) / length * magnitude, y: (smartTarget.y - player.y) / length * magnitude, source: 'steer' };
     }
+    let threat: EnemyState | null = null;
+    // On the way to the boss or the next map it shoots what it passes but chases nobody. A pulled group is coming anyway.
     // Only a stat it farms is fought off: one set to Off is walked away from, and leashes home, as a player would leave it.
     // On the way to its target it stops only for an attacker of the same kind or one it kills in a moment; a slow fight
     // with another kind is walked away from, so a weak character is never pinned for minutes.
     const quickKill = (enemy: EnemyState) => enemy.hp <= player.damage / Math.max(.05, player.attackRate) * QUICK_DEFENCE_SECONDS;
     const worthDefending = (enemy: EnemyState) => !target || choiceKey(enemy) === choiceKey(target) || quickKill(enemy);
-    /* if (phase === 'farm' && !pulling()) for (const enemy of enemies) {
-       if (!enemy.generatedBoss && farmedGroup(enemy) && worthDefending(enemy) && isEnemyAttackingPlayer(enemy, options.localIdentity?.()) && (!threat || distance(enemy) < distance(threat))) threat = enemy;
-     }
-     // Everything it farms comes to it: it stands its ground, where the player left it. It used to walk first to a spot
-     // clear of the boss's range and of camps not pulled, which read as wandering off, and away from a boss being farmed.
-     if (phase === 'farm' && pullCoversFarm()) {
-       const reachAll = weaponAttackRange(options.equippedWeapon?.(), player.attackRange);
-       const inReach = enemies.some(enemy => pulledEnemy(enemy) && distance(enemy) <= reachAll + enemy.r);
-       holding = true; route = []; status = inReach ? 'Farming' : enemies.some(pulledEnemy) ? 'Pulling' : 'Waiting for respawn';
-       return idle();
-     }
-     // With the group on its way (pulled, or already chasing), stand and let it come; walk out only if nothing has reached range for a few seconds.
-     // A melee weapon waits only for what is pulled: it walks into its own reach of the rest instead of stopping where they woke.
-     const reach = weaponAttackRange(options.equippedWeapon?.(), player.attackRange), melee = isMeleeWeapon(options.equippedWeapon?.());
-     if (phase === 'farm' && !threat && !inZone(zone, player)) {
-       const coming = enemies.some(enemy => validEnemy(enemy) && ((enemy.engaged && !melee) || pullsEnemy(enemy)));
-       const inReach = enemies.some(enemy => validEnemy(enemy) && distance(enemy) <= reach + enemy.r);
-       pullWait = coming && !inReach ? pullWait + dt : 0;
-       if (coming && (inReach || pullWait < PULL_WAIT_SECONDS)) { holding = true; route = []; status = inReach ? 'Farming' : pulling() ? 'Pulling' : 'Holding ground'; return idle(); }
-     }*/
+    if (phase === 'farm' && !pulling()) for (const enemy of enemies) {
+      if (!enemy.generatedBoss && farmedGroup(enemy) && worthDefending(enemy) && isEnemyAttackingPlayer(enemy, options.localIdentity?.()) && (!threat || distance(enemy) < distance(threat))) threat = enemy;
+    }
+    // Everything it farms comes to it: it stands its ground, where the player left it.
+    if (phase === 'farm' && pullCoversFarm()) {
+      const reachAll = weaponAttackRange(options.equippedWeapon?.(), player.attackRange);
+      const inReach = enemies.some(enemy => pulledEnemy(enemy) && distance(enemy) <= reachAll + enemy.r);
+      holding = true; route = []; status = inReach ? 'Farming' : enemies.some(pulledEnemy) ? 'Pulling' : 'Waiting for respawn';
+      return idle();
+    }
+    // With the group on its way (pulled, or already chasing), stand and let it come; walk out only if nothing has reached range for a few seconds.
+    // A melee weapon waits only for what is pulled: it walks into its own reach of the rest instead of stopping where they woke.
+    const reach = weaponAttackRange(options.equippedWeapon?.(), player.attackRange), melee = isMeleeWeapon(options.equippedWeapon?.());
+    if (phase === 'farm' && !threat && !inZone(zone, player)) {
+      const coming = enemies.some(enemy => validEnemy(enemy) && ((enemy.engaged && !melee) || pullsEnemy(enemy)));
+      const inReach = enemies.some(enemy => validEnemy(enemy) && distance(enemy) <= reach + enemy.r);
+      pullWait = coming && !inReach ? pullWait + dt : 0;
+      if (coming && (inReach || pullWait < PULL_WAIT_SECONDS)) { holding = true; route = []; status = inReach ? 'Farming' : pulling() ? 'Pulling' : 'Holding ground'; return idle(); }
+    }
     // A boss is aimed at its hitbox, not its sprite's foot.
     const bossPoint = boss ? { x: boss.x, y: boss.y + (boss.hitboxOffsetY ?? 0) } : null;
     let destination: Position | null = threat ?? target ?? portal ?? bossPoint;
@@ -1085,6 +1097,10 @@ export function createAutoFarmController(options: {
     setBossPull(next: boolean) { bossPull = next; writeBossPull(next, options.priorityStorage) },
     portalPull: () => portalPull,
     setPortalPull(next: boolean) { portalPull = next; writePortalPull(next, options.priorityStorage) },
+    smartAutofarm: () => smartAutofarm,
+    setSmartAutofarm: (next: boolean) => { smartAutofarm = next; writeSmartAutofarm(next, options.priorityStorage) },
+    smartBoss: () => smartBoss,
+    setSmartBoss: (next: boolean) => { smartBoss = next; writeSmartBoss(next, options.priorityStorage) },
     /** Move At, 0.1x to 10x the next map's power: Move On goes, and the boss holding the way is fought, once it is reached. */
     movePower: () => movePower,
     setMovePower(next: number) { movePower = powerStep(next); writeMovePower(movePower, options.priorityStorage); },
