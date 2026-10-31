@@ -173,7 +173,7 @@ export function installZoneTimeTracker(mapId?: () => MapId, identity?: () => str
         const activeTimer = document.getElementById('active-timer');
         if (activeTimer && ![ONBOARDING_MAP_ID, SOUL_MAP_ID, TOWN_MAP_ID].includes(mapId?.() ?? "") && !mapId?.()?.startsWith(GUILD_HALL_MAP_PREFIX)) {
           const getMapId = (n: number) => n < CAMPAIGN_MAPS.length ? (CAMPAIGN_MAPS[n]?.id ?? '') : `${PROCEDURAL_PREFIX}${n - 14}`;
-          const furthestMapId = getMapId(Object.keys(data[prestigeValue].mapTimes).length - 1);
+          const furthestMapId = getMapId(Object.keys(data[prestigeValue].mapTimes).length);
           const findIndex = CAMPAIGN_MAPS.findIndex(m => m.id === furthestMapId);
           const mapIndex = findIndex === -1 ? (parseInt(furthestMapId.split('_')[1]) + 14) : findIndex;
           while (activeTimer.childNodes.length > 0) activeTimer.childNodes[0].remove();
