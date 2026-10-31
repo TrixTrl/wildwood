@@ -100,6 +100,10 @@ export function createAutoFarmPanel(options: {
     + `<div class="farm-more">`
     + `<div class="farm-setting farm-aggro-row" hidden><span class="farm-setting-label">Chasing Groups</span><div class="farm-segment"><button type="button" class="farm-aggro-pick">Choose</button></div></div>`
     + segment('Target', 'autoFarmTargetLabel', 'farm-target', AUTO_FARM_PRIORITIES.map(entry => `<button type="button" role="radio" data-priority="${entry.id}">${entry.label}</button>`).join(''))
+    + `<button type="button" class="farm-switch farm-smart-autofarm" role="switch" data-switch="smartAutofarm" aria-checked="false">`
+    + `<span class="farm-switch-copy"><span class="farm-switch-label">Smart Autofarm</span><div id="smartAutofarmStatus" class="farm-boss-status"></div></span><span class="farm-knob" aria-hidden="true"></span></button>`
+    + `<button type="button" class="farm-switch farm-boss-math" role="switch" data-switch="smartBoss" aria-checked="false">`
+    + `<span class="farm-switch-copy"><span class="farm-switch-label">Improved Boss Starting Math</span><div id="smartBossStatus" class="farm-boss-status"></div></span><span class="farm-knob" aria-hidden="true"></span></button>`
     + `<button type="button" class="farm-switch farm-boss-pull" role="switch" data-switch="bossPull" aria-checked="false">`
     + `<span class="farm-switch-copy"><span class="farm-switch-label">Pull Enemies During Boss</span><div id="bossPullStatus" class="farm-boss-status"></div></span><span class="farm-knob" aria-hidden="true"></span></button>`
     + `<button type="button" class="farm-switch farm-portal-pull" role="switch" data-switch="portalPull" aria-checked="false">`
@@ -185,7 +189,7 @@ export function createAutoFarmPanel(options: {
   const advanceSwitch = element<HTMLButtonElement>('[data-switch="advance"]');
   /** Move At: the slider under Move On, resting with it off. */
   const powerRows = [
-    { row: element('.farm-move-power'), on: () => options.farm.advance(), value: () => options.farm.movePower(), set: (step: number) => options.farm.setMovePower(step), fightBosses: () => options.farm.fightBosses(), setFightBosses: on => options.farm.setFightBosses(on), },
+    { row: element('.farm-move-power'), on: () => options.farm.advance(), value: () => options.farm.movePower(), set: (step: number) => options.farm.setMovePower(step) },
   ];
   /** A switch and its status line: the line lit when the controller says it is going now, quiet with the switch off. */
   function showSwitch(button: HTMLButtonElement, on: boolean, line: string, ready: boolean) {
@@ -262,6 +266,8 @@ export function createAutoFarmPanel(options: {
     showSwitch(element<HTMLButtonElement>('[data-switch="kite"]'), options.farm.kite(), '', true);
     showSwitch(element<HTMLButtonElement>('[data-switch="bossPull"]'), options.farm.bossPull(), '', true);
     showSwitch(element<HTMLButtonElement>('[data-switch="portalPull"]'), options.farm.portalPull(), '', true);
+    showSwitch(element<HTMLButtonElement>('[data-switch="smartAutofarm"]'), options.farm.smartAutofarm(), '', true);
+    showSwitch(element<HTMLButtonElement>('[data-switch="smartBoss"]'), options.farm.smartBoss(), '', true);
     for (const power of powerRows) {
       const value = power.value(), step = String(POWER_STEPS.indexOf(value as typeof POWER_STEPS[number])), slider = power.row.querySelector('input')!;
       if (slider.value !== step) slider.value = step;
@@ -469,6 +475,8 @@ export function createAutoFarmPanel(options: {
   element<HTMLButtonElement>('[data-switch="kite"]').addEventListener('click', () => { options.farm.setKite(!options.farm.kite()); updateSelection(); });
   element<HTMLButtonElement>('[data-switch="bossPull"]').addEventListener('click', () => { options.farm.setBossPull(!options.farm.bossPull()); updateSelection(); });
   element<HTMLButtonElement>('[data-switch="portalPull"]').addEventListener('click', () => { options.farm.setPortalPull(!options.farm.portalPull()); updateSelection(); });
+  element<HTMLButtonElement>('[data-switch="smartAutofarm"]').addEventListener('click', () => { options.farm.setSmartAutofarm(!options.farm.smartAutofarm()); updateSelection(); });
+  element<HTMLButtonElement>('[data-switch="smartBoss"]').addEventListener('click', () => { options.farm.setSmartBoss(!options.farm.smartBoss()); updateSelection(); });
   for (const power of powerRows) {
     const slider = power.row.querySelector('input')!;
     slider.addEventListener('input', () => {
