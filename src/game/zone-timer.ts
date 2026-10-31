@@ -175,6 +175,7 @@ export function installZoneTimeTracker(mapId?: () => MapId, identity?: () => str
           const getMapId = (n: number) => n < CAMPAIGN_MAPS.length ? (CAMPAIGN_MAPS[n]?.id ?? '') : `${PROCEDURAL_PREFIX}${n - 14}`;
           const mapKeys = Object.keys(data[prestigeValue].mapTimes);
           const furthestMapId = getMapId(mapKeys.length - (mapKeys.length > 0 && data[prestigeValue].mapTimes[mapKeys[mapKeys.length - 1]].time === undefined ? 1 : 0));
+          const lastMapId = getMapId(mapKeys.length - (mapKeys.length > 0 && data[prestigeValue].mapTimes[mapKeys[mapKeys.length - 1]].time === undefined ? 1 : 0) - 1);
           const findIndex = CAMPAIGN_MAPS.findIndex(m => m.id === furthestMapId);
           const mapIndex = findIndex === -1 ? (parseInt(furthestMapId.split('_')[1]) + 14) : findIndex;
           while (activeTimer.childNodes.length > 0) activeTimer.childNodes[0].remove();
@@ -187,7 +188,7 @@ export function installZoneTimeTracker(mapId?: () => MapId, identity?: () => str
           activeTimer.appendChild(mainTimer);
           const zoneTimer = document.createElement('div');
           zoneTimer.classList.add('zone-timer');
-          const runningTime = data[prestigeValue].currentTime - (furthestMapId !== '' ? (data[prestigeValue].mapTimes[furthestMapId]?.time ?? 0) : 0);
+          const runningTime = data[prestigeValue].currentTime - (lastMapId !== '' ? (data[prestigeValue].mapTimes[lastMapId]?.time ?? 0) : 0);
           //const bestTime = data[prestigeValue - 1] && data[prestigeValue - 1].mapTimes[mapId?.() ?? ""] && data[prestigeValue - 1].mapTimes[getMapId(mapIndex - 1)] ? data[prestigeValue - 1].mapTimes[mapId?.() ?? ""].time - data[prestigeValue - 1].mapTimes[getMapId(mapIndex - 1)].time : 0;
           //const bestTimeValue = bestTime(data, furthestMapId, prestigeValue);
           const bestTimeNextValue = bestTime(data, getMapId(mapIndex + 1), prestigeValue);
@@ -216,8 +217,15 @@ export function saveZoneTime(mapId: string, identity: string, prestige: number) 
     if (typeof (data) !== "object") throw new Error(`Failed to parse timer values`);
     const relevantSlot = data[prestige];
     if (!relevantSlot) return;
-    if (relevantSlot.mapTimes[mapId]) return;
-    relevantSlot.mapTimes[mapId] = { time: relevantSlot.currentTime };
+    if (relevantSlot.mapTimes[mapId]) {
+      if (relevantSlot.mapTimes[mapId].time !== undefined) {
+        return;
+      } else {
+        relevantSlot.mapTimes[mapId] = { time: relevantSlot.currentTime, deaths: relevantSlot.mapTimes[mapId].deaths };
+      }
+    } else {
+      relevantSlot.mapTimes[mapId] = { time: relevantSlot.currentTime };
+    }
     invalidate(data);
     localStorage.setItem(`wildjank:otherTimer-${identity}`, JSON.stringify(data));
     timerInvalidated = true;
@@ -338,7 +346,7 @@ export function updateZoneTimeTracker(identity: string, prestige: number) {
   //for () {}
 }
 
-function maxMap(storage: OtherTimeStorage, prestige?:number): { mapId: MapId, index: number } {
+function maxMap(storage: OtherTimeStorage, prestige?: number): { mapId: MapId, index: number } {
   const mapId = (n: number) => n < CAMPAIGN_MAPS.length ? CAMPAIGN_MAPS[n].id : `${PROCEDURAL_PREFIX}${n - 14}`;
   let highestMapFound = 0;
   for (const key of Object.keys(storage)) {
