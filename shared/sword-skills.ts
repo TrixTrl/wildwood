@@ -1,6 +1,7 @@
 import { itemDefinition } from "./items";
 import { bowSkillChanceRangeTenths } from "./bow-skills";
 import { chanceWithLuck } from "./luck-research";
+import { SWORD_REACH } from "./campaign-equipment";
 
 /** Each sword copy rolls these independently, just as a bow rolls its three skills. */
 export const SWORD_SKILL_IDS = ["whirlwind", "deflect", "shockwave"] as const;
@@ -28,7 +29,7 @@ export const DEFLECT_RETURN_SPEED = 600;
 export function swordSkillTier(itemId: unknown): number | null {
   const weapon = itemDefinition(itemId)?.weapon;
   const tier = weapon?.tier;
-  return weapon?.mode === "MELEE" && Number.isInteger(tier) && tier! >= 1 && tier! <= 15 ? tier! : null;
+  return weapon?.mode === "MELEE" && weapon?.range === SWORD_REACH && Number.isInteger(tier) && tier! >= 1 && tier! <= 15 ? tier! : null;
 }
 export const isSkillSword = (itemId: unknown) => swordSkillTier(itemId) !== null;
 

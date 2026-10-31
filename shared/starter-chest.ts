@@ -29,4 +29,5 @@ export const STARTER_WEAPON_CHOICES: readonly { kind: StarterWeaponKind; name: s
   { kind: "bow", name: "Crude Bow", school: "archery", text: "Shoots from range" },
   { kind: "sword", name: "Crude Sword", school: "swordplay", text: `Fights up close · Damage +${crudeSwordBonusPercent()}%` },
   { kind: "staff", name: "Crude Staff", school: "sorcery", text: "Bursting bolts" },
+  { kind: "dagger", name: "Crude Dagger", school: "swordplay", text: "Ooh, a fancy new thing :3" }
 ];
