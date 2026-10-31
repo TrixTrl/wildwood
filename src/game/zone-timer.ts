@@ -474,7 +474,7 @@ export function installTimer(options: {
       const mapLabel = MAP_DISPLAY_NAMES[map] ?? `Endless - ${i - 14}`;
       const totalTimeSplit = data[prestige]?.mapTimes[map] && bestTimeValue !== undefined && data[prestige]?.mapTimes[map].time !== undefined ? data[prestige]?.mapTimes[map].time - bestTimeValue : undefined;
       const totalTimeSplitText = totalTimeSplit !== undefined ? ` ${totalTimeSplit < 0 ? `-${timestamp(-totalTimeSplit, false)}` : `+${timestamp(totalTimeSplit, false)}`}` : '+00:00';
-      const previousTime = i > 0 && data[prestige - 1]?.mapTimes[map] && data[prestige - 1]?.mapTimes[mapId(i - 1)] ? (data[prestige - 1]?.mapTimes[map].time ?? 0) - (data[prestige - 1]?.mapTimes[mapId(i - 1)].time ?? 0) : (data[prestige - 1]?.mapTimes[map] ? (data[prestige - 1]?.mapTimes[map].time ?? 0) : 0);
+      const previousTime = i > 0 && data[prestige - 1]?.mapTimes[map] && data[prestige - 1]?.mapTimes[mapId(i - 1)]?.time !== undefined && zoneTime > 0 ? (data[prestige - 1]?.mapTimes[map].time ?? 0) - (data[prestige - 1]?.mapTimes[mapId(i - 1)].time ?? 0) : (data[prestige - 1]?.mapTimes[map]?.time !== undefined ? (data[prestige - 1]?.mapTimes[map].time ?? 0) : 0);
       const previousTimeText = previousTime > 0 ? `${timestamp(previousTime, false)}` : '--:--';
       const previousTimeSplit = previousTime > 0 && zoneTime > 0 ? zoneTime - previousTime : 0;
       const previousSplitText = `${previousTimeSplit < 0 ? `-${timestamp(-previousTimeSplit, false)}` : `+${timestamp(previousTimeSplit, false)}`}`;

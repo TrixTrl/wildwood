@@ -557,6 +557,7 @@ export function createAutoFarmController(options: {
           const playerDps = options.playerCombat().expectedBossDps() / bossPower;
           const survivalTime = player.maxHp / Math.max(regenThreshold - realRegen, 0);
           if (typeof (boss.maxHp) === "number" && boss.maxHp / playerDps < survivalTime * 0.7 / bossPower) return { ready: true, line: `Fighting boss based on DPS` };
+          if (survivalTime > 30 * bossPower) return { ready: true, line: `Fighting boss based on being able to out-tank, probably` };
           return { ready: false, line: `Not enough regen (${formatCompactNumber(realRegen)}/${formatCompactNumber(regenThreshold)}) or DPS, ${formatCompactNumber((typeof (boss.maxHp) === "number" ? boss.maxHp : 0) / playerDps)}s kill time, ${formatCompactNumber(survivalTime)}s estimated survival time` };
         }
         return { ready: false, line: `Not enough health (${formatCompactNumber(player.hp)}/${formatCompactNumber(hpThreshold)}) or regen (${formatCompactNumber(realRegen)}/${formatCompactNumber(regenThreshold)})` };

@@ -579,7 +579,7 @@
 .equipment-offer-score { margin-top: 2px; color: #ff8872; font-weight: 700; }
 
 /* Daily Quest board: today's three quests, then the guild's week and ranking. */
-.farm-sheet.quest-sheet { height: fit-content; max-height: min(640px, calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 32px)); }
+.farm-sheet.quest-sheet { height: fit-content; max-height: min(800px, calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 32px)); }
 .quest-sheet .quest-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 .quest-sheet .farm-footer { flex-shrink: 0; }
 .quest-sheet .quest-list { margin: 0 14px 10px; }
@@ -753,7 +753,7 @@
 /* A section's heading in a view: its name, and a count on the right. */
 .smith-sheet .smith-focus { border: 1px solid rgba(255,255,255,.12); background: #141414; }
 /* A station (the Smith and the gear sellers): the tabs and the picked piece stay put; only the grid under them scrolls. */
-.farm-sheet.quest-sheet.station-sheet { height: min(640px, calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 32px)); }
+.farm-sheet.quest-sheet.station-sheet { height: min(800px, calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 32px)); }
 .station-sheet .quest-body { display: flex; flex-direction: column; overflow: hidden; }
 .station-sheet .smith-views-bar { flex: none; align-items: center; gap: 10px; }
 .station-sheet.gear-seller-sheet .smith-views-bar { justify-content: space-between; }
