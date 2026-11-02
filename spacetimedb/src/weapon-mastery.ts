@@ -13,7 +13,7 @@ import { bootMoveSpeedFactor, canonicalItemId, hasBootStat } from "../../shared/
 import { normalizeRefineLevel } from "../../shared/refine-multiplier";
 
 /** A school's Mastery points, one row per player and school, so a new school needs no new column. */
-export const playerWeaponMastery = table({ name: "player_weapon_mastery", public: false }, {
+export const playerWeaponMastery = table({ name: "player_weapon_mastery", public: true }, {
   key: t.string().primaryKey(),
   identity: t.identity().index("btree"),
   school: t.string(),
@@ -96,12 +96,12 @@ function addPoints(ctx: Ctx, identity: Identity, school: WeaponSchool, points: n
  * the weapon's, so they train nothing.
  */
 export function awardWeaponMastery(ctx: Ctx, identity: Identity, weapon: string | undefined, kills: number, firstBossClear: boolean,
-  inChallenge = () => challengeActive(ctx, identity)) {
+  inChallenge = () => challengeActive(ctx, identity), banners = () => guildHallBonusFor(ctx, identity, "banners")) {
   if (inChallenge()) return;
   const points = masteryPointsForReport(kills, firstBossClear);
   if (!points) return;
   // The guild hall's Crest Banners add their share.
-  addPoints(ctx, identity, weaponSchool(weapon), withBonusShare(points, guildHallBonusFor(ctx, identity, "banners"), () => ctx.random()));
+  addPoints(ctx, identity, weaponSchool(weapon), withBonusShare(points, banners(), () => ctx.random()));
 }
 
 /** Reset Save clears every school. Prestige keeps them. */
