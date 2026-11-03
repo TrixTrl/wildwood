@@ -22,6 +22,7 @@ import { addOres, oreKindsHeldFor, promoteCopyRefine, refineLevelFor, setRefineL
 import { readPlayerProgress } from "./wide-stats";
 import { syncWornSkill } from "./worn-skill";
 import { luckInPlay } from "./luck-research";
+import { touchCombatProfile } from "./combat-profile";
 
 /**
  * Copies of an item beyond the first, one row per copy a player chose to keep.
@@ -52,7 +53,7 @@ export const playerEquipmentCopy = table({ name: "player_equipment_copy", public
  * Every item a player has ever had drop, for the Gear Collection in the map window: one row per item, kept for
  * good. Gear in the bag counts too, row or not, read on the client.
  */
-export const playerItemCollection = table({ name: "player_item_collection", public: false }, {
+export const playerItemCollection = table({ name: "player_item_collection", public: true }, {
   key: t.string().primaryKey(),
   identity: t.identity().index("btree"),
   itemId: t.string(),
@@ -284,6 +285,8 @@ function writeFirstCopyRoll(ctx: Ctx, identity: Identity, itemId: string, roll: 
   const row = { key: bowSkillKey(identity, itemId), identity, itemId, arrowStorm, ricochet, piercingShot };
   if (ctx.db.playerBowSkill.key.find(row.key)) ctx.db.playerBowSkill.key.update(row);
   else ctx.db.playerBowSkill.insert(row);
+  // Loot merges duplicates here inside a kill report, which keeps its combat profile otherwise.
+  touchCombatProfile(ctx, identity);
 }
 
 const equippedFields = (progress: any): string[] =>

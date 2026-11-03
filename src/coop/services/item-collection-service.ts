@@ -1,17 +1,20 @@
 import { tables, type DbConnection } from "../../module_bindings";
+import { watchTables } from "./table-watch";
 
-/** Every item this account has had drop, from the my_item_collection view (the map window's Gear Collection). */
+/** Every item this account has had drop, from its own player_item_collection rows (the map window's Gear Collection). */
 export function createItemCollectionRows(notify: () => void) {
   let collected: ReadonlySet<string> = new Set();
   function watch(connection: DbConnection, isCurrent: () => boolean) {
     collected = new Set();
     const read = () => {
-      if (!isCurrent()) return;
-      collected = new Set([...connection.db.myItemCollection.iter()].map(row => row.itemId));
+      collected = new Set([...connection.db.playerItemCollection.iter()].filter(row => row.identity.isEqual(me)).map(row => row.itemId));
       notify();
     };
-    connection.db.myItemCollection.onInsert(read); connection.db.myItemCollection.onDelete(read);
-    connection.subscriptionBuilder().onApplied(read).subscribe([tables.myItemCollection]);
+    const me = connection.identity!;
+    watchTables(connection, {
+      what: "item collection", isCurrent, listen: [connection.db.playerItemCollection], changes: ["insert", "delete"],
+      queries: [tables.playerItemCollection.where(row => row.identity.eq(me))], read,
+    });
   }
   return { watch, api: { collectedItems: (): ReadonlySet<string> => collected } };
 }

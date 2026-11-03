@@ -6,12 +6,14 @@ Realtime ownership and sequencing are diagrammed in `docs/realtime-data-flow.md`
 
 ## Client structure
 
+The client has four layers, lowest first: `shared/` (browser- and server-safe rules), `src/game` (simulation, runtimes, rendering), `src/ui` (windows, HUD, DOM controllers) and `src/app` (`src/main.ts`, app services in `src/app/`, and `src/app/wiring/`, the factories that put game runtimes and UI windows together). A layer imports only from layers below it. `src/coop` is the multiplayer layer and imports neither `src/game` nor `src/ui`. When a game runtime needs a window or dialog, the wiring builds it and passes it in. `npm run check:code-health` enforces the direction; its `LAYER_EXCEPTIONS` lists today's remaining exceptions and may only shrink.
+
 | Module | Responsibility |
 | --- | --- |
 | `src/main.ts` | Composition root only. It wires controllers; new behavior belongs in a typed runtime or UI module. Its size is held by the ratchets in `scripts/check-code-health.mjs` (see below). |
 | `src/game/runtime/coop-access.ts` | Null-safe reads of the coop client with the defaults the game shows before it connects; the wiring modules below take it as `coop`. |
-| `src/game/runtime/`: `player-combat-wiring.ts`, `player-controller-wiring.ts`, `game-session-wiring.ts`, `coop-session-wiring.ts`, `auto-farm/auto-farm-wiring.ts`, `duel/duel-wiring.ts`, `town-runtimes.ts`, `world-places.ts`, `displayed-power.ts` | The bands `main.ts` composes, one factory each taking one typed deps object: player combat, the local player, the game session's update order, the coop client's notifications, Auto Farm, duels, the Town's stations, the quest board, travel, Soul Dimension and guild halls, and displayed power. Objects created after a factory runs are passed as `later` getters, read only once play needs them. |
-| `src/game/runtime/render/world-render-wiring.ts`, `map-asset-loading.ts`, `player-identity-wiring.ts` | The world and frame renderers' wiring, the minimap's canvas box, map art and balance loading with neighbouring-map preloads, and players' name plates. |
+| `src/app/wiring/`: `game-session-wiring.ts`, `coop-session-wiring.ts`, `duel-wiring.ts`, `town-runtimes.ts`, `world-places.ts` (with `soul-dimension.ts` and `guild-hall.ts`), `player-identity-wiring.ts`; `src/game/runtime/`: `player-combat-wiring.ts`, `player-controller-wiring.ts`, `auto-farm/auto-farm-wiring.ts`, `displayed-power.ts` | The bands `main.ts` composes, one factory each taking one typed deps object: player combat, the local player, the game session's update order, the coop client's notifications, Auto Farm, duels, the Town's stations, the quest board, travel, Soul Dimension and guild halls, players' name plates, and displayed power. Objects created after a factory runs are passed as `later` getters, read only once play needs them. |
+| `src/game/runtime/render/world-render-wiring.ts`, `map-asset-loading.ts` | The world and frame renderers' wiring, the minimap's canvas box, and map art and balance loading with neighbouring-map preloads. |
 | `src/ui/`: `startup-runtime.ts`, `profile-runtime.ts`, `game-panels.ts`, `hud-runtime.ts`, `inventory-runtime.ts`, `onboarding-runtime.ts`, `game-actions-wiring.ts`, `reconnect-overlay.ts` | UI bands wired from `main.ts`: the start screen and startup coordinator, profiles, the competing windows (research, guild, leaderboard, developer panel, map guide), the HUD, gifts and mail, the bag, the tutorial, toolbar actions and Escape, and the reconnect overlay. |
 | `src/game/constants.ts` | Shared gameplay and world constants. |
 | `src/game/enemies.ts` | Enemy definitions, camp definitions, reward labels, and enemy sprite loading. |
@@ -37,7 +39,7 @@ Keep static definitions and pure calculations outside `main.ts`. `main.ts` is a 
 - **Line ratchet:** the line count stays below 1,000 and never exceeds its last recorded value.
 - **No long lines:** the count of lines over 160 characters, and over 300, never grows. New code stays under 160 characters per line.
 - **Byte budget:** the file size never grows, so code cannot be packed to dodge the line count.
-- **Import cycles:** the same script fails on any runtime import cycle within `shared/` or within `spacetimedb/src/`; a cycle can leave a module half-initialised at load.
+- **Import cycles:** the same script fails on any runtime import cycle within `shared/`, within `spacetimedb/src/`, or anywhere under `src/`; a cycle can leave a module half-initialised at load.
 
 When wiring does not fit, extract a named module (a factory that takes its dependencies as one typed object) and wire it in one call. Do not lengthen lines, chain statements onto one line, or delete useful comments to make room. Lower the recorded numbers in the same change whenever an extraction frees space.
 
@@ -139,6 +141,18 @@ the next person starts from numbers rather than guesses.
    verify which tables each reads. `spacetimedb/src/change-map-host-calls.test.ts` guards the
    call count (Home 38, portal 45); fewer calls is still cheaper despite not
    being the main cost driver.
+
+   **Measured 2026-11-01 on a local v2.12 host (kill reports):** a write re-runs
+   only the views whose read set covers the written rows, which for a
+   sender-scoped view is the writer's own. Other players' views were not re-run.
+   Each re-run that changes the view's output cost about 1.4 ms, and that grew
+   with every view materialization the database holds, including those of
+   disconnected accounts. A kill report re-ran `my_reward_kills`,
+   `my_weapon_mastery`, `my_gold` and, on drops, `my_item_collection`: about
+   4.9 of 6.7 ms. With no views subscribed it took 2.2 ms. Those four tables are
+   now public and the client subscribes to its own rows. **Rule:** a table
+   written on a hot path is read through a filtered table subscription, not a
+   per-user view.
 
 What the eye already sheds, for reference: live steering collapses to one packet
 per 30 seconds, the motion-interest row is deleted, detail-frame publishing stops

@@ -1,21 +1,21 @@
 import { tables, type DbConnection } from "../../module_bindings";
+import { watchTables } from "./table-watch";
 
-/** This account's gold (my_gold); no row means none. */
+/** This account's gold (player_gold, its own row); no row means none. */
 export function createGoldRows(notify: () => void) {
   let gold = 0n;
 
   function watch(connection: DbConnection, isCurrent: () => boolean) {
     gold = 0n;
     const read = () => {
-      if (!isCurrent()) return;
       let next = 0n;
-      for (const row of connection.db.myGold.iter()) next = row.gold;
+      for (const row of connection.db.playerGold.iter()) if (row.identity.isEqual(me)) next = row.gold;
       if (next === gold) return;
       gold = next;
       notify();
     };
-    connection.db.myGold.onInsert(read); connection.db.myGold.onUpdate(read); connection.db.myGold.onDelete(read);
-    connection.subscriptionBuilder().onApplied(read).subscribe([tables.myGold]);
+    const me = connection.identity!;
+    watchTables(connection, { what: "gold", isCurrent, listen: [connection.db.playerGold], queries: [tables.playerGold.where(row => row.identity.eq(me))], read });
   }
 
   return {

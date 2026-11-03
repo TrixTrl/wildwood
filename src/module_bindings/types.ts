@@ -241,6 +241,12 @@ export const ChatReactionUnlock = __t.object("ChatReactionUnlock", {
 });
 export type ChatReactionUnlock = __Infer<typeof ChatReactionUnlock>;
 
+export const CombatStampEpoch = __t.object("CombatStampEpoch", {
+  id: __t.u8(),
+  version: __t.u32(),
+});
+export type CombatStampEpoch = __Infer<typeof CombatStampEpoch>;
+
 export const ConnectionDiagnostic = __t.object("ConnectionDiagnostic", {
   id: __t.string(),
   identity: __t.identity(),
@@ -270,6 +276,13 @@ export const DailyGemBonus = __t.object("DailyGemBonus", {
   updatedAt: __t.timestamp(),
 });
 export type DailyGemBonus = __Infer<typeof DailyGemBonus>;
+
+export const DefeatBucket = __t.object("DefeatBucket", {
+  enemy: __t.string(),
+  tokens: __t.f64(),
+  updatedAtMicros: __t.u64(),
+});
+export type DefeatBucket = __Infer<typeof DefeatBucket>;
 
 export const DefeatSessionRestriction = __t.object("DefeatSessionRestriction", {
   identity: __t.identity(),
@@ -486,6 +499,16 @@ export const EnemyDefeat = __t.object("EnemyDefeat", {
   count: __t.u16(),
 });
 export type EnemyDefeat = __Infer<typeof EnemyDefeat>;
+
+export const EnemyDefeatBank = __t.object("EnemyDefeatBank", {
+  key: __t.string(),
+  identity: __t.identity(),
+  get buckets() {
+    return __t.array(DefeatBucket);
+  },
+  updatedAtMicros: __t.u64(),
+});
+export type EnemyDefeatBank = __Infer<typeof EnemyDefeatBank>;
 
 export const EnemyDefeatBudget = __t.object("EnemyDefeatBudget", {
   key: __t.string(),
@@ -1605,6 +1628,12 @@ export const PlayerCombatRating = __t.object("PlayerCombatRating", {
   critDamage: __t.f64(),
 });
 export type PlayerCombatRating = __Infer<typeof PlayerCombatRating>;
+
+export const PlayerCombatStamp = __t.object("PlayerCombatStamp", {
+  identity: __t.identity(),
+  version: __t.u32(),
+});
+export type PlayerCombatStamp = __Infer<typeof PlayerCombatStamp>;
 
 export const PlayerController = __t.object("PlayerController", {
   identity: __t.identity(),

@@ -1,4 +1,4 @@
-import { replaceChildrenIfChanged } from "./replace-children-if-changed";
+import { replaceChildrenIfChanged } from "../game/replace-children-if-changed";
 import { createProfileEditor, type ProfileEditorElements } from "./profile-editor";
 import { createProfileLoading } from "./profile-loading";
 import type { NameChangeStatus } from "../../shared/name-change";
@@ -51,7 +51,7 @@ export function createProfileWindowController(elements: {
   /** Own-profile actions live outside this controller; prestige is the first. */
   onOwnProfile?: (own: boolean) => void;
   prestigeLevel?: () => number;
-  /** Your own Weapon Mastery points, live (my_weapon_mastery). */
+  /** Your own Weapon Mastery points, live (player_weapon_mastery). */
   weaponMastery?: () => Readonly<Record<WeaponSchool, bigint>> | undefined;
   /** Your own craft experience (my_craft_skills) and soul tier kills, live. */
   craftExperience?: () => Readonly<Record<CraftSkill, bigint>> | undefined;
