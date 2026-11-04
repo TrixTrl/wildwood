@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { SWORD_DAMAGE_FACTOR, SWORD_REACH } from "./campaign-equipment";
 import {
-  ARMOR_CLASSES, BOOT_MOVE_SPEED_PERCENT, BOOT_SKILL_CHANCE_PERCENT, BOOT_STYLES, GEAR_GRADES, GRADE_BONUS_PERCENT, GRADE_ITEM_TIER, armorBonusPercent,
+  ARMOR_CLASSES, BOOT_MOVE_SPEED_PERCENT, BOOT_SKILL_CHANCE_PERCENT, BOOT_STYLES, GEAR_GRADES, GRADE_BONUS_PERCENT, GRADE_ITEM_TIER, GRADE_ROLL_RANGE, armorBonusPercent,
 } from "./gear-grades";
 import {
   GRADE_ARMOR_KINDS, GRADE_EQUIPMENT_IDS, GRADE_WEAPON_KINDS, armorClassOf, bootStyleOf, gradeEquipmentKindOf, gradeItemId, gradeOf,
@@ -13,8 +13,8 @@ import { regularMapLoot } from "./regular-map-loot";
 
 
 describe("graded gear", () => {
-  it("has a bow, sword and staff per grade, a helmet and armor per class and grade, and boots per style and grade", () => {
-    expect(GRADE_EQUIPMENT_IDS).toHaveLength(15 * 3 + 15 * 4 * 2 + 15 * 3);
+  it("has a bow, sword, staff and dagger per grade, a helmet and armor per class and grade, and boots per style and grade", () => {
+    expect(GRADE_EQUIPMENT_IDS).toHaveLength(15 * 4 + 15 * 4 * 2 + 15 * 3);
     expect(gradeItemId("boots", "rare", "ranger")).toBe("rare_ranger_boots");
     expect(new Set(GRADE_EQUIPMENT_IDS).size).toBe(GRADE_EQUIPMENT_IDS.length);
     expect(gradeItemId("bow", "rare")).toBe("rare_bow");
@@ -61,12 +61,14 @@ describe("graded gear", () => {
     });
   });
 
-  it("gives weapons the grade's damage bonus, swords half as much again, with the grade's stand-in tier", () => {
+  it("gives weapons the grade's damage bonus, swords half as much again, the grade's roll range and stand-in tier", () => {
     for (const grade of GEAR_GRADES) {
       const bow = itemDefinition(gradeItemId("bow", grade))!, sword = itemDefinition(gradeItemId("sword", grade))!;
       const staff = itemDefinition(gradeItemId("staff", grade))!;
-      expect(bow.weapon).toEqual({ mode: "RANGED", projectile: "ARROW", damageMultiplierBonus: GRADE_BONUS_PERCENT[grade] / 100, tier: GRADE_ITEM_TIER[grade] });
-      expect(staff.weapon).toEqual({ mode: "RANGED", projectile: "BOLT", damageMultiplierBonus: GRADE_BONUS_PERCENT[grade] / 100, tier: GRADE_ITEM_TIER[grade] });
+      const rollRange = GRADE_ROLL_RANGE[grade];
+      expect(bow.weapon).toEqual({ mode: "RANGED", projectile: "ARROW", damageMultiplierBonus: GRADE_BONUS_PERCENT[grade] / 100, rollRange, tier: GRADE_ITEM_TIER[grade] });
+      expect(staff.weapon).toEqual({ mode: "RANGED", projectile: "BOLT", damageMultiplierBonus: GRADE_BONUS_PERCENT[grade] / 100, rollRange, tier: GRADE_ITEM_TIER[grade] });
+      expect(sword.weapon?.rollRange).toEqual(rollRange);
       expect(sword.weapon?.mode).toBe("MELEE");
       expect(sword.weapon?.range).toBe(SWORD_REACH);
       expect(sword.weapon?.tier).toBe(GRADE_ITEM_TIER[grade]);

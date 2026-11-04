@@ -25,6 +25,7 @@ import { mergeItemGifts, removeItemGifts } from "./item-gifts";
 import { mergeBowSkills, removeBowSkills } from "./bow-skills";
 import { mergeSwordSkills, removeSwordSkills } from "./sword-skills";
 import { mergeStaffSkills, removeStaffSkills } from "./staff-skills";
+import { mergeWeaponStats, removeWeaponStats } from "./weapon-stat-roll";
 import { mergeEquipmentCopies, mergeItemCollection } from "./equipment-copies";
 import { mergeRefineData } from "./item-refine";
 import { mergeCosmeticRefines } from "./cosmetic-refine";
@@ -32,6 +33,7 @@ import { mergeCardData } from "./gear-cards";
 import { mergeCardShopPurchases } from "./card-shop";
 import { mergeMiningData } from "./mining";
 import { mergeWoodcuttingData } from "./woodcutting";
+import { mergeFishingData } from "./fishing";
 import { mergeWeaponMastery } from "./weapon-mastery";
 import { mergeGold } from "./gold";
 import { mergeStarterWeapon } from "./starter-chest";
@@ -150,7 +152,7 @@ const PLAYER_STATE_TABLES: ReadonlySet<string> = new Set([
   "gemKillDaily", "gemKillProgress", "gemTransaction", "guildMemberQuestWeek", "guildRejoin",
   "homeReturnLocation", "leaderboardDirty", "leaderboardPosition", "leaderboardPrestigePosition", "leaderboardStanding", "loginMove",
   "offlineProgress", "offlineGatherChoice", "playerRunTiming", "playerRunHistory", "playerNockedArrow", "playerGatherPicks", "patreonPreview", "serverBoostTrigger", "playerAggroChallenge", "playerAggroChallengeParked", "playerBonusToggle", "playerNameColor",
-  "playerMining", "playerMinedNode", "playerMiningLevel", "playerWoodcutting", "playerChoppedTree", "playerWoodcuttingLevel", "playerLuckResearch", "playerResearchRank", "playerCardShopPurchase", "playerWeaponMastery", "playerMasteryLevel", "playerGold", "oldGearPayout", "playerStarterWeapon", "playerCraftSkill", "playerCraftLevel", "playerTool",
+  "playerMining", "playerMinedNode", "playerMiningLevel", "playerWoodcutting", "playerChoppedTree", "playerWoodcuttingLevel", "playerFishing", "playerFishingLevel", "playerLuckResearch", "playerResearchRank", "playerCardShopPurchase", "playerWeaponMastery", "playerMasteryLevel", "playerGold", "oldGearPayout", "playerStarterWeapon", "playerCraftSkill", "playerCraftLevel", "playerTool",
   "playerCosmeticRefine", "playerClientHost",
   "playerDailyQuest", "playerEndlessRebaseBackup", "playerFreeRespec",
   "playerOfflinePreference", "playerPrestige", "playerPrestigeChallenge",
@@ -259,6 +261,7 @@ export function createAccountLifecycle(deps: AccountLifecycleDeps) {
     mergeBowSkills(ctx, link.guest, ctx.sender);
     mergeSwordSkills(ctx, link.guest, ctx.sender);
     mergeStaffSkills(ctx, link.guest, ctx.sender);
+    mergeWeaponStats(ctx, link.guest, ctx.sender);
     mergeEquipmentCopies(ctx, link.guest, ctx.sender);
     mergeItemCollection(ctx, link.guest, ctx.sender);
     mergeRefineData(ctx, link.guest, ctx.sender);
@@ -267,6 +270,7 @@ export function createAccountLifecycle(deps: AccountLifecycleDeps) {
     mergeCardShopPurchases(ctx, link.guest, ctx.sender);
     mergeMiningData(ctx, link.guest, ctx.sender);
     mergeWoodcuttingData(ctx, link.guest, ctx.sender);
+    mergeFishingData(ctx, link.guest, ctx.sender);
     mergeWeaponMastery(ctx, link.guest, ctx.sender);
     mergeGold(ctx, link.guest, ctx.sender);
     mergeOldGearPayout(ctx, link.guest, ctx.sender);
@@ -627,6 +631,7 @@ export function createAccountLifecycle(deps: AccountLifecycleDeps) {
     removeBowSkills(ctx, identity);
     removeSwordSkills(ctx, identity);
     removeStaffSkills(ctx, identity);
+    removeWeaponStats(ctx, identity);
     removeMailboxReceipts(ctx, identity);
     unlinkPatreon(ctx, identity);
     for (const budget of ctx.db.enemyDefeatBudget.identity.filter(identity)) ctx.db.enemyDefeatBudget.key.delete(budget.key);
@@ -694,6 +699,7 @@ export function createAccountLifecycle(deps: AccountLifecycleDeps) {
     removeBowSkills(ctx, identity);
     removeSwordSkills(ctx, identity);
     removeStaffSkills(ctx, identity);
+    removeWeaponStats(ctx, identity);
     removeMailboxReceipts(ctx, identity);
     unlinkPatreon(ctx, identity);
     for (const budget of ctx.db.enemyDefeatBudget.identity.filter(identity)) ctx.db.enemyDefeatBudget.key.delete(budget.key);

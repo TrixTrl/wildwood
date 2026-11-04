@@ -1114,6 +1114,9 @@ export type MyExchangeListings = __Infer<typeof MyExchangeListings>;
 export const MyExchangeOffers = __t.object("MyExchangeOffers", {});
 export type MyExchangeOffers = __Infer<typeof MyExchangeOffers>;
 
+export const MyFishing = __t.object("MyFishing", {});
+export type MyFishing = __Infer<typeof MyFishing>;
+
 export const MyGearSlots = __t.object("MyGearSlots", {});
 export type MyGearSlots = __Infer<typeof MyGearSlots>;
 
@@ -1242,6 +1245,9 @@ export type MyUpgradeBenchThirdSlot = __Infer<typeof MyUpgradeBenchThirdSlot>;
 
 export const MyWeaponMastery = __t.object("MyWeaponMastery", {});
 export type MyWeaponMastery = __Infer<typeof MyWeaponMastery>;
+
+export const MyWeaponStats = __t.object("MyWeaponStats", {});
+export type MyWeaponStats = __Infer<typeof MyWeaponStats>;
 
 export const MyWoodcutting = __t.object("MyWoodcutting", {});
 export type MyWoodcutting = __Infer<typeof MyWoodcutting>;
@@ -1761,6 +1767,21 @@ export const PlayerEquipmentLock = __t.object("PlayerEquipmentLock", {
   copyId: __t.u64(),
 });
 export type PlayerEquipmentLock = __Infer<typeof PlayerEquipmentLock>;
+
+export const PlayerFishing = __t.object("PlayerFishing", {
+  identity: __t.identity(),
+  experience: __t.u32(),
+  fishCaught: __t.u32(),
+  lastCatchAt: __t.timestamp(),
+  lastFish: __t.string(),
+});
+export type PlayerFishing = __Infer<typeof PlayerFishing>;
+
+export const PlayerFishingLevel = __t.object("PlayerFishingLevel", {
+  identity: __t.identity(),
+  level: __t.u32(),
+});
+export type PlayerFishingLevel = __Infer<typeof PlayerFishingLevel>;
 
 export const PlayerFreeRespec = __t.object("PlayerFreeRespec", {
   identity: __t.identity(),
@@ -2456,6 +2477,20 @@ export const PlayerWeaponMastery = __t.object("PlayerWeaponMastery", {
   points: __t.u64(),
 });
 export type PlayerWeaponMastery = __Infer<typeof PlayerWeaponMastery>;
+
+export const PlayerWeaponStat = __t.object("PlayerWeaponStat", {
+  key: __t.string(),
+  identity: __t.identity(),
+  itemId: __t.string(),
+  copyId: __t.u64(),
+  offerId: __t.u64(),
+  attackSpeed: __t.f32(),
+  critDamage: __t.f32(),
+  backstab: __t.f32(),
+  poison: __t.f32(),
+  dodge: __t.f32(),
+});
+export type PlayerWeaponStat = __Infer<typeof PlayerWeaponStat>;
 
 export const PlayerWideStats = __t.object("PlayerWideStats", {
   identity: __t.identity(),

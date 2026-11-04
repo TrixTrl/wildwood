@@ -3,7 +3,10 @@ import { CAMPAIGN_MAPS } from "../../shared/campaign-registry";
 import { SOUL_MAP_ID } from "../../shared/soul-dimension";
 import { WOOD_TREE_NODES } from "../../shared/woodcutting";
 import { woodcuttingScene } from "../../src/game/runtime/town/woodcutting-scene";
-import { TOWN_CENTER, TOWN_EXCHANGE_CENTER, TOWN_EXCHANGE_PLAZA, TOWN_EXCHANGE_POSITION, TOWN_MAP_ID, TOWN_WALK_AREA, TOWN_WEST_BRIDGE } from "../../shared/town";
+import { fishingScene, resetFishingScene } from "../../src/game/runtime/town/fishing-scene";
+import { townFeetClear } from "../../src/game/runtime/town/town-path";
+import { FISHING_REACH, FISHING_SPOTS } from "../../shared/fishing";
+import { TOWN_CENTER, TOWN_EXCHANGE_CENTER, TOWN_EXCHANGE_PLAZA, TOWN_EXCHANGE_POSITION, TOWN_FEET_OFFSET, TOWN_MAP_ID, TOWN_WALK_AREA, TOWN_WEST_BRIDGE } from "../../shared/town";
 import { TOWN_OX_DECOR } from "../../src/game/town-world";
 import { attackRangeWithResearch } from "../../shared/utility-research";
 import { guildHallMapId } from "../../shared/guild-hall";
@@ -108,6 +111,32 @@ export async function grove() {
   woodcuttingScene.felled.clear();
 }
 
+/** The fishing spots on the river: one off the bank, then the player on the bank fishing it, rod out, and a catch's splash. */
+export async function fishing() {
+  const phones = strip();
+  const mapId = TOWN_MAP_ID as MapId;
+  const site = FISHING_SPOTS[2].sites[1];
+  // The clear bank nearest the spot, in reach of it, as the player's feet.
+  let feet = { x: site.x, y: site.y }, best = Infinity;
+  for (let dx = -FISHING_REACH; dx <= FISHING_REACH; dx += 4) for (let dy = -FISHING_REACH; dy <= FISHING_REACH; dy += 4) {
+    const distance = Math.hypot(dx, dy);
+    if (distance < best && distance <= FISHING_REACH - 20 && townFeetClear(site.x + dx, site.y + dy)) { best = distance; feet = { x: site.x + dx, y: site.y + dy }; }
+  }
+  const at = { x: feet.x, y: feet.y - TOWN_FEET_OFFSET }, facing = Math.atan2(site.y - feet.y, site.x - feet.x);
+  const arrange = (rod: boolean, splash: number) => (state: { player: { facing: number } }) => {
+    fishingScene.spots = FISHING_SPOTS.map((spot, index) => ({ spot: index, site: index === 2 ? 1 : 0, ...spot.sites[index === 2 ? 1 : 0] }));
+    Object.assign(fishingScene, { fishing: rod ? 2 : null, rodOut: rod, splash });
+    state.player.facing = facing;
+  };
+  const views = [
+    await mapView({ mapId, ...PHONE, parent: phones, title: "fishing · a spot off the bank", at, zoomSteps: 6, arrange: arrange(false, 0) }),
+    await mapView({ mapId, ...PHONE, parent: phones, title: "fishing · rod out", at, zoomSteps: 6, arrange: arrange(true, 0) }),
+    await mapView({ mapId, ...PHONE, parent: phones, title: "fishing · a catch's splash", at, zoomSteps: 6, arrange: arrange(true, .6) }),
+  ];
+  for (const view of views) await view.draw();
+  resetFishingScene();
+}
+
 /** The Forest's grass and the Town's, side by side at the phone framing and at 150%: the same tufts at one size. */
 export async function forest() {
   const phones = strip();
@@ -136,10 +165,14 @@ export async function exchange() {
     await mapView({ mapId, ...PHONE, parent: phones, title: "exchange · the join at 150%", at: { x: TOWN_CENTER.x - 560, y: TOWN_CENTER.y + 1_780 }, zoomSteps: 10 }),
     await mapView({ mapId, ...PHONE, parent: phones, title: "exchange · the village's edge by the portal", at: { x: TOWN_CENTER.x - 520, y: TOWN_CENTER.y + 1_960 } }),
     await mapView({ mapId, ...PHONE, parent: phones, title: "exchange · the road from the village", at: { x: TOWN_CENTER.x - 370, y: TOWN_CENTER.y + 2_000 }, zoomSteps: -6 }),
+    await mapView({ mapId, ...PHONE, parent: phones, title: "exchange · the gate", at: { x: clerk.x - 300, y: clerk.y - 380 } }),
     await mapView({ mapId, ...PHONE, parent: phones, title: "exchange · the clerk", at: { x: clerk.x + 40, y: clerk.y + 70 } }),
-    await mapView({ mapId, ...PHONE, parent: phones, title: "exchange · the square", at: { x: TOWN_EXCHANGE_CENTER.x - 60, y: TOWN_EXCHANGE_CENTER.y + 150 } }),
-    await mapView({ mapId, ...PHONE, parent: phones, title: "exchange · countryside beside it", at: { x: plaza.right + 260, y: plaza.bottom + 120 } }),
+    await mapView({ mapId, ...PHONE, parent: phones, title: "exchange · the fountain", at: { x: TOWN_EXCHANGE_CENTER.x - 60, y: TOWN_EXCHANGE_CENTER.y + 230 } }),
+    await mapView({ mapId, ...PHONE, parent: phones, title: "exchange · the west street", at: { x: TOWN_CENTER.x - 1_750, y: TOWN_EXCHANGE_CENTER.y + 60 } }),
+    await mapView({ mapId, ...PHONE, parent: phones, title: "exchange · the avenue south", at: { x: TOWN_EXCHANGE_CENTER.x + 40, y: TOWN_EXCHANGE_CENTER.y + 600 } }),
+    await mapView({ mapId, ...PHONE, parent: phones, title: "exchange · countryside beside it", at: { x: TOWN_CENTER.x + 2_000, y: plaza.bottom + 900 } }),
     await mapView({ mapId, ...DESKTOP, title: "exchange · desktop", at: { x: TOWN_EXCHANGE_CENTER.x, y: TOWN_EXCHANGE_CENTER.y - 150 }, zoomSteps: -4 }),
+    await mapView({ mapId, ...DESKTOP, title: "exchange · the whole market", at: { x: TOWN_EXCHANGE_CENTER.x, y: TOWN_EXCHANGE_CENTER.y + 60 }, zoomSteps: -10 }),
   ];
   for (const view of views) await view.draw();
 }

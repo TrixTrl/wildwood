@@ -333,7 +333,7 @@ import { installZoneTimeTracker, recordDeath, updateTimeValues } from "./game/zo
     joystick: joystickEl,
     stick: stickEl,
     running: () => session.isRunning(),
-    onTapPlayer: (x, y) => !inTutorial() ? openPlayerAtScreenPoint(x, y) : false,
+    onTapPlayer: (x, y) => !inTutorial() ? openPlayerAtScreenPoint(x, y) || soulDimension.tapTown(x, y) : false,
     onEscape: () => inTutorial() && playerProfileEl.hidden ? true : handleInputEscape(),
     desktop: {
       canMove: () => Boolean(session?.isRunning()) && !session.isPaused() && player.hp > 0 && !isArenaScene()
@@ -692,7 +692,7 @@ import { installZoneTimeTracker, recordDeath, updateTimeValues } from "./game/zo
     coop: coopAccess, e: gameElements, player, duelSession, applyProfileIcon, playerPower, playerShield: () => playerCombat?.cardShield(),
     setDeveloperAccess: devPanel.setDeveloperAccess, applyVitalityResearch, techTree, appShell,
     updateProfileDuelButton: profileWindow.updateDuelButton, mapMusic, setGameplayPause, inTown: () => currentMapId === "town", showMessage,
-    goToResearch: town.goToResearch,
+    goToResearch: town.goToResearch, powerJump: powerForEquipment.watchJumps(inventory),
   });
 
   function showCurrentUpdateNotice() {
@@ -741,17 +741,13 @@ import { installZoneTimeTracker, recordDeath, updateTimeValues } from "./game/zo
   installGraphicsReport({
     canvas: () => canvas, snapshot: performanceMonitor.snapshot, playing: () => session.isRunning(), fullRate: () => session.fullFrameRate(),
   });
-  installStatTracker({
-    storage: localStorage, read: createStatTrackerSource({
-      coop: () => coop, player, inventory,
-      hasStarted: session.hasStarted, isLoadedFor: progress.isLoadedFor, inTutorial, researchRanks, kills: () => totalKills,
-      displayedProgress: displayedPlayerPowerProgress, attackCap: coopAccess.attackCap,
-      critParts: () => ({ ...research.criticalDamageParts(), soul: soulDimension.critDamage(), rating: player.critRating }),
-      criticalChance: research.criticalChance
-    })
-  });
-  installQuestTracker({
-    storage: localStorage, enabled: questTracker.enabled, set: questTracker.set, ensure: () => quests.refresh(),
+  installStatTracker({ storage: localStorage, read: createStatTrackerSource({ coop: () => coop, player, inventory,
+    hasStarted: session.hasStarted, isLoadedFor: progress.isLoadedFor, inTutorial, researchRanks, kills: () => totalKills,
+    displayedProgress: displayedPlayerPowerProgress, attackCap: coopAccess.attackCap,
+    critParts: () => ({ ...research.criticalDamageParts(), soul: soulDimension.critDamage(),
+      rating: (player.critRating ?? 0) + research.weaponRatings().crit }),
+    criticalChance: research.criticalChance }) });
+  installQuestTracker({ storage: localStorage, enabled: questTracker.enabled, set: questTracker.set, ensure: () => quests.refresh(),
     view: () => quests.trackerView(currentMapId),
     hiddenHere: () => !session.hasStarted() || inTutorial() || document.body.matches(".is-cutscene, .is-replaying, .is-dueling")
   });

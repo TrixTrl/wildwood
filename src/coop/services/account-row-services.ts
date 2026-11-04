@@ -1,6 +1,7 @@
 import type { DbConnection } from "../../module_bindings";
 import { createOfflineProgressPreference } from "./offline-progress-watch";
 import { createBowSkills } from "./bow-skills";
+import { weaponStatLevel } from "../../../shared/weapon-skills";
 import { createAdGemReward } from "./ad-gem-reward";
 import { createChatMute } from "./chat-mute";
 import { createRunTimingRows } from "./run-timing-service";
@@ -10,6 +11,7 @@ import { createGuildHallRows } from "./guild-hall-service";
 import { createItemRefineRows } from "./item-refine-service";
 import { createMiningRows } from "./mining-service";
 import { createWoodcuttingRows } from "./woodcutting-service";
+import { createFishingRows } from "./fishing-service";
 import type { GatherClock } from "./gather-queue";
 import { monotonicNowMs, wallClockNowMs } from "../../app/trusted-clock";
 import { createCardRows } from "./card-service";
@@ -64,7 +66,7 @@ export function keptCardSlots(perks: () => Parameters<typeof activeCardSlots>[0]
  * opt-out, the bow skill rolls with their copies and loot settings, the
  * rewarded ad's Gem claims, the automatic chat mute and the Soul Dimension's
  * rows (soul stats, kills by reward type, whether it is open) and the guild
- * hall's fund and levels, each item's refine with the ores it costs, mining, woodcutting (with breaks not yet sent), cards, the Card Seller's buys, Weapon Mastery, gold, the Trade Chrysanthemum, crafting, tools, the Starter Chest and the Server Boost. They share one
+ * hall's fund and levels, each item's refine with the ores it costs, mining, woodcutting (with breaks not yet sent), fishing, cards, the Card Seller's buys, Weapon Mastery, gold, the Trade Chrysanthemum, crafting, tools, the Starter Chest and the Server Boost. They share one
  * lifecycle, so the connection starts them together and the coop API serves
  * them together.
  */
@@ -86,6 +88,7 @@ export function createAccountRowServices(connection: () => DbConnection | null, 
   const serverBoost = createServerBoostRows(notify, () => gatherClock?.serverNowMs() ?? wallClockNowMs());
   const mining = createMiningRows(notify, gatherClock, serverBoost.gatherMultiplierAt);
   const woodcutting = createWoodcuttingRows(notify, gatherClock, serverBoost.gatherMultiplierAt);
+  const fishing = createFishingRows(notify);
   const chatAnnouncements = createChatAnnouncementRows(notify);
   const cards = createCardRows(notify);
   const cardShop = createCardShopRows(notify);
@@ -137,6 +140,7 @@ export function createAccountRowServices(connection: () => DbConnection | null, 
       arrows.watch(current, isCurrent);
       mining.watch(current, isCurrent);
       woodcutting.watch(current, isCurrent);
+      fishing.watch(current, isCurrent);
       cards.watch(current, isCurrent);
       cardShop.watch(current, isCurrent);
       builds.watch(current, isCurrent);
@@ -162,6 +166,7 @@ export function createAccountRowServices(connection: () => DbConnection | null, 
       ...arrows.api,
       ...mining.api,
       ...woodcutting.api,
+      ...fishing.api,
       ...cards.api,
       ...cardShop.api,
       ...builds.api,
@@ -188,8 +193,8 @@ export function createAccountRowServices(connection: () => DbConnection | null, 
       placeExchangeOffer: afterGathering(exchange.api.placeExchangeOffer),
       collectExchange: afterGathering(exchange.api.collectExchange),
       fallIntoWell: afterGathering(soulDimension.api.fallIntoWell),
-      /** An item's slot tier and refine (items.ts ItemLevel). */
-      itemLevel: (itemId: string): ItemLevel => itemLevelParts(itemRefine.api.itemLevel(itemId)),
+      /** An item's slot tier and refine, and a weapon's rolled speed and crit (items.ts ItemLevel). */
+      itemLevel: (itemId: string): ItemLevel => ({ ...itemLevelParts(itemRefine.api.itemLevel(itemId)), ...weaponStatLevel(bowSkills.api.weaponSkills(itemId)) }),
       /** The active card slots of each type in play. */
       cardSlots,
       /** The active cards that count now: each type's first slots in play. */
