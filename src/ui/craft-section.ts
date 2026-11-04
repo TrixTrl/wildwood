@@ -3,7 +3,7 @@ import { CRAFTED_REFINE, CRAFT_MAX_LEVEL, CRAFT_SKILLS, CRAFT_SKILL_NAMES, MATER
 import {
   craftMaterialsShort, craftProgress, gradeCraftLevel, gradeCraftMaterials, gradeCraftNeed, gradeCraftOffer, gradeCraftSkill, isCraftable, lineCraftSkill,
 } from "../../shared/grade-craft";
-import { isSkillWeapon, weaponSkillLines, type WeaponSkillRoll } from "../../shared/weapon-skills";
+import { isSkillWeapon, weaponRollLines, type WeaponSkillRoll } from "../../shared/weapon-skills";
 import { ARMOR_CLASS_DETAILS, ARMOR_CLASS_NAMES, BOOT_STYLE_NAMES, GEAR_GRADES, GEAR_GRADE_NAMES, gradeIndex, type GearGrade } from "../../shared/gear-grades";
 import { armorClassOf, bootStyleOf, gradeEquipmentKindOf, gradeOf, type GradeItemId } from "../../shared/grade-equipment";
 import { GRADE_SHOP_LINES, gradeShopItemId, gradeShopLineKey, masteryLevels, type GradeShopLine, type MasteryLevels } from "../../shared/grade-shop";
@@ -25,7 +25,7 @@ type Result = { ok: boolean; error?: string } | undefined;
 type Ores = Readonly<Partial<Record<OreId, number>>>;
 /** One thing a piece needs, met or not: "Lv 20 Archery". */
 export type GradeNeed = { text: string; met: boolean };
-const KIND_NAMES = { bow: "Bow", sword: "Sword", staff: "Staff", helmet: "Helmet", armor: "Armor", boots: "Boots" } as const;
+const KIND_NAMES = { bow: "Bow", sword: "Sword", staff: "Staff", dagger: "Dagger", helmet: "Helmet", armor: "Armor", boots: "Boots" } as const;
 const nameOf = (itemId: string) => itemInspectionButtonLabel(itemDisplayName(itemId));
 const count = (value: number) => Math.floor(value).toLocaleString("en-US");
 // Exact below 10,000, compact above, so three fit side by side on a phone.
@@ -318,7 +318,7 @@ export function createCraftSection(deps: CraftSectionDeps, options: { onChange?:
     const levelMet = skillLevel(skill) >= gradeCraftLevel(itemId), lacking = craftMaterialsShort(materials, ores).length > 0;
     const made = gradeItemRow(itemId, deps.refineLevel(itemId, weapon.copyId), levelMet ? [] : [{ text: `Needs ${gradeCraftNeed(itemId)}`, met: false }]);
     made.row.dataset.copyId = String(weapon.copyId);
-    const skills = weaponSkillLines(itemId, weapon.roll);
+    const skills = weaponRollLines(itemId, weapon.roll);
     made.row.querySelector(".smith-shop-copy")!.append(hint([weapon.equipped ? "Worn" : "", skills.length ? skills.join(" · ") : "No Skills Yet"].filter(Boolean).join(" · ")));
     const text = crafting === key ? "Reforging…" : !levelMet ? "Locked" : lacking ? "Need More" : "Reforge";
     const button = offerButton(text, levelMet && !lacking && crafting === null, () => { void reforge(weapon); });

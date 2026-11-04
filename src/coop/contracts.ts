@@ -169,6 +169,8 @@ export type PlayerProfileData = {
   itemUpgradeLevels: Record<string, number>;
   /** Each first copy's refine by item id (player_item_refine); the worn items' are what stats read. +0 is missing. */
   itemRefines?: Record<string, number>;
+  /** Each weapon's rolled speed and crit levels (first copies, player_weapon_stat). */
+  weaponStats?: Record<string, { attackSpeed: number; critDamage: number }>;
   /** Each unlocked look's kept refine by item id (player_cosmetic_refine): a look's ★10/★20 art, never its stats. */
   cosmeticRefines?: Record<string, number>;
   /** The bonus item ids they switched off (player_bonus_toggle): profiles count stats with them left out, as the server does. */
@@ -181,6 +183,8 @@ export type PlayerProfileData = {
   mining?: number | null;
   /** The Woodcutting stat (my_woodcutting for your own, player_woodcutting_level for anyone else's); null before their first tree. */
   woodcutting?: number | null;
+  /** The Fishing level (from my_fishing for your own, player_fishing_level for anyone else's); null before their first fish. */
+  fishing?: number | null;
   /** Weapon Mastery levels by school (player_weapon_mastery for your own, player_mastery_level for anyone else's); a missing school is level 0. */
   mastery?: Partial<Record<import("../../shared/weapon-mastery").WeaponSchool, number>> | null;
   /** Craft levels (my_craft_skills for your own, player_craft_level for anyone else's); a craft never practised is missing. */

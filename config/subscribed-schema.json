@@ -497,6 +497,13 @@
       "filled:u32",
       "placedAt:timestamp"
     ],
+    "my_fishing": [
+      "identity:identity",
+      "experience:u32",
+      "fishCaught:u32",
+      "lastCatchAt:timestamp",
+      "lastFish:string"
+    ],
     "my_gear_slots": [
       "key:string",
       "identity:identity",
@@ -815,6 +822,18 @@
       "school:string",
       "points:u64"
     ],
+    "my_weapon_stats": [
+      "key:string",
+      "identity:identity",
+      "itemId:string",
+      "copyId:u64",
+      "offerId:u64",
+      "attackSpeed:f32",
+      "critDamage:f32",
+      "backstab:f32",
+      "poison:f32",
+      "dodge:f32"
+    ],
     "my_woodcutting": [
       "identity:identity",
       "woodcutting:u32",
@@ -905,6 +924,10 @@
       "playerY:f64",
       "facing:f64",
       "emittedAt:timestamp"
+    ],
+    "player_fishing_level": [
+      "identity:identity",
+      "level:u32"
     ],
     "player_free_respec": [
       "identity:identity",
@@ -1203,6 +1226,18 @@
       "identity:identity",
       "school:string",
       "points:u64"
+    ],
+    "player_weapon_stat": [
+      "key:string",
+      "identity:identity",
+      "itemId:string",
+      "copyId:u64",
+      "offerId:u64",
+      "attackSpeed:f32",
+      "critDamage:f32",
+      "backstab:f32",
+      "poison:f32",
+      "dodge:f32"
     ],
     "player_wide_stats": [
       "identity:identity",

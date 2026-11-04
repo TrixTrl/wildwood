@@ -40,6 +40,7 @@ import { createGameBootstrap } from "../../src/game/runtime/game-bootstrap";
 import { mapWorldLayout } from "../../src/game/map-layout";
 import { mapArtReady, sharedAssets } from "./game-world";
 import { TOWN_ARRIVAL } from "../../shared/town";
+import { playPowerJump } from "../../src/ui/power-jump-effect";
 
 let markup: Promise<Document> | null = null;
 
@@ -139,7 +140,7 @@ async function icons() {
   }, { ...inventory, selectedItemId: "" }, "EQUIPMENT", {
     onInspect: () => {}, upgradeLevel: () => 0, slotTier: () => 7, refineLevel, slotCapacity: items.length + copies.length,
     copies, nextSlotCost: 150n,
-    ores: { iron_ore: 12, pine_log: 900, steel_arrow: 1_240, fire_arrow: 80, piercing_arrow: 12_500 }, nockedArrow: "steel_arrow",
+    ores: { iron_ore: 12, pine_log: 900, steel_arrow: 1_240, fire_arrow: 80, piercing_arrow: 12_500, trout: 37, shark: 3, golden_koi: 1 }, nockedArrow: "steel_arrow",
   });
   const preview = createInventoryCharacterPreview(byId<HTMLCanvasElement>("inventoryCharacterCanvas"), await playerAppearance());
   const drawPreview = () => preview.draw({ visible: true, inventory, skinTone: 2, power: 54_321 });
@@ -161,6 +162,14 @@ async function hud() {
   byId("hudGemBalance").textContent = "1,250";
   applyProfileIcon(byId("playerHudProfileIcon"), 0);
   await settleCssImages();
+}
+
+/** The HUD as an upgrade lands: power counting up from 12,345 with its +18% rising above it, caught mid-way. */
+async function hudPowerJump() {
+  await hud();
+  playPowerJump(byId("playerPower"), { from: 12_345, to: 14_567, gain: .18 });
+  await new Promise(resolve => setTimeout(resolve, 420));
+  for (const animation of document.getAnimations()) animation.pause();
 }
 
 /** The HUD corner as the game builds it: gems, gold and the nocked arrow chip with a bow in hand. */
@@ -636,6 +645,6 @@ async function worldMapTown() {
   await settleCssImages();
 }
 
-export const DOM_SCENES: Record<string, () => Promise<void>> = { "world-map-town": worldMapTown, icons, hud, "hud-arrow": hudArrow, "prestige-runs": prestigeRuns, "guild-hall": guildHallWindow, "settings-search": settingsSearch, wordmark, shops, "gem-shop": gemShop, "server-boost": serverBoost, "exchange-window": exchangeWindow, grades, "quest-tracker": questTracker, "dps-breakdown": dpsBreakdown, builds, "offline-choice": offlineChoice,
+export const DOM_SCENES: Record<string, () => Promise<void>> = { "world-map-town": worldMapTown, icons, hud, "hud-arrow": hudArrow, "hud-power-jump": hudPowerJump, "prestige-runs": prestigeRuns, "guild-hall": guildHallWindow, "settings-search": settingsSearch, wordmark, shops, "gem-shop": gemShop, "server-boost": serverBoost, "exchange-window": exchangeWindow, grades, "quest-tracker": questTracker, "dps-breakdown": dpsBreakdown, builds, "offline-choice": offlineChoice,
   "chat-announcement": chatAnnouncement, "item-window": () => itemWindow(false), "card-window": cardWindow, "item-window-worn": () => itemWindow(true),
   "profile-own": () => profileWindow(true), "profile-other": () => profileWindow(false) };

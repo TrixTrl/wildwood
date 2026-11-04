@@ -1,4 +1,19 @@
 export const RELEASE_NOTES: Record<string, string[]> = {
+  "0.918": [
+    "Attack speed and crit damage now come from your weapon: every weapon rolls both, and Reforge raises them",
+    "Kills no longer give attack speed or crit; attack speed and crit earned from kills are reset (Reflect Only wins and the soul stay)",
+    "Needle and Striker camps are gone; their cards now drop from Endless enemies",
+    "Each gear grade is now 1.3x the grade below",
+    "Stronger maps drop more gold",
+    "Balancing: enemies from the Desert on are tougher, and the Snowlands and Lava Lake bosses hit harder",
+    "Daggers: a new weapon that strikes fast up close, with Backstab, Poison and Dodge",
+    "Fishing: tap a fishing spot in the Town's river to fish it; 16 fish to collect, Fishing levels 1 to 99",
+    "The Trade Chrysanthemum is rebuilt as a grand market: a hall, a fountain plaza, and streets for timber, fish, ores and gear",
+    "The village's ground is drawn at twice the detail",
+  ],
+  "0.917.49": [
+    "Upgrades show their power jump: the number counts up and the gain pops above it",
+  ],
   "0.917.48": [
     "Archery Mastery 50 gives +10 more attack range",
   ],
@@ -4108,6 +4123,8 @@ const RELEASE_DATES: Record<string, string> = {
 };
 
 export const RELEASE_DAYS: Record<string, string> = {
+  "0.918": "2026-11-03",
+  "0.917.49": "2026-11-02",
   "0.917.48": "2026-11-02",
   "0.917.47": "2026-11-02",
   "0.917.46": "2026-11-02",

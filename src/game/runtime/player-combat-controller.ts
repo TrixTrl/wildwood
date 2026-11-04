@@ -1,5 +1,5 @@
 import { SOUL_STAT_DETAILS, soulEnemyId, type SoulStatId } from "../../../shared/soul-dimension";
-import { addAttackSpeedRating, attackCapInterval, cleanRating, type AttackCapArg } from "../../../shared/stat-rating";
+import { addAttackSpeedRating, attackCapInterval, attackIntervalWithGear, cleanRating, type AttackCapArg } from "../../../shared/stat-rating";
 import { compareAutoFarmTargets, farmGroupMatches, type AutoFarmGroup, type AutoFarmPriority } from './auto-farm/auto-farm-priority';
 import { isMeleeWeapon, weaponAttackRange, segmentCircleHit, segmentEllipseHit } from "../weapon-combat";
 import { isProceduralMap } from "../../../shared/procedural-maps";
@@ -25,6 +25,8 @@ import { swordSkillBossDamageMultiplier } from "../../../shared/sword-skills";
 import type { WeaponSkillRoll } from "../../../shared/weapon-skills";
 import { createSwordSkillRuntime, type SwordSkillEffects } from "./sword-skill-runtime";
 import { createStaffSkillRuntime, type StaffSkillEffects } from "./staff-skill-runtime";
+import { createDaggerSkillRuntime } from "./dagger-skill-runtime";
+import { daggerSkillDamageMultiplier, isDagger } from "../../../shared/dagger-skills";
 import {
   STAFF_BOLT_DAMAGE_FACTOR, STAFF_BOLT_SPEED_FACTOR, STAFF_SPLASH_RADIUS, isStaff, rollBoltSkillProcs, staffSkillBossDamageMultiplier,
   weaponAttackInterval, weaponHitFactor,
@@ -151,6 +153,8 @@ export function createPlayerCombatController(options: {
   /** The cards in the worn weapon, helmet and armor (card-effects.ts); none without. */
   cards?: () => CardTotals | null | undefined;
   equippedWeapon: () => string;
+  /** The weapon's attack speed rating (items.ts weaponRatings); none without. */
+  weaponRating?: () => number;
   /** The worn weapon's slot tier and refine (coop itemLevel). */
   equippedWeaponUpgradeLevel?: () => ItemLevel;
   equippedHead: () => string;
@@ -218,6 +222,8 @@ export function createPlayerCombatController(options: {
   } = options;
   const { projectiles, enemyShots } = projectileStore;
   const attackCap = () => typeof minAttackInterval === "function" ? minAttackInterval() : minAttackInterval;
+  // The run's interval with the weapon's attack speed rating (stat-rating.ts attackIntervalWithGear).
+  const gearedInterval = () => attackIntervalWithGear(player.attackRate, options.weaponRating?.() ?? 0, attackCap());
   const random = options.random ?? Math.random;
   const wornCards = () => options.cards?.() ?? NO_CARDS;
   // Card chances add to the perks of the same name (card-effects.ts).
@@ -261,6 +267,11 @@ export function createPlayerCombatController(options: {
     strike: (target, damage, source, reflected) => applyPlayerHit(target, damage, false, 0, source, reflected === true, true),
     streak: (fromX, fromY, toX, toY, color) => options.skillEffects
       ? options.skillEffects.spawnSkillStreak(fromX, fromY, toX, toY, color, 3, .28, true) : streak(fromX, fromY, toX, toY, color),
+  });
+  // A dagger's poison is a damage over time, as a Poison card's is, and does not stack with one.
+  const daggerSkills = createDaggerSkillRuntime({
+    player, equippedWeapon: options.equippedWeapon, roll: weaponSkills, random, isDueling, spawnBurst,
+    poison: (target, damage, seconds) => cardCombat.damageOverTime(target, "poison", damage, seconds),
   });
   // Reflect draws from a marble bag, so its rate corrects itself instead of
   // running dry for a hundred hits at 6%. Only hits it could answer draw.
@@ -370,18 +381,22 @@ export function createPlayerCombatController(options: {
 
   function strikeMelee(target: AttackTarget) {
     // Every swing swishes, a miss included, as every arrow twangs.
-    options.playSwordAttackSound?.(player.attackRate);
+    options.playSwordAttackSound?.(gearedInterval());
     rebuildTargetGrid();
     const angle = Math.atan2(targetAimY(target) - player.y, target.x - player.x);
     const hit = raycastProjectile(player.x, player.y, player.x + Math.cos(angle) * attackRange(), player.y + Math.sin(angle) * attackRange(), 0);
     if (!hit) { techniques.swingMissed(); return; }
-    const critical = (!hit.enemy.isBoss || Boolean(options.hitPersonalBoss)) && Math.random() < researchCriticalChance();
+    // A dagger strikes as a sword does; a Backstab crits more often and harder.
+    const dagger = isDagger(options.equippedWeapon()), backstab = daggerSkills.backstab(hit.enemy);
+    const critical = (!hit.enemy.isBoss || Boolean(options.hitPersonalBoss)) && Math.random() < researchCriticalChance() + backstab.critChance;
     // Double Strike lands the same blow twice rather than hitting harder, so a
     // second kill can come out of one swing.
-    const damage = weaponDamage(critical);
+    const damage = weaponDamage(critical) * (critical ? 1 + backstab.critDamage : 1);
     const strikes = Math.random() < doubleStrikeChance() ? 2 : 1;
-    for (let strike = 0; strike < strikes; strike++) applyPlayerHit(hit.enemy, damage, critical, angle, 'sword-hit');
+    const source = backstab.critChance > 0 ? 'dagger-backstab' : dagger ? 'dagger-hit' : 'sword-hit';
+    for (let strike = 0; strike < strikes; strike++) applyPlayerHit(hit.enemy, damage, critical, angle, source);
     swordSkills.swing(hit.enemy, damage, critical, angle);
+    daggerSkills.poison(hit.enemy, damage);
     // Cleave, Bloodlust and Momentum (mastery-techniques.ts).
     for (const cleaved of techniques.cleaveTargets(hit.enemy, attackRange())) {
       applyPlayerHit(cleaved, damage * techniques.cleaveShare, critical, Math.atan2(cleaved.y - player.y, cleaved.x - player.x), 'sword-cleave');
@@ -449,7 +464,7 @@ export function createPlayerCombatController(options: {
     if (projectileKind === "ARROW" || projectileKind === "ROCK") options.playBowAttackSound?.();
     if (staff) {
       // The cast whooshes; Meteor rolls once a cast, on what was aimed at. The staff's own glow marks the release.
-      options.playSwordAttackSound?.(weaponAttackInterval(weaponItem, player.attackRate));
+      options.playSwordAttackSound?.(weaponAttackInterval(weaponItem, gearedInterval()));
       if (!target.isBoss || options.hitPersonalBoss) staffSkills.cast({ x: target.x, y: targetAimY(target) }, weaponDamage(false) * STAFF_BOLT_DAMAGE_FACTOR, false);
       return;
     }
@@ -575,7 +590,7 @@ export function createPlayerCombatController(options: {
       player.attackClock = Math.max(0, nextAttackAtSeconds - nowSeconds);
       return;
     }
-    const attackInterval = weaponAttackInterval(options.equippedWeapon(), player.attackRate);
+    const attackInterval = weaponAttackInterval(options.equippedWeapon(), gearedInterval());
     if (nowSeconds < nextAttackAtSeconds) return;
     // Momentum swings faster after hits in a row.
     fireAt(target, attackInterval / techniques.attackSpeed(), nowSeconds);
@@ -697,7 +712,8 @@ export function createPlayerCombatController(options: {
 
   function damagePlayer(amount: number, source?: EnemyState | BossTarget | null) {
     if (isDueling() || player.hurtClock > 0) return false;
-    // Cards: a dodge spends the attack and lands nothing; guards lower the hit, and a shield takes what armor lets through.
+    // A dagger's Dodge and the cards' spend the attack and land nothing; guards lower the hit, and a shield takes what armor lets through.
+    if (daggerSkills.dodge()) return true;
     const guarded = cardCombat.incoming(amount, source);
     if (guarded === null) return true;
     // Swordplay's Guard and Mana Shield lower it as the cards do; Reflect still answers the hit as it arrived.
@@ -953,14 +969,14 @@ export function createPlayerCombatController(options: {
     const projectiles = isMeleeWeapon(weapon) ? 1 : Math.max(1, player.projectileCount ?? 1);
     // A staff's slower, heavier casts and a bow's quicker shots, against one target (a staff's bursts reach more, which this leaves out).
     return weaponDamage(false) * weaponHitFactor(weapon) * (1 + chance * (researchCriticalDamageMultiplier() - 1)) * projectiles
-      / Math.max(.05, weaponAttackInterval(weapon, player.attackRate));
+      / Math.max(.05, weaponAttackInterval(weapon, gearedInterval()));
   }
 
   /** expectedDps with Double Strike and Arrow Storm in, against one enemy: what the Soul Defense Force is built against. */
   function expectedFullDps() {
     const double = 1 + Math.max(0, doubleStrikeChance());
     return expectedDps() * (isMeleeWeapon(options.equippedWeapon())
-      ? double + swordSkillBossDamageMultiplier(weaponSkills()) - 1
+      ? double + swordSkillBossDamageMultiplier(weaponSkills()) - 1 + daggerSkillDamageMultiplier(isDagger(options.equippedWeapon()) ? weaponSkills() : null) - 1
       : isStaff(options.equippedWeapon()) ? double * staffSkillBossDamageMultiplier(weaponSkills())
         : double * (1 + bowSkillChance(weaponSkills(), "arrowStorm") * ARROW_STORM_SCORE_WEIGHT));
   }
