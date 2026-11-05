@@ -5,13 +5,17 @@ import { researchStatFactors } from "../../shared/player-power";
 import { playerAttackCap, prestigePerkValue, type PrestigePerkRanks } from "../../shared/prestige-perks";
 import { type MasteryPoints } from "../../shared/weapon-mastery";
 import { type WeaponSkillRoll } from "../../shared/weapon-skills";
+import { createAutoFarmController } from "../game/runtime/auto-farm/auto-farm-controller";
+import { createAutoFarm } from "../game/runtime/auto-farm/auto-farm-wiring";
 import { createPersonalBosses } from "../game/runtime/boss/personal-bosses";
 import { DamageSource } from "../game/runtime/dps-meter";
 import { createEnemyLifecycle } from "../game/runtime/enemies/enemy-lifecycle";
+import { createEnemySimulation } from "../game/runtime/enemies/enemy-simulation";
 import { createRegularEnemyRespawn, REGULAR_ENEMY_RESPAWN_SECONDS } from "../game/runtime/enemies/regular-enemy-respawn";
 import { createGameBootstrap } from "../game/runtime/game-bootstrap";
 import { createPlayerCombatController } from "../game/runtime/player-combat-controller";
 import { createResearchController, type ResearchRanks } from "../game/runtime/research-controller";
+import { weaponAttackRange } from "../game/weapon-combat";
 import { MapId, TUTORIAL_FOREST_MAP_ID } from "../game/world";
 
 type PlayerState = {
@@ -61,7 +65,7 @@ export function simulate(playerState: PlayerState, target: MapId): SimulationSta
   } = bootstrap;
   const timeKeeper = { seconds: 0, miliseconds: 0 };
   const respawnMemory = createRespawnMemory(timeKeeper);
-  let currentMapId = TUTORIAL_FOREST_MAP_ID;
+  let currentMapId: MapId = TUTORIAL_FOREST_MAP_ID;
   const enemyRespawnKey = (site: typeof spawnSites[number]) => `enemy:${currentMapId}:${site.id}:${site.type}:${site.campName}`;
   const enemyLifecycle = createEnemyLifecycle(enemies, spawnSites, (x: number, y: number) => { }, {
     remaining: site => respawnMemory.remaining(enemyRespawnKey(site)),
@@ -74,7 +78,7 @@ export function simulate(playerState: PlayerState, target: MapId): SimulationSta
     player,
     getRanks: () => playerState.research,
     isDueling: () => false,
-    maxPlayerStat: 0,
+    maxPlayerStat: Infinity,
     saveProgress: () => { },
     healthMultiplierBonus,
     prestigeLevel: () => playerState.prestige,
@@ -117,6 +121,8 @@ export function simulate(playerState: PlayerState, target: MapId): SimulationSta
     nowSeconds: () => timeKeeper.seconds,
     engageEnemy,
     researchDamageMultiplier: research.damageMultiplier,
+    researchCriticalChance: research.criticalChance,
+    researchCriticalDamageMultiplier: research.criticalDamageMultiplier,
     researchRewardMultiplier: research.rewardMultiplier,
     prestigeDoubleStrike: () => prestigePerkValue(playerState.prestigePerks, "doubleStrike"),
     prestigeSplitShot: () => prestigePerkValue(playerState.prestigePerks, "splitShot"),
@@ -168,9 +174,50 @@ export function simulate(playerState: PlayerState, target: MapId): SimulationSta
     playSwordAttackSound: undefined,
     logPickup: (text, color, value?) => { },
     saveProgress: () => { },
-    recordDeath: () =>  simulationState.deaths[currentMapId] = (simulationState.deaths[currentMapId] ?? 0) +1 ,
-    endGame: () => {},
+    recordDeath: () => simulationState.deaths[currentMapId] = (simulationState.deaths[currentMapId] ?? 0) + 1,
+    endGame: () => { },
   });
+  const mapPortals = () => {
+    const config = bootstrap.mapConfig[currentMapId];
+    return [config.portal, "secondaryPortal" in config ? config.secondaryPortal : null];
+  };
+  const autoFarm = createAutoFarmController({
+    player,
+    enemies,
+    spawnSites,
+    mapId: () => currentMapId,
+    equippedWeapon: () => playerState.hand.id,
+    localIdentity: () => identity,
+    connection: () => "ready",
+    now: () => timeKeeper.miliseconds,
+    resumeStore: undefined,
+    unavailable: () => null,
+    paused: () => false,
+    speed: playerStats.moveSpeed,
+    obstacles: () => {
+      const obstacles = mapPortals().flatMap(portal => portal
+        ? [{ x: portal.x, y: portal.y - portal.height * .32, r: Math.max(60, portal.width * .6) + player.r + 24 }] : []);
+      const boss = mapBoss();
+      if (boss && !boss.dead) obstacles.push({ x: boss.x, y: boss.y, r: boss.r + player.r + 40 });
+      return obstacles;
+    },
+    priorityStorage: undefined,
+
+  });
+  const enemySimulation = createEnemySimulation(enemies, projectileStore.spawnEnemyShot, player, () => { return ({ width: 0, height: 0, zoom: 1 }); }, engageEnemy, (amount, source) => playerCombat.damagePlayer(amount, source),
+    {
+      currentMapId: () => currentMapId,
+      serverNowMs: () => timeKeeper.miliseconds,
+      localIdentity: () => identity,
+      remotePlayers: () => [],
+      remoteCombatStats: (identity) => { },
+      playerMovementSpeed: playerStats.moveSpeed,
+      playerAttackRange: () => weaponAttackRange(playerState.hand.id, player.attackRange),
+      spawnDamageNumber: undefined,
+      remoteGhostsEnabled: () => false,
+      spawnBurst: (x, y, color, count, speed) => { },
+      pullAggro: enemy => autoFarm
+    },);
 
   return simulationState;
 }
@@ -201,7 +248,11 @@ function createPlayerStatsRuntime(playerState: PlayerState) {
       const researchBonus = researchStatFactors(playerState.research).regen;
       const cardBonus = cardStatFactors(cardTotals([...playerState.cards.armor, ...playerState.cards.helmet, ...playerState.cards.weapon])).regen;
       return gearBonus * researchBonus * cardBonus - 1;
-    }
+    },
+    moveSpeed: () => {
+      return 100;
+      // TODO : this needs to actually be implemented still, let's try to not forget
+    },
   }
 }
 
