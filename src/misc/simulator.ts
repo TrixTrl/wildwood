@@ -1,8 +1,9 @@
 import { cardStatFactors, cardTotals } from "../../shared/card-effects";
-import { CardEffectId } from "../../shared/cards";
-import { itemDefinition, ItemId, itemMaxHealthMultiplierBonus, itemRegenerationMultiplierBonus } from "../../shared/items";
+import { ItemId, ItemLevel, itemMaxHealthMultiplierBonus, itemRegenerationMultiplierBonus } from "../../shared/items";
 import { researchStatFactors } from "../../shared/player-power";
-import { type PrestigePerkRanks } from "../../shared/prestige-perks";
+import { prestigePerkValue, type PrestigePerkRanks } from "../../shared/prestige-perks";
+import { type MasteryPoints } from "../../shared/weapon-mastery";
+import { type WeaponSkillRoll } from "../../shared/weapon-skills";
 import { createEnemyLifecycle } from "../game/runtime/enemies/enemy-lifecycle";
 import { createGameBootstrap } from "../game/runtime/game-bootstrap";
 import { createPlayerCombatController } from "../game/runtime/player-combat-controller";
@@ -10,10 +11,10 @@ import { createResearchController, type ResearchRanks } from "../game/runtime/re
 import { TUTORIAL_FOREST_MAP_ID } from "../game/world";
 
 type PlayerState = {
-  head: { id: ItemId, refineLevel: number };
-  chest: { id: ItemId, refineLevel: number };
-  hand: { id: ItemId, refineLevel: number };
-  feet: { id: ItemId, refineLevel: number };
+  head: { id: ItemId, level: ItemLevel };
+  chest: { id: ItemId, level: ItemLevel };
+  hand: { id: ItemId, level: ItemLevel, skills: WeaponSkillRoll };
+  feet: { id: ItemId, level: ItemLevel };
   research: ResearchRanks;
   slotUpgrades: { head: number, chest: number, hand: number };
   cards: { weapon: string[], helmet: string[], armor: string[] };
@@ -22,6 +23,7 @@ type PlayerState = {
   aggroCompletions: number;
   prestige: number;
   guildBonus: number;
+  mastery: MasteryPoints;
 };
 
 export function simulate(playerState: PlayerState) {
@@ -54,14 +56,13 @@ export function simulate(playerState: PlayerState) {
     equippedFeet: () => playerState.feet.id,
     equippedWeapon: () => playerState.hand.id,
     itemLevel: (itemId: string) => {
-      if (playerState.head.id === itemId) return playerState.head.refineLevel;
-      if (playerState.chest.id === itemId) return playerState.chest.refineLevel;
-      if (playerState.feet.id === itemId) return playerState.feet.refineLevel;
-      //if (playerState.hand.id === itemId) return {tier:itemDefinition(playerState.hand.id)?.};
-
+      if (playerState.head.id === itemId) return playerState.head.level;
+      if (playerState.chest.id === itemId) return playerState.chest.level;
+      if (playerState.feet.id === itemId) return playerState.feet.level;
+      if (playerState.hand.id === itemId) return playerState.hand.level;
     },
   });
-  /*const playerCombat = createPlayerCombatController({
+  const playerCombat = createPlayerCombatController({
     player,
     enemies,
     spawnSites,
@@ -69,8 +70,29 @@ export function simulate(playerState: PlayerState) {
     bosses,
     nowSeconds: () => timeKeeper.seconds,
     engageEnemy,
-
-  });*/
+    researchDamageMultiplier: research.damageMultiplier,
+    researchRewardMultiplier: research.rewardMultiplier,
+    prestigeDoubleStrike: () => prestigePerkValue(playerState.prestigePerks, "doubleStrike"),
+    prestigeSplitShot: () => prestigePerkValue(playerState.prestigePerks, "splitShot"),
+    prestigeReflect: () => prestigePerkValue(playerState.prestigePerks, "riposte"),
+    prestigeBossSlayer: () => prestigePerkValue(playerState.prestigePerks, "bossSlayer"),
+    prestigeSecondWind: () => prestigePerkValue(playerState.prestigePerks, "secondWind"),
+    weaponSkills: () => playerState.hand.skills,
+    weaponMastery: () => playerState.mastery,
+    random: () => Math.random(),
+    cards: () => cardTotals([...playerState.cards.armor, ...playerState.cards.helmet, ...playerState.cards.weapon]),
+    equippedWeapon: () => playerState.hand.id,
+    weaponRating: () => playerState.hand.level && typeof(playerState.hand.level) !== "number" ? playerState.hand.level.attackSpeed ?? 0 : 0,
+    equippedWeaponUpgradeLevel: () => playerState.hand.level,
+    equippedHead: () => playerState.head.id,
+    equippedHeadUpgradeLevel: () => playerState.head.level,
+    equippedChest: () => playerState.chest.id,
+    equippedChestUpgradeLevel: () => playerState.chest.level,
+    equippedFeet: () => playerState.feet.id,
+    equippedFeetUpgradeLevel: () => playerState.feet.level,
+    healthMultiplierBonus,
+    //minAttackInterval: 0,
+  });
 }
 
 function createRespawnMemory(time: { seconds: number, miliseconds: number }) {
