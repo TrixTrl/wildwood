@@ -1,14 +1,18 @@
+import { ArrowId } from "../../shared/arrows";
 import { cardStatFactors, cardTotals } from "../../shared/card-effects";
 import { ItemId, ItemLevel, itemMaxHealthMultiplierBonus, itemRegenerationMultiplierBonus } from "../../shared/items";
 import { researchStatFactors } from "../../shared/player-power";
-import { prestigePerkValue, type PrestigePerkRanks } from "../../shared/prestige-perks";
+import { playerAttackCap, prestigePerkValue, type PrestigePerkRanks } from "../../shared/prestige-perks";
 import { type MasteryPoints } from "../../shared/weapon-mastery";
 import { type WeaponSkillRoll } from "../../shared/weapon-skills";
+import { createPersonalBosses } from "../game/runtime/boss/personal-bosses";
+import { DamageSource } from "../game/runtime/dps-meter";
 import { createEnemyLifecycle } from "../game/runtime/enemies/enemy-lifecycle";
+import { createRegularEnemyRespawn, REGULAR_ENEMY_RESPAWN_SECONDS } from "../game/runtime/enemies/regular-enemy-respawn";
 import { createGameBootstrap } from "../game/runtime/game-bootstrap";
 import { createPlayerCombatController } from "../game/runtime/player-combat-controller";
 import { createResearchController, type ResearchRanks } from "../game/runtime/research-controller";
-import { TUTORIAL_FOREST_MAP_ID } from "../game/world";
+import { MapId, TUTORIAL_FOREST_MAP_ID } from "../game/world";
 
 type PlayerState = {
   head: { id: ItemId, level: ItemLevel };
@@ -24,9 +28,33 @@ type PlayerState = {
   prestige: number;
   guildBonus: number;
   mastery: MasteryPoints;
+  arrow?: ArrowId;
+  autoFarmSettings: {};
 };
 
-export function simulate(playerState: PlayerState) {
+type Time = { seconds: number, miliseconds: number };
+
+type SimulationState = {
+  arrowsShot: number;
+  damageDealt: Record<DamageSource, number>;
+  deaths: Record<MapId, number>;
+  bossKills: Record<MapId, number>;
+  ticks: number;
+  startTime: number;
+  runTime: number;
+};
+
+export function simulate(playerState: PlayerState, target: MapId): SimulationState {
+  let running = true;
+  const simulationState = {
+    arrowsShot: 0,
+    damageDealt: {},
+    bossKills: {},
+    ticks: 0,
+    startTime: performance.now(),
+    runTime: -1,
+  } as SimulationState;
+  const identity = "0000000000";
   const bootstrap = createGameBootstrap();
   const {
     bosses, bossHazards, bootsPickup, enemies, enemyShots, inventory, mapConfig: MAP_CONFIG, player, projectiles, projectileStore, spawnSites,
@@ -62,6 +90,24 @@ export function simulate(playerState: PlayerState) {
       if (playerState.hand.id === itemId) return playerState.hand.level;
     },
   });
+  const regularEnemyRespawn = createRegularEnemyRespawn(
+    () => timeKeeper.miliseconds,
+    1,
+    () => REGULAR_ENEMY_RESPAWN_SECONDS,
+    () => playerState.research.enemyRespawn,
+    () => cardStatFactors(cardTotals([...playerState.cards.armor, ...playerState.cards.helmet, ...playerState.cards.weapon])).respawn,
+  );
+  const personalBosses = createPersonalBosses({
+    mapId: () => currentMapId,
+    identity: () => identity,
+    alive: () => player.hp > 0,
+    now: () => timeKeeper.miliseconds,
+    respawns: respawnMemory,
+    ready: () => true,
+    defeated: (mapId) => {
+      if (mapId === target) running = false;
+    }
+  });
   const playerCombat = createPlayerCombatController({
     player,
     enemies,
@@ -82,7 +128,7 @@ export function simulate(playerState: PlayerState) {
     random: () => Math.random(),
     cards: () => cardTotals([...playerState.cards.armor, ...playerState.cards.helmet, ...playerState.cards.weapon]),
     equippedWeapon: () => playerState.hand.id,
-    weaponRating: () => playerState.hand.level && typeof(playerState.hand.level) !== "number" ? playerState.hand.level.attackSpeed ?? 0 : 0,
+    weaponRating: () => playerState.hand.level && typeof (playerState.hand.level) !== "number" ? playerState.hand.level.attackSpeed ?? 0 : 0,
     equippedWeaponUpgradeLevel: () => playerState.hand.level,
     equippedHead: () => playerState.head.id,
     equippedHeadUpgradeLevel: () => playerState.head.level,
@@ -91,11 +137,45 @@ export function simulate(playerState: PlayerState) {
     equippedFeet: () => playerState.feet.id,
     equippedFeetUpgradeLevel: () => playerState.feet.level,
     healthMultiplierBonus,
-    //minAttackInterval: 0,
+    minAttackInterval: () => calcAttackSpeedCap(playerState),
+    effectiveArmor: research.effectiveArmor,
+    isDueling: () => false,
+    scheduleEnemyRespawn: site => {
+      regularEnemyRespawn.schedule(site);
+      respawnMemory.remember(enemyRespawnKey(site), (site.respawnAt - timeKeeper.seconds) * 1000);
+    },
+    recordRegularEnemyDefeat: (mapId, enemy) => { },
+    incrementKills: () => { },
+    hitPersonalBoss: (damage, x, y, critical, reflected?) => personalBosses.hit(currentMapId, damage),
+    hitGeneratedBoss: (enemy, damage, critical, reflected?) => { if (!enemy.generatedBoss) return false; personalBosses.hit(currentMapId, damage); return true; },
+    reflectOnly: () => false,
+    arrowInPlay: () => playerState.arrow ?? null,
+    onArrowShot: () => simulationState.arrowsShot++,
+    onDamageDealt: (amount, source, target) => simulationState.damageDealt[source] = (simulationState.damageDealt[source] ?? 0) + amount,
+    onCombatTick: () => simulationState.ticks++,
+    spawnBurst: (x, y, color?, count?, speed?) => { },
+    spawnParticle: (x, y, vx, vy, life, maxLife, size, color) => { },
+    spawnDamageNumber: (x, y, amount, critical?, damageTaken?, reflected?) => { },
+    skillEffects: undefined,
+    currentMapId: () => currentMapId,
+    onEnemyDefeated: (enemy) => false,
+    soulStatOf: (enemy) => null,
+    onSoulKill: (stat) => { },
+    soulRewardMultiplier: () => 0,
+    onCombat: () => { },
+    keepTarget: undefined,
+    playBowAttackSound: undefined,
+    playSwordAttackSound: undefined,
+    logPickup: (text, color, value?) => { },
+    saveProgress: () => { },
+    recordDeath: () =>  simulationState.deaths[currentMapId] = (simulationState.deaths[currentMapId] ?? 0) +1 ,
+    endGame: () => {},
   });
+
+  return simulationState;
 }
 
-function createRespawnMemory(time: { seconds: number, miliseconds: number }) {
+function createRespawnMemory(time: Time) {
   const deadlines: Record<string, number> = {};
   return {
     remaining(key: string) { return Math.max(0, (deadlines[key] ?? 0) - time.miliseconds) },
@@ -123,4 +203,11 @@ function createPlayerStatsRuntime(playerState: PlayerState) {
       return gearBonus * researchBonus * cardBonus - 1;
     }
   }
+}
+
+function calcAttackSpeedCap(playerState: PlayerState) {
+  const baseCap = playerAttackCap({ active: false, completed: playerState.reflectCompletions }, playerState.prestigePerks);
+  const cardCap = cardStatFactors(cardTotals([...playerState.cards.armor, ...playerState.cards.helmet, ...playerState.cards.weapon])).attackCapRaise;
+  baseCap.raise += cardCap;
+  return baseCap;
 }
