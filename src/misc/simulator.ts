@@ -1,6 +1,7 @@
 import { ArrowId } from "../../shared/arrows";
 import { CAMPAIGN_MAPS } from "../../shared/campaign-registry";
 import { cardStatFactors, cardTotals, cardValue } from "../../shared/card-effects";
+import { ENEMY_BASE_VALUES } from "../../shared/enemy-base-values";
 import { isWeaponItem, ItemId, ItemLevel, itemMaxHealthMultiplierBonus, itemRegenerationMultiplierBonus } from "../../shared/items";
 import { MapBalanceSnapshot } from "../../shared/map-balance-types";
 import { researchStatFactors } from "../../shared/player-power";
@@ -15,6 +16,7 @@ import { type WeaponSkillRoll } from "../../shared/weapon-skills";
 import { BASE_ATTACK_RANGE, BASE_PROJECTILE_SPEED } from "../game/constants";
 import { createAutoFarmProgress } from "../game/runtime/auto-farm/auto-farm-build";
 import { createAutoFarmController } from "../game/runtime/auto-farm/auto-farm-controller";
+import { evenShares } from "../game/runtime/auto-farm/auto-farm-plan";
 import { createBossController } from "../game/runtime/boss/boss-controller";
 import { BOSSES, bossForMap, bossStateForMap } from "../game/runtime/boss/boss-registry";
 import { createPersonalBosses } from "../game/runtime/boss/personal-bosses";
@@ -40,7 +42,7 @@ type PlayerState = {
   research: ResearchRanks;
   slotUpgrades: { head: number, chest: number, hand: number };
   cards: { weapon: string[], helmet: string[], armor: string[] };
-  prestigePerks: PrestigePerkRanks;
+  prestigePerks: Partial<PrestigePerkRanks>;
   reflectCompletions: number;
   aggroCompletions: number;
   prestige: number;
@@ -63,7 +65,7 @@ type SimulationState = {
   runTime: number;
 };
 
-export function simulate(playerState: PlayerState, target: MapId, balance: Record<MapId, MapBalanceSnapshot>): SimulationState {
+export async function simulate(playerState: PlayerState, target: MapId): Promise<SimulationState> {
   let running = true;
   const simulationState = {
     arrowsShot: 0,
@@ -206,7 +208,7 @@ export function simulate(playerState: PlayerState, target: MapId, balance: Recor
   };
   const autoFarmProgress = createAutoFarmProgress({
     mapId: () => currentMapId,
-    fetchBalance: mapId => balance[mapId as MapId] ?? null,
+    fetchBalance: mapId => undefined,
     base: () => ({ maxHp: player.baseMaxHp, damage: player.damage, attackRate: player.attackRate, armor: player.armor, regen: player.regen }),
     equipment: () => ({
       equippedHead: playerState.head?.id, equippedChest: playerState.chest?.id, equippedFeet: playerState.feet?.id,
@@ -292,7 +294,7 @@ export function simulate(playerState: PlayerState, target: MapId, balance: Recor
     markPortalCutsceneSeen: cutscene => { },
     mapConfig: MAP_CONFIG,
     getCurrentMapId: () => currentMapId,
-    setCurrentMapId: mapId => currentMapId = mapId,
+    setCurrentMapId: mapId => { currentMapId = mapId; autoFarm.start(evenShares(Object.keys(ENEMY_BASE_VALUES))); },
     prepareMapAssets: async mapId => { },
     instantTravelReady: () => true,
     player,
@@ -350,7 +352,7 @@ export function simulate(playerState: PlayerState, target: MapId, balance: Recor
     regenerationPerSecond: playerStats.regenerationPerSecond,
     healthMultiplierBonus: playerStats.healthMultiplierBonus,
     syncMovementState: (x, y, vx, vy, inputSource, force, interestArea) => { },
-    autoAttack: () => playerCombat.attackNearest(autoFarm.attackType(), autoFarm.targetCamp(), autoFarm.attackPriority()),
+    autoAttack: () => playerCombat.attackNearest(autoFarm.attackType(), autoFarm.targetCamp(), "strongest"),
     isAutoAttackEnabled: () => isWeaponItem(playerState.hand?.id),
     activeDuel: () => null,
     isDueling: () => false,
@@ -370,10 +372,24 @@ export function simulate(playerState: PlayerState, target: MapId, balance: Recor
     console.log(timeKeeper, simulationState, player, enemies);
   }
 
-  const dt = 1000/60;
+  let lastSleep = performance.now();
+  const sleepInterval = 100;
+  const dt = 1000 / 60;
+  let lastStatusUpdate = performance.now();
+  const statusInterval = 1000;
+  mapController.loadMap(currentMapId, player.x, player.y);
+  autoFarm.start(evenShares(Object.keys(ENEMY_BASE_VALUES)));
   while (running) {
+    if (performance.now() > lastSleep + sleepInterval) {
+      await new Promise(r => setTimeout(r, 50));
+      lastSleep = performance.now();
+      if (performance.now() > lastStatusUpdate + statusInterval) {
+        dumpSimulationState();
+        console.log(Math.min(...enemies.map(e => Math.hypot(player.x - e.x, player.y - e.y))));
+        lastStatusUpdate = performance.now();
+      }
+    }
     tick(timeKeeper, dt);
-
     playerController.update(dt);
     mapController.updatePortal(dt);
     personalBosses.update(dt);
@@ -382,8 +398,7 @@ export function simulate(playerState: PlayerState, target: MapId, balance: Recor
     bossController.forMap(currentMapId)?.update(dt);
     playerCombat.updateProjectiles(dt);
     updateRespawns(dt);
-
-    dumpSimulationState();
+    //dumpSimulationState();
   }
 
   return simulationState;
@@ -436,16 +451,16 @@ function calcAttackSpeedCap(playerState: PlayerState) {
 }
 
 
-function convertToMapIndex(mapId: MapId) {
+export function convertToMapIndex(mapId: MapId) {
   const index = CAMPAIGN_MAPS.findIndex(m => m.id === mapId);
   return index !== -1 ? index : parseInt(mapId.split('_')[1]) + 14;
 }
 
-function convertFromMapIndex(index: number): MapId | undefined {
+export function convertFromMapIndex(index: number): MapId | undefined {
   return index < 0 ? undefined : index < CAMPAIGN_MAPS.length ? CAMPAIGN_MAPS[index].id as MapId : `${PROCEDURAL_PREFIX}${index - 14}`;
 }
 
 function tick(timeKeeper: Time, dtMs: number) {
-  timeKeeper.seconds += dtMs/1000;
+  timeKeeper.seconds += dtMs / 1000;
   timeKeeper.miliseconds += dtMs;
 }

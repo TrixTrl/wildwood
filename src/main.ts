@@ -97,6 +97,7 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
 import { GUILD_HALL_MAP_PREFIX } from "../shared/guild-hall";
 import { TOWN_MAP_ID } from "../shared/town";
 import { installZoneTimeTracker, recordDeath, updateTimeValues } from "./game/zone-timer";
+import { convertFromMapIndex, simulate } from "./misc/simulator";
 
 (() => {
   "use strict";
@@ -741,13 +742,20 @@ import { installZoneTimeTracker, recordDeath, updateTimeValues } from "./game/zo
   installGraphicsReport({
     canvas: () => canvas, snapshot: performanceMonitor.snapshot, playing: () => session.isRunning(), fullRate: () => session.fullFrameRate(),
   });
-  installStatTracker({ storage: localStorage, read: createStatTrackerSource({ coop: () => coop, player, inventory,
-    hasStarted: session.hasStarted, isLoadedFor: progress.isLoadedFor, inTutorial, researchRanks, kills: () => totalKills,
-    displayedProgress: displayedPlayerPowerProgress, attackCap: coopAccess.attackCap,
-    critParts: () => ({ ...research.criticalDamageParts(), soul: soulDimension.critDamage(),
-      rating: (player.critRating ?? 0) + research.weaponRatings().crit }),
-    criticalChance: research.criticalChance }) });
-  installQuestTracker({ storage: localStorage, enabled: questTracker.enabled, set: questTracker.set, ensure: () => quests.refresh(),
+  installStatTracker({
+    storage: localStorage, read: createStatTrackerSource({
+      coop: () => coop, player, inventory,
+      hasStarted: session.hasStarted, isLoadedFor: progress.isLoadedFor, inTutorial, researchRanks, kills: () => totalKills,
+      displayedProgress: displayedPlayerPowerProgress, attackCap: coopAccess.attackCap,
+      critParts: () => ({
+        ...research.criticalDamageParts(), soul: soulDimension.critDamage(),
+        rating: (player.critRating ?? 0) + research.weaponRatings().crit
+      }),
+      criticalChance: research.criticalChance
+    })
+  });
+  installQuestTracker({
+    storage: localStorage, enabled: questTracker.enabled, set: questTracker.set, ensure: () => quests.refresh(),
     view: () => quests.trackerView(currentMapId),
     hiddenHere: () => !session.hasStarted() || inTutorial() || document.body.matches(".is-cutscene, .is-replaying, .is-dueling")
   });
@@ -929,6 +937,34 @@ import { installZoneTimeTracker, recordDeath, updateTimeValues } from "./game/zo
   updateProtocolGate();
 
   fullscreenMovement.watchWindows(document);
+
+
+  const simTarget = 15;
+  const mapId = convertFromMapIndex(simTarget);
+  const simActive = true;
+  if (coop && mapId && simActive) {
+    setTimeout(() => simulate(
+      {
+        hand: { id: "crude_bow", level: 0, skills: {} },
+        research: research.ranks(),
+        slotUpgrades: { head: 0, chest: 0, hand: 0 },
+        cards: { weapon: [], helmet: [], armor: [] },
+        prestigePerks: coop.prestigePerks(),
+        reflectCompletions: 4,
+        aggroCompletions: 4,
+        prestige: 0,
+        guildBonus: 0,
+        mastery: {},
+        autoFarmSettings: {},
+        soulStats: soulDimension.soulStats(),
+        arrow: "fire_arrow",
+      },
+      mapId,
+    ).then(), 5000);
+  }
+
+
+
   startGameRuntime({
     loadProgress,
     rebuildWorld: playerController.rebuildWorld,
