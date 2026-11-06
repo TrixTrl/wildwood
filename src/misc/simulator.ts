@@ -33,10 +33,10 @@ import { weaponAttackRange } from "../game/weapon-combat";
 import { MapId, TUTORIAL_FOREST_MAP_ID } from "../game/world";
 
 type PlayerState = {
-  head: { id: ItemId, level: ItemLevel };
-  chest: { id: ItemId, level: ItemLevel };
-  hand: { id: ItemId, level: ItemLevel, skills: WeaponSkillRoll };
-  feet: { id: ItemId, level: ItemLevel };
+  head?: { id: ItemId, level: ItemLevel };
+  chest?: { id: ItemId, level: ItemLevel };
+  hand?: { id: ItemId, level: ItemLevel, skills: WeaponSkillRoll };
+  feet?: { id: ItemId, level: ItemLevel };
   research: ResearchRanks;
   slotUpgrades: { head: number, chest: number, hand: number };
   cards: { weapon: string[], helmet: string[], armor: string[] };
@@ -101,13 +101,13 @@ export function simulate(playerState: PlayerState, target: MapId, balance: Recor
     guildQuestBonus: () => playerState.guildBonus,
     prestigePerks: () => playerState.prestigePerks,
     cards: () => cardStatFactors(cardTotals([...playerState.cards.armor, ...playerState.cards.helmet, ...playerState.cards.weapon])),
-    equippedFeet: () => playerState.feet.id,
-    equippedWeapon: () => playerState.hand.id,
+    equippedFeet: () => playerState.feet?.id ?? "",
+    equippedWeapon: () => playerState.hand?.id ?? "",
     itemLevel: (itemId: string) => {
-      if (playerState.head.id === itemId) return playerState.head.level;
-      if (playerState.chest.id === itemId) return playerState.chest.level;
-      if (playerState.feet.id === itemId) return playerState.feet.level;
-      if (playerState.hand.id === itemId) return playerState.hand.level;
+      if (playerState.head?.id === itemId) return playerState.head.level;
+      if (playerState.chest?.id === itemId) return playerState.chest.level;
+      if (playerState.feet?.id === itemId) return playerState.feet.level;
+      if (playerState.hand?.id === itemId) return playerState.hand.level;
     },
   });
   const regularEnemyRespawn = createRegularEnemyRespawn(
@@ -152,19 +152,19 @@ export function simulate(playerState: PlayerState, target: MapId, balance: Recor
     prestigeReflect: () => prestigePerkValue(playerState.prestigePerks, "riposte"),
     prestigeBossSlayer: () => prestigePerkValue(playerState.prestigePerks, "bossSlayer"),
     prestigeSecondWind: () => prestigePerkValue(playerState.prestigePerks, "secondWind"),
-    weaponSkills: () => playerState.hand.skills,
+    weaponSkills: () => playerState.hand?.skills,
     weaponMastery: () => playerState.mastery,
     random: () => Math.random(),
     cards: () => cardTotals([...playerState.cards.armor, ...playerState.cards.helmet, ...playerState.cards.weapon]),
-    equippedWeapon: () => playerState.hand.id,
-    weaponRating: () => playerState.hand.level && typeof (playerState.hand.level) !== "number" ? playerState.hand.level.attackSpeed ?? 0 : 0,
-    equippedWeaponUpgradeLevel: () => playerState.hand.level,
-    equippedHead: () => playerState.head.id,
-    equippedHeadUpgradeLevel: () => playerState.head.level,
-    equippedChest: () => playerState.chest.id,
-    equippedChestUpgradeLevel: () => playerState.chest.level,
-    equippedFeet: () => playerState.feet.id,
-    equippedFeetUpgradeLevel: () => playerState.feet.level,
+    equippedWeapon: () => playerState.hand?.id ?? "",
+    weaponRating: () => playerState.hand?.level && typeof (playerState.hand.level) !== "number" ? playerState.hand.level.attackSpeed ?? 0 : 0,
+    equippedWeaponUpgradeLevel: () => playerState.hand?.level,
+    equippedHead: () => playerState.head?.id ?? "",
+    equippedHeadUpgradeLevel: () => playerState.head?.level,
+    equippedChest: () => playerState.chest?.id ?? "",
+    equippedChestUpgradeLevel: () => playerState.chest?.level,
+    equippedFeet: () => playerState.feet?.id ?? "",
+    equippedFeetUpgradeLevel: () => playerState.feet?.level,
     healthMultiplierBonus,
     minAttackInterval: () => calcAttackSpeedCap(playerState),
     effectiveArmor: research.effectiveArmor,
@@ -209,12 +209,12 @@ export function simulate(playerState: PlayerState, target: MapId, balance: Recor
     fetchBalance: mapId => balance[mapId as MapId] ?? null,
     base: () => ({ maxHp: player.baseMaxHp, damage: player.damage, attackRate: player.attackRate, armor: player.armor, regen: player.regen }),
     equipment: () => ({
-      equippedHead: playerState.head.id, equippedChest: playerState.chest.id, equippedFeet: playerState.feet.id,
-      equippedRightHand: playerState.hand.id, equippedLeftHand: undefined,
+      equippedHead: playerState.head?.id, equippedChest: playerState.chest?.id, equippedFeet: playerState.feet?.id,
+      equippedRightHand: playerState.hand?.id, equippedLeftHand: undefined,
     }),
-    weaponSkills: () => playerState.hand.skills,
+    weaponSkills: () => playerState.hand?.skills,
     research: research.ranks,
-    upgradeLevel: () => playerState.hand.level,
+    upgradeLevel: () => playerState.hand?.level,
     cards: () => cardTotals([...playerState.cards.armor, ...playerState.cards.helmet, ...playerState.cards.weapon]),
     rewardMultiplier: research.rewardMultiplier,
     minAttackInterval: () => calcAttackSpeedCap(playerState),
@@ -230,7 +230,7 @@ export function simulate(playerState: PlayerState, target: MapId, balance: Recor
     enemies,
     spawnSites,
     mapId: () => currentMapId,
-    equippedWeapon: () => playerState.hand.id,
+    equippedWeapon: () => playerState.hand?.id ?? "",
     localIdentity: () => identity,
     connection: () => "ready",
     now: () => timeKeeper.miliseconds,
@@ -259,7 +259,7 @@ export function simulate(playerState: PlayerState, target: MapId, balance: Recor
       remotePlayers: () => [],
       remoteCombatStats: (identity) => { },
       playerMovementSpeed: playerStats.moveSpeed,
-      playerAttackRange: () => weaponAttackRange(playerState.hand.id, player.attackRange),
+      playerAttackRange: () => weaponAttackRange(playerState.hand?.id, player.attackRange),
       spawnDamageNumber: undefined,
       remoteGhostsEnabled: () => false,
       spawnBurst: (x, y, color, count, speed) => { },
@@ -351,7 +351,7 @@ export function simulate(playerState: PlayerState, target: MapId, balance: Recor
     healthMultiplierBonus: playerStats.healthMultiplierBonus,
     syncMovementState: (x, y, vx, vy, inputSource, force, interestArea) => { },
     autoAttack: () => playerCombat.attackNearest(autoFarm.attackType(), autoFarm.targetCamp(), autoFarm.attackPriority()),
-    isAutoAttackEnabled: () => isWeaponItem(playerState.hand.id),
+    isAutoAttackEnabled: () => isWeaponItem(playerState.hand?.id),
     activeDuel: () => null,
     isDueling: () => false,
     localIdentity: () => identity,
@@ -365,6 +365,26 @@ export function simulate(playerState: PlayerState, target: MapId, balance: Recor
     showDuelResult: replay => { },
     showDuelResultUnavailable: () => { },
   });
+
+  function dumpSimulationState() {
+    console.log(timeKeeper, simulationState, player, enemies);
+  }
+
+  const dt = 1000/60;
+  while (running) {
+    tick(timeKeeper, dt);
+
+    playerController.update(dt);
+    mapController.updatePortal(dt);
+    personalBosses.update(dt);
+    proceduralBoss.update(dt);
+    enemySimulation.update(dt);
+    bossController.forMap(currentMapId)?.update(dt);
+    playerCombat.updateProjectiles(dt);
+    updateRespawns(dt);
+
+    dumpSimulationState();
+  }
 
   return simulationState;
 }
@@ -386,8 +406,8 @@ function createPlayerStatsRuntime(playerState: PlayerState, tailwind: () => numb
   function moveSpeed() {
     const research = PLAYER_SPEED * movementSpeedMultiplier(playerState.research.moveSpeed) + utilityMovementSpeedBonus(playerState.research.utilityMoveSpeed);
     const bonus = 1 + prestigePerkValue(playerState.prestigePerks, "fleetFoot") + Math.max(0, cardValue(cardTotals([...playerState.cards.armor, ...playerState.cards.helmet, ...playerState.cards.weapon]), "fleetFoot")) / 100
-    const flat = blackBootsSpeed(playerState.feet.id);
-    const gear = gearMoveSpeedFactor(playerState.head.id, playerState.chest.id, playerState.feet.id, playerState.feet.level);
+    const flat = blackBootsSpeed(playerState.feet?.id ?? "");
+    const gear = gearMoveSpeedFactor(playerState.head?.id ?? "", playerState.chest?.id ?? "", playerState.feet?.id ?? "", playerState.feet?.level);
     return (research * bonus + flat) * gear * (1 + (tailwind() ?? 0));
   }
   return {
@@ -423,4 +443,9 @@ function convertToMapIndex(mapId: MapId) {
 
 function convertFromMapIndex(index: number): MapId | undefined {
   return index < 0 ? undefined : index < CAMPAIGN_MAPS.length ? CAMPAIGN_MAPS[index].id as MapId : `${PROCEDURAL_PREFIX}${index - 14}`;
+}
+
+function tick(timeKeeper: Time, dtMs: number) {
+  timeKeeper.seconds += dtMs/1000;
+  timeKeeper.miliseconds += dtMs;
 }
