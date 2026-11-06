@@ -377,6 +377,7 @@ export async function simulate(playerState: PlayerState, target: MapId): Promise
     const simulationTime = performance.now() - simulationState.startTime;
     const simulationRate = timeKeeper.miliseconds / simulationTime;
     console.log(simulationRate);
+    console.log(personalBosses.state(currentMapId));
   }
 
   let lastSleep = performance.now();
@@ -397,13 +398,13 @@ export async function simulate(playerState: PlayerState, target: MapId): Promise
       }
     }
     tick(timeKeeper, dt);
-    playerController.update(dt);
-    mapController.updatePortal(dt);
-    personalBosses.update(dt);
-    proceduralBoss.update(dt);
-    enemySimulation.update(dt);
-    bossController.forMap(currentMapId)?.update(dt);
-    playerCombat.updateProjectiles(dt);
+    playerController.update(dt / 1000);
+    mapController.updatePortal(dt / 1000);
+    personalBosses.update(dt / 1000);
+    proceduralBoss.update(dt / 1000);
+    enemySimulation.update(dt / 1000);
+    bossController.forMap(currentMapId)?.update(dt / 1000);
+    playerCombat.updateProjectiles(dt / 1000);
     updateRespawns(timeKeeper.miliseconds);
   }
 
@@ -433,13 +434,13 @@ function createPlayerStatsRuntime(playerState: PlayerState, tailwind: () => numb
   }
   return {
     healthMultiplierBonus: () => {
-      const gearBonus = itemMaxHealthMultiplierBonus(playerState.chest, playerState.slotUpgrades.chest);
+      const gearBonus = itemMaxHealthMultiplierBonus(playerState.chest?.id, playerState.slotUpgrades.chest);
       const researchBonus = researchStatFactors(playerState.research).maxHp;
       const cardBonus = cardStatFactors(cardTotals([...playerState.cards.armor, ...playerState.cards.helmet, ...playerState.cards.weapon])).maxHp;
       return gearBonus * researchBonus * cardBonus - 1;
     },
     regenerationPerSecond: () => {
-      const gearBonus = itemRegenerationMultiplierBonus(playerState.head, playerState.slotUpgrades.head);
+      const gearBonus = itemRegenerationMultiplierBonus(playerState.head?.id, playerState.slotUpgrades.head);
       const researchBonus = researchStatFactors(playerState.research).regen;
       const cardBonus = cardStatFactors(cardTotals([...playerState.cards.armor, ...playerState.cards.helmet, ...playerState.cards.weapon])).regen;
       return gearBonus * researchBonus * cardBonus - 1;
