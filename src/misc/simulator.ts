@@ -374,11 +374,14 @@ export async function simulate(playerState: PlayerState, target: MapId): Promise
   function dumpSimulationState() {
     console.log(timeKeeper, simulationState, player, enemies);
     console.log(enemies[0]);
+    const simulationTime = performance.now() - simulationState.startTime;
+    const simulationRate = timeKeeper.miliseconds / simulationTime;
+    console.log(simulationRate);
   }
 
   let lastSleep = performance.now();
   const sleepInterval = 100;
-  const dt = 1000 / 100;
+  const dt = 1000 / 60;
   let lastStatusUpdate = performance.now();
   const statusInterval = 1000;
   mapController.loadMap(currentMapId, player.x, player.y);
