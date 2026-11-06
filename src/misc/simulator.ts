@@ -16,7 +16,8 @@ import { type WeaponSkillRoll } from "../../shared/weapon-skills";
 import { BASE_ATTACK_RANGE, BASE_PROJECTILE_SPEED } from "../game/constants";
 import { createAutoFarmProgress } from "../game/runtime/auto-farm/auto-farm-build";
 import { createAutoFarmController } from "../game/runtime/auto-farm/auto-farm-controller";
-import { evenShares } from "../game/runtime/auto-farm/auto-farm-plan";
+import { AUTO_FARM_ADVANCE_KEY, AUTO_FARM_BOSS_PULL_KEY, AUTO_FARM_KITE_KEY, AUTO_FARM_MOVE_POWER_KEY, AUTO_FARM_PORTAL_PULL_KEY, AUTO_FARM_SMART_AUTOFARM_KEY, AUTO_FARM_SMART_BOSS_KEY, evenShares } from "../game/runtime/auto-farm/auto-farm-plan";
+import { AUTO_FARM_PULL_GROUPS_KEY, AUTO_FARM_PULL_KEY } from "../game/runtime/auto-farm/auto-farm-priority";
 import { createBossController } from "../game/runtime/boss/boss-controller";
 import { BOSSES, bossForMap, bossStateForMap } from "../game/runtime/boss/boss-registry";
 import { createPersonalBosses } from "../game/runtime/boss/personal-bosses";
@@ -49,7 +50,7 @@ type PlayerState = {
   guildBonus: number;
   mastery: MasteryPoints;
   arrow?: ArrowId;
-  autoFarmSettings: {};
+  autoFarmSettings: Partial<Record<typeof AUTO_FARM_PULL_KEY | typeof AUTO_FARM_ADVANCE_KEY | typeof AUTO_FARM_PULL_GROUPS_KEY | typeof AUTO_FARM_KITE_KEY | typeof AUTO_FARM_BOSS_PULL_KEY | typeof AUTO_FARM_PORTAL_PULL_KEY | typeof AUTO_FARM_SMART_AUTOFARM_KEY | typeof AUTO_FARM_SMART_BOSS_KEY | typeof AUTO_FARM_MOVE_POWER_KEY, string>>;
   soulStats: SoulStats
 };
 
@@ -70,6 +71,7 @@ export async function simulate(playerState: PlayerState, target: MapId): Promise
   const simulationState = {
     arrowsShot: 0,
     damageDealt: {},
+    deaths: {},
     bossKills: {},
     ticks: 0,
     startTime: performance.now(),
@@ -159,7 +161,7 @@ export async function simulate(playerState: PlayerState, target: MapId): Promise
     random: () => Math.random(),
     cards: () => cardTotals([...playerState.cards.armor, ...playerState.cards.helmet, ...playerState.cards.weapon]),
     equippedWeapon: () => playerState.hand?.id ?? "",
-    weaponRating: () => playerState.hand?.level && typeof (playerState.hand.level) !== "number" ? playerState.hand.level.attackSpeed ?? 0 : 0,
+    weaponRating: playerState.hand?.level && typeof (playerState.hand.level) !== "number" ? () => playerState.hand?.level && typeof (playerState.hand.level) !== "number" ? playerState.hand.level.attackSpeed ?? 0 : 0 : undefined,
     equippedWeaponUpgradeLevel: () => playerState.hand?.level,
     equippedHead: () => playerState.head?.id ?? "",
     equippedHeadUpgradeLevel: () => playerState.head?.level,
@@ -227,6 +229,7 @@ export async function simulate(playerState: PlayerState, target: MapId): Promise
     portalUnlocked: (portal) => simulationState.bossKills[convertFromMapIndex(convertToMapIndex(portal.destination as MapId) - 1) ?? TUTORIAL_FOREST_MAP_ID] !== undefined,
     portals: mapPortals,
   });
+  const autoFarmStorage = createAutoFarmStorage(playerState);
   const autoFarm = createAutoFarmController({
     player,
     enemies,
@@ -247,7 +250,7 @@ export async function simulate(playerState: PlayerState, target: MapId): Promise
       if (boss && !boss.dead) obstacles.push({ x: boss.x, y: boss.y, r: boss.r + player.r + 40 });
       return obstacles;
     },
-    priorityStorage: undefined,
+    priorityStorage: () => autoFarmStorage,
     ...autoFarmProgress,
     bossDefinition: () => proceduralBoss.boss() ? proceduralBoss.boss() : bossForMap(currentMapId),
     playerCombat: () => playerCombat,
@@ -370,11 +373,12 @@ export async function simulate(playerState: PlayerState, target: MapId): Promise
 
   function dumpSimulationState() {
     console.log(timeKeeper, simulationState, player, enemies);
+    console.log(enemies[0]);
   }
 
   let lastSleep = performance.now();
   const sleepInterval = 100;
-  const dt = 1000 / 60;
+  const dt = 1000 / 100;
   let lastStatusUpdate = performance.now();
   const statusInterval = 1000;
   mapController.loadMap(currentMapId, player.x, player.y);
@@ -397,8 +401,7 @@ export async function simulate(playerState: PlayerState, target: MapId): Promise
     enemySimulation.update(dt);
     bossController.forMap(currentMapId)?.update(dt);
     playerCombat.updateProjectiles(dt);
-    updateRespawns(dt);
-    //dumpSimulationState();
+    updateRespawns(timeKeeper.miliseconds);
   }
 
   return simulationState;
@@ -450,6 +453,14 @@ function calcAttackSpeedCap(playerState: PlayerState) {
   return baseCap;
 }
 
+function createAutoFarmStorage(playerState: PlayerState) {
+  const storage = new Map<string, string>();
+  Object.entries(playerState.autoFarmSettings).forEach(([key, value]) => storage.set(key, value));
+  return {
+    getItem: (key: string) => storage.get(key) ?? null,
+    setItem: (key: string, value: string) => storage.set(key, value),
+  }
+}
 
 export function convertToMapIndex(mapId: MapId) {
   const index = CAMPAIGN_MAPS.findIndex(m => m.id === mapId);

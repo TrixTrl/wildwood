@@ -955,7 +955,11 @@ import { convertFromMapIndex, simulate } from "./misc/simulator";
         prestige: 0,
         guildBonus: 0,
         mastery: {},
-        autoFarmSettings: {},
+        autoFarmSettings: {
+          "wildstat:autofarm-pull-groups:v1": '["stat:health","stat:regen","stat:damage","stat:armor"]',
+          "wildstat:autofarm-smart-autofarm:v1": '1',
+          "wildstat:autofarm-advance:v1": '1',
+        },
         soulStats: soulDimension.soulStats(),
         arrow: "fire_arrow",
       },
