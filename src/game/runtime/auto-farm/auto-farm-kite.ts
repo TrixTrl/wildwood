@@ -54,8 +54,8 @@ export function smartMove(player: PlayerState & { realRegen: number }, enemies: 
     dpsFollowing += enemyDps(enemy) * (1 - armorDamageReduction(player.armor));
   }
 
-  const dpsText = document.getElementById('dpsChasingCounter-dps');
-  if (dpsText && dpsText.textContent) dpsText.textContent = `${formatCompactNumber(dpsFollowing)}DPS`;
+  /*const dpsText = document.getElementById('dpsChasingCounter-dps');
+  if (dpsText && dpsText.textContent) dpsText.textContent = `${formatCompactNumber(dpsFollowing)}DPS`;*/
 
   const closeEnemies = followingEnemies.filter(e => Math.hypot(player.x - e.x, player.y - e.y) < CLOSE_DPS_DISTANCE);
 

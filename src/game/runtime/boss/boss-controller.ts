@@ -312,7 +312,7 @@ export function createBossController(options: {
   damageEnemies?: (attack: object, amount: number, inside: (x: number, y: number, r: number) => boolean) => void;
   /** Pushes map enemies out of a boss's body. */
   collideEnemies?: (boss: { x: number; y: number; r: number; ry?: number; hitboxOffsetY?: number }) => void;
-  timeMap: () => Map<MapId, { startTime: number, endTime?: number }>;
+  timeMap?: () => Map<MapId, { startTime: number, endTime?: number }>;
   identity?: () => string | undefined;
   prestige?: () => number | undefined;
 }): BossController {
@@ -558,7 +558,7 @@ export function createBossController(options: {
     if (!shared.alive) {
       const identity = options.identity?.();
       const prestige = options.prestige?.();
-      if (identity !== undefined && prestige !== undefined) {
+      if (identity !== undefined && prestige !== undefined && options.timeMap) {
         saveZoneTime(options.currentMapId(), identity, prestige);
         const timeMap = options.timeMap().get(options.currentMapId() as MapId);
         if (timeMap && timeMap?.endTime === undefined) {
@@ -641,7 +641,7 @@ export function createBossController(options: {
       boss.dead = true;
       const identity = options.identity?.();
       const prestige = options.prestige?.();
-      if (identity !== undefined && prestige !== undefined) {
+      if (identity !== undefined && prestige !== undefined && options.timeMap) {
         saveZoneTime(options.currentMapId(), identity, prestige);
         const timeMap = options.timeMap().get(options.currentMapId() as MapId);
         if (timeMap && timeMap?.endTime === undefined) {

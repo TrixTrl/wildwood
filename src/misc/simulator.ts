@@ -1,19 +1,33 @@
 import { ArrowId } from "../../shared/arrows";
-import { cardStatFactors, cardTotals } from "../../shared/card-effects";
-import { ItemId, ItemLevel, itemMaxHealthMultiplierBonus, itemRegenerationMultiplierBonus } from "../../shared/items";
+import { CAMPAIGN_MAPS } from "../../shared/campaign-registry";
+import { cardStatFactors, cardTotals, cardValue } from "../../shared/card-effects";
+import { isWeaponItem, ItemId, ItemLevel, itemMaxHealthMultiplierBonus, itemRegenerationMultiplierBonus } from "../../shared/items";
+import { MapBalanceSnapshot } from "../../shared/map-balance-types";
 import { researchStatFactors } from "../../shared/player-power";
+import { blackBootsSpeed, gearMoveSpeedFactor } from "../../shared/player-stats";
 import { playerAttackCap, prestigePerkValue, type PrestigePerkRanks } from "../../shared/prestige-perks";
+import { PROCEDURAL_PREFIX } from "../../shared/procedural-map-core";
+import { utilityMovementSpeedBonus } from "../../shared/research";
+import { DEFAULT_ATTACK_INTERVAL, movementSpeedMultiplier, PLAYER_BASE_DAMAGE, PLAYER_BASE_HP, PLAYER_BASE_REGEN, PLAYER_SPEED } from "../../shared/rules";
+import { SoulStats } from "../../shared/soul-dimension";
 import { type MasteryPoints } from "../../shared/weapon-mastery";
 import { type WeaponSkillRoll } from "../../shared/weapon-skills";
+import { BASE_ATTACK_RANGE, BASE_PROJECTILE_SPEED } from "../game/constants";
+import { createAutoFarmProgress } from "../game/runtime/auto-farm/auto-farm-build";
 import { createAutoFarmController } from "../game/runtime/auto-farm/auto-farm-controller";
-import { createAutoFarm } from "../game/runtime/auto-farm/auto-farm-wiring";
+import { createBossController } from "../game/runtime/boss/boss-controller";
+import { BOSSES, bossForMap, bossStateForMap } from "../game/runtime/boss/boss-registry";
 import { createPersonalBosses } from "../game/runtime/boss/personal-bosses";
+import { createProceduralBossController } from "../game/runtime/boss/procedural-boss-controller";
 import { DamageSource } from "../game/runtime/dps-meter";
 import { createEnemyLifecycle } from "../game/runtime/enemies/enemy-lifecycle";
 import { createEnemySimulation } from "../game/runtime/enemies/enemy-simulation";
 import { createRegularEnemyRespawn, REGULAR_ENEMY_RESPAWN_SECONDS } from "../game/runtime/enemies/regular-enemy-respawn";
 import { createGameBootstrap } from "../game/runtime/game-bootstrap";
-import { createPlayerCombatController } from "../game/runtime/player-combat-controller";
+import { createMapController } from "../game/runtime/map-controller";
+import { createPlayerCombatController, PlayerCombatController } from "../game/runtime/player-combat-controller";
+import { createPlayerController } from "../game/runtime/player-controller";
+import { createCamera } from "../game/runtime/render/camera";
 import { createResearchController, type ResearchRanks } from "../game/runtime/research-controller";
 import { weaponAttackRange } from "../game/weapon-combat";
 import { MapId, TUTORIAL_FOREST_MAP_ID } from "../game/world";
@@ -34,6 +48,7 @@ type PlayerState = {
   mastery: MasteryPoints;
   arrow?: ArrowId;
   autoFarmSettings: {};
+  soulStats: SoulStats
 };
 
 type Time = { seconds: number, miliseconds: number };
@@ -48,7 +63,7 @@ type SimulationState = {
   runTime: number;
 };
 
-export function simulate(playerState: PlayerState, target: MapId): SimulationState {
+export function simulate(playerState: PlayerState, target: MapId, balance: Record<MapId, MapBalanceSnapshot>): SimulationState {
   let running = true;
   const simulationState = {
     arrowsShot: 0,
@@ -58,7 +73,7 @@ export function simulate(playerState: PlayerState, target: MapId): SimulationSta
     startTime: performance.now(),
     runTime: -1,
   } as SimulationState;
-  const identity = "0000000000";
+  const identity = "simulated-player";
   const bootstrap = createGameBootstrap();
   const {
     bosses, bossHazards, bootsPickup, enemies, enemyShots, inventory, mapConfig: MAP_CONFIG, player, projectiles, projectileStore, spawnSites,
@@ -72,7 +87,8 @@ export function simulate(playerState: PlayerState, target: MapId): SimulationSta
     gameTime: () => timeKeeper.miliseconds,
   });
   const { spawnFromSite, engageEnemy, updateRespawns } = enemyLifecycle;
-  const playerStats = createPlayerStatsRuntime(playerState);
+  let playerCombat: ReturnType<typeof createPlayerCombatController>;
+  const playerStats = createPlayerStatsRuntime(playerState, () => playerCombat?.tailwind());
   const { healthMultiplierBonus, regenerationPerSecond } = playerStats;
   const research = createResearchController({
     player,
@@ -112,7 +128,14 @@ export function simulate(playerState: PlayerState, target: MapId): SimulationSta
       if (mapId === target) running = false;
     }
   });
-  const playerCombat = createPlayerCombatController({
+  const proceduralBoss = createProceduralBossController({
+    mapId: () => currentMapId, state: mapId => ({ boss: personalBosses.proceduralState(mapId) }),
+    enemies, player, spawn: spawnFromSite,
+    damagePlayer: (damage, source) => playerCombat.damagePlayer(damage, source),
+    damageEnemies: (attack, amount, inside) => playerCombat.damageEnemiesFromBoss(attack, amount, inside),
+    collideEnemies: boss => playerCombat.pushEnemiesFromBoss(boss), burst: (x, y, color, count?, speed?) => { }, shot: projectileStore.spawnEnemyShot,
+  });
+  playerCombat = createPlayerCombatController({
     player,
     enemies,
     spawnSites,
@@ -181,6 +204,27 @@ export function simulate(playerState: PlayerState, target: MapId): SimulationSta
     const config = bootstrap.mapConfig[currentMapId];
     return [config.portal, "secondaryPortal" in config ? config.secondaryPortal : null];
   };
+  const autoFarmProgress = createAutoFarmProgress({
+    mapId: () => currentMapId,
+    fetchBalance: mapId => balance[mapId as MapId] ?? null,
+    base: () => ({ maxHp: player.baseMaxHp, damage: player.damage, attackRate: player.attackRate, armor: player.armor, regen: player.regen }),
+    equipment: () => ({
+      equippedHead: playerState.head.id, equippedChest: playerState.chest.id, equippedFeet: playerState.feet.id,
+      equippedRightHand: playerState.hand.id, equippedLeftHand: undefined,
+    }),
+    weaponSkills: () => playerState.hand.skills,
+    research: research.ranks,
+    upgradeLevel: () => playerState.hand.level,
+    cards: () => cardTotals([...playerState.cards.armor, ...playerState.cards.helmet, ...playerState.cards.weapon]),
+    rewardMultiplier: research.rewardMultiplier,
+    minAttackInterval: () => calcAttackSpeedCap(playerState),
+    criticalChance: research.criticalChance,
+    criticalMultiplier: (extra = 0) => research.criticalDamageMultiplier(playerState.soulStats.critDamage, (player.critRating ?? 0) + extra),
+    reflectOnly: () => false,
+    mapBoss: () => proceduralBoss.boss() ?? bossStateForMap(bootstrap.bosses, currentMapId),
+    portalUnlocked: (portal) => simulationState.bossKills[convertFromMapIndex(convertToMapIndex(portal.destination as MapId) - 1) ?? TUTORIAL_FOREST_MAP_ID] !== undefined,
+    portals: mapPortals,
+  });
   const autoFarm = createAutoFarmController({
     player,
     enemies,
@@ -197,12 +241,15 @@ export function simulate(playerState: PlayerState, target: MapId): SimulationSta
     obstacles: () => {
       const obstacles = mapPortals().flatMap(portal => portal
         ? [{ x: portal.x, y: portal.y - portal.height * .32, r: Math.max(60, portal.width * .6) + player.r + 24 }] : []);
-      const boss = mapBoss();
+      const boss = proceduralBoss.boss() ?? bossStateForMap(bosses, currentMapId);
       if (boss && !boss.dead) obstacles.push({ x: boss.x, y: boss.y, r: boss.r + player.r + 40 });
       return obstacles;
     },
     priorityStorage: undefined,
-
+    ...autoFarmProgress,
+    bossDefinition: () => proceduralBoss.boss() ? proceduralBoss.boss() : bossForMap(currentMapId),
+    playerCombat: () => playerCombat,
+    playerStats: () => playerStats,
   });
   const enemySimulation = createEnemySimulation(enemies, projectileStore.spawnEnemyShot, player, () => { return ({ width: 0, height: 0, zoom: 1 }); }, engageEnemy, (amount, source) => playerCombat.damagePlayer(amount, source),
     {
@@ -216,8 +263,108 @@ export function simulate(playerState: PlayerState, target: MapId): SimulationSta
       spawnDamageNumber: undefined,
       remoteGhostsEnabled: () => false,
       spawnBurst: (x, y, color, count, speed) => { },
-      pullAggro: enemy => autoFarm
+      pullAggro: enemy => true,
     },);
+  const bossController = createBossController({
+    bosses,
+    hazards: bossHazards,
+    player,
+    sharedBoss: (kind) => personalBosses.state(BOSSES[kind].mapId),
+    bossResult: (kind) => personalBosses.result(BOSSES[kind].mapId),
+    localIdentity: () => identity,
+    serverNowMs: () => timeKeeper.miliseconds,
+    bossTargets: () => [{ id: identity, x: player.x, y: player.y }],
+    running: () => true,
+    currentMapId: () => currentMapId,
+    portalCutsceneActive: () => false,
+    portalCutscenes: {},
+    spawnBurst: (x, y, color, count, speed) => { },
+    damagePlayer: (amount) => playerCombat.damagePlayerFromBoss(amount),
+    damageEnemies: (attack, amount, inside) => playerCombat.damageEnemiesFromBoss(attack, amount, inside),
+    collideEnemies: boss => playerCombat.pushEnemiesFromBoss(boss),
+  });
+  const camera = createCamera();
+  let playerController: ReturnType<typeof createPlayerController>;
+  const mapController = createMapController({
+    onTravelStarted: autoFarm.travelStarted,
+    travelWanted: destination => autoFarm.headingTo(destination),
+    onTravelRefused: destination => autoFarm.travelRefused(destination),
+    markPortalCutsceneSeen: cutscene => { },
+    mapConfig: MAP_CONFIG,
+    getCurrentMapId: () => currentMapId,
+    setCurrentMapId: mapId => currentMapId = mapId,
+    prepareMapAssets: async mapId => { },
+    instantTravelReady: () => true,
+    player,
+    camera,
+    viewport: () => ({ width: 0, height: 0 }),
+    keys: { clear: () => { } },
+    stopTouchMove: () => { },
+    cutsceneOverlay: document.createElement('div'),
+    resizeViewport: () => { },
+    isDueling: () => false,
+    running: () => true,
+    localMapState: () => null,
+    changeMap: (mapId, x, y) => { console.log(`Ah damn it, changeMap fired with mapId:${mapId}, x:${x}, y:${y}`); return false; },
+    syncStoppedPosition: () => { },
+    resetPresentationState: () => { },
+    fadeToWorld: (action) => { },
+    mapUnlocked: (mapId) => mapId === TUTORIAL_FOREST_MAP_ID ? true : simulationState.bossKills[convertFromMapIndex(convertToMapIndex(mapId) - 1) ?? TUTORIAL_FOREST_MAP_ID] !== undefined,
+    syncMapMusic: () => { },
+    rebuildWorld: () => playerController.rebuildWorld(),
+    spawnFromSite,
+    enemies,
+    spawnSites,
+    clearTransientCombat: projectileStore.clear,
+    bosses,
+    bossHazards,
+    onCutsceneFinished: () => { },
+    onServerMove: (from, to) => false,
+  });
+  playerController = createPlayerController({
+    player,
+    boss: bosses.dragon,
+    enemies: enemies,
+    spawnSites,
+    decor: [],
+    paths: [],
+    clearTransientCombat: projectileStore.clear,
+    getCurrentMapId: () => currentMapId,
+    mapSpawn: mapId => mapId === TUTORIAL_FOREST_MAP_ID ? bootstrap.startSpawn : bootstrap.mapConfig[mapId].arrival,
+    initialStats: { maxHp: PLAYER_BASE_HP, damage: PLAYER_BASE_DAMAGE, attackRate: DEFAULT_ATTACK_INTERVAL, projectileSpeed: BASE_PROJECTILE_SPEED, projectileCount: 1, attackRange: BASE_ATTACK_RANGE, armor: 0, regen: PLAYER_BASE_REGEN, speed: PLAYER_SPEED, },
+    invalidateStaticWorld: () => { },
+    spawnFromSite,
+    clearPlayerCombat: playerCombat.clearPendingThrow,
+    resetBosses: bossController.resetAll,
+    onResetUI: () => { },
+    movement: dt => autoFarm.movement({ x: 0, y: 0, source: "none" }, dt),
+    isMapTransitioning: mapController.isMapTransitioning,
+    resolvePortalCollision: mapController.resolvePortalCollision,
+    resolveBossCollision: () => bossController.forMap(currentMapId)?.resolveCollision(),
+    applyBossKnockback: dt => bossController.applyBossKnockback(dt),
+    viewport: () => ({ width: 0, height: 0, zoom: 1 }),
+    cameraPosition: () => camera,
+    isConnected: () => true,
+    syncSpeed: speed => { },
+    movementSpeedMultiplier: playerStats.movementMultiplier,
+    regenerationPerSecond: playerStats.regenerationPerSecond,
+    healthMultiplierBonus: playerStats.healthMultiplierBonus,
+    syncMovementState: (x, y, vx, vy, inputSource, force, interestArea) => { },
+    autoAttack: () => playerCombat.attackNearest(autoFarm.attackType(), autoFarm.targetCamp(), autoFarm.attackPriority()),
+    isAutoAttackEnabled: () => isWeaponItem(playerState.hand.id),
+    activeDuel: () => null,
+    isDueling: () => false,
+    localIdentity: () => identity,
+    localState: () => null,
+    syncLiveDuelDamage: duel => ({ state: { challengerHp: 0, opponentHp: 0 } }),
+    liveDuelScene: () => null,
+    setHeldDuelScene: scene => { },
+    pulseDuel: () => { },
+    resetLiveDuelPresentation: () => { },
+    loadDuelReplay: async (id) => null,
+    showDuelResult: replay => { },
+    showDuelResultUnavailable: () => { },
+  });
 
   return simulationState;
 }
@@ -235,7 +382,14 @@ function createRespawnMemory(time: Time) {
   }
 }
 
-function createPlayerStatsRuntime(playerState: PlayerState) {
+function createPlayerStatsRuntime(playerState: PlayerState, tailwind: () => number | undefined) {
+  function moveSpeed() {
+    const research = PLAYER_SPEED * movementSpeedMultiplier(playerState.research.moveSpeed) + utilityMovementSpeedBonus(playerState.research.utilityMoveSpeed);
+    const bonus = 1 + prestigePerkValue(playerState.prestigePerks, "fleetFoot") + Math.max(0, cardValue(cardTotals([...playerState.cards.armor, ...playerState.cards.helmet, ...playerState.cards.weapon]), "fleetFoot")) / 100
+    const flat = blackBootsSpeed(playerState.feet.id);
+    const gear = gearMoveSpeedFactor(playerState.head.id, playerState.chest.id, playerState.feet.id, playerState.feet.level);
+    return (research * bonus + flat) * gear * (1 + (tailwind() ?? 0));
+  }
   return {
     healthMultiplierBonus: () => {
       const gearBonus = itemMaxHealthMultiplierBonus(playerState.chest, playerState.slotUpgrades.chest);
@@ -249,10 +403,8 @@ function createPlayerStatsRuntime(playerState: PlayerState) {
       const cardBonus = cardStatFactors(cardTotals([...playerState.cards.armor, ...playerState.cards.helmet, ...playerState.cards.weapon])).regen;
       return gearBonus * researchBonus * cardBonus - 1;
     },
-    moveSpeed: () => {
-      return 100;
-      // TODO : this needs to actually be implemented still, let's try to not forget
-    },
+    moveSpeed,
+    movementMultiplier: () => moveSpeed() / PLAYER_SPEED,
   }
 }
 
@@ -261,4 +413,14 @@ function calcAttackSpeedCap(playerState: PlayerState) {
   const cardCap = cardStatFactors(cardTotals([...playerState.cards.armor, ...playerState.cards.helmet, ...playerState.cards.weapon])).attackCapRaise;
   baseCap.raise += cardCap;
   return baseCap;
+}
+
+
+function convertToMapIndex(mapId: MapId) {
+  const index = CAMPAIGN_MAPS.findIndex(m => m.id === mapId);
+  return index !== -1 ? index : parseInt(mapId.split('_')[1]) + 14;
+}
+
+function convertFromMapIndex(index: number): MapId | undefined {
+  return index < 0 ? undefined : index < CAMPAIGN_MAPS.length ? CAMPAIGN_MAPS[index].id as MapId : `${PROCEDURAL_PREFIX}${index - 14}`;
 }
