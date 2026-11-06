@@ -941,7 +941,7 @@ import { convertFromMapIndex, simulate } from "./misc/simulator";
 
   const simTarget = 15;
   const mapId = convertFromMapIndex(simTarget);
-  const simActive = true;
+  const simActive = false;
   if (coop && mapId && simActive) {
     setTimeout(() => simulate(
       {
