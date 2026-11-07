@@ -67,9 +67,9 @@ export function createProceduralBossController(options: {
     life: number,
     source?: EnemyState | null,
   ) => void;
-  timeMap: () => Map<MapId, { startTime: number, endTime?: number }>;
-  storage: Storage;
-  identity: () => string | undefined;
+  timeMap?: () => Map<MapId, { startTime: number, endTime?: number }>;
+  storage?: Storage;
+  identity?: () => string | undefined;
   prestige?: () => number | undefined;
 }) {
   let mapId = "",
@@ -160,7 +160,7 @@ export function createProceduralBossController(options: {
       boss.dead = true;
       const identity = options.identity?.();
       const prestige = options.prestige?.();
-      if (identity !== undefined && prestige !== undefined) {
+      if (identity !== undefined && prestige !== undefined && options.timeMap) {
         saveZoneTime(options.mapId(), identity, prestige);
         const timeMap = options.timeMap().get(options.mapId() as MapId);
         if (timeMap && timeMap?.endTime === undefined) {

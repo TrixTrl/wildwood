@@ -272,10 +272,10 @@ export function installStatTracker(options: {
       // The source uses the shared cap labels; retain the effective value instead of the saturated rating.
       const capped = (row.stat === 'attackSpeed' || row.stat === 'critDamage') && detail?.endsWith(' Max');
       setText(rowCells[0], capped ? detail! : detail && !compact ? `${format(row.current)} (${detail})` : format(row.current));
-      if (row.stat === "regen") {
+      /*if (row.stat === "regen") {
         const regenText = document.getElementById('dpsChasingCounter-regen');
         if (regenText && regenText.textContent) regenText.textContent = `${format(row.current)}HP/s`;
-      }
+      }*/
       [row.gain, row.perHour].forEach((value, index) => {
         setText(rowCells[index + 1], `${value > 0 ? '+' : value < 0 ? '−' : ''}${format(Math.abs(value))}`);
         setClassName(rowCells[index + 1], value > 0 ? 'positive' : value < 0 ? 'negative' : '');

@@ -441,9 +441,11 @@ export function createAutoFarmController(options: {
   let fightHeldSince: number | null = null;
   /** Whether Move On, ready to go, is finishing the fight first (MOVE_ON_FIGHT_MS at most). A trip under way goes on. */
   function finishingFight(ready: boolean) {
-    if (!ready || phase === 'portal' || !underAttack()) { fightHeldSince = null; return false; }
+    fightHeldSince = null;
+    return false;
+    /*if (!ready || phase === 'portal' || !underAttack()) { fightHeldSince = null; return false; }
     fightHeldSince ??= now();
-    return now() - fightHeldSince < MOVE_ON_FIGHT_MS;
+    return now() - fightHeldSince < MOVE_ON_FIGHT_MS;*/
   }
   /** Readiness, read at most twice a second for each question: building a map's roster is not free. */
   const readyCache = new Map<string, { at: number; value: Readiness | null | undefined }>();
@@ -636,7 +638,7 @@ export function createAutoFarmController(options: {
     playerBossFightOn = null;
     if (phase === 'boss') {
       // Killed by the boss, or on the way to it: not again on this map until the build has grown.
-      //bossRetryPower.set(options.mapId(), currentPower() * BOSS_RETRY_GROWTH);
+      if (!smartBoss) bossRetryPower.set(options.mapId(), currentPower() * BOSS_RETRY_GROWTH);
       phase = 'farm'; target = null; route = []; lastGoal = null; routeClock = 0; holding = false;
     }
   }
@@ -773,6 +775,7 @@ export function createAutoFarmController(options: {
     noteBossWin();
     const portal = exitPortal();
     const afterBoss = bossBeatenOn === options.mapId();
+    console.log(portal, afterBoss);
     // A trip under way, or one straight after a boss win, goes on whatever the health.
     if (portal && !finishingFight(!afterBoss) && (phase === 'portal' || afterBoss || healthyToSetOff())) { phase = 'portal'; travellingTo = portal.destination; return; }
     if (!portal) finishingFight(false);

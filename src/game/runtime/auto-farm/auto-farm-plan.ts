@@ -164,7 +164,7 @@ export function decodeFarmPlan(choice: string): FarmShares | null {
 
 export const AUTO_FARM_ADVANCE_KEY = 'wildstat:autofarm-advance:v1';
 export const AUTO_FARM_KITE_KEY = 'wildstat:autofarm-kite:v1';
-export const AUTO_FARM_BOSS_PULL_KEY = 'wildstat:autofarm-bos-pull:v1';
+export const AUTO_FARM_BOSS_PULL_KEY = 'wildstat:autofarm-boss-pull:v1';
 export const AUTO_FARM_PORTAL_PULL_KEY = 'wildstat:autofarm-portal-pull:v1';
 export const AUTO_FARM_SMART_AUTOFARM_KEY = 'wildstat:autofarm-smart-autofarm:v1';
 export const AUTO_FARM_SMART_BOSS_KEY = 'wildstat:autofarm-smart-boss:v1';

@@ -97,9 +97,71 @@ import { MAX_PLAYER_STAT, PLAYER_SPAWN } from "../shared/rules";
 import { GUILD_HALL_MAP_PREFIX } from "../shared/guild-hall";
 import { TOWN_MAP_ID } from "../shared/town";
 import { installZoneTimeTracker, recordDeath, updateTimeValues } from "./game/zone-timer";
+import { convertFromMapIndex, simulate } from "./misc/simulator";
 
 (() => {
   "use strict";
+
+  const simTarget = 15;
+  const mapId = convertFromMapIndex(simTarget);
+  const simActive = false;
+  if (mapId && simActive) {
+    setTimeout(() => simulate(
+      {
+        hand: { id: "crude_bow", level: 0, skills: {} },
+        research: {
+          cardLuck: 0,
+          gearLuck: 0,
+          miningLuck: 0,
+          skillLuck: 0,
+          refineLuck: 0,
+          warcraft: 0,
+          foraging: 0,
+          vitality: 0,
+          precision: 0,
+          criticalChance: 0,
+          moveSpeed: 0,
+          prosperity: 0,
+          criticalDamage: 0,
+          regeneration: 0,
+          researchSpeed: 0,
+          slotUpgradeSpeed: 0,
+          enemyRespawn: 0,
+          bossRespawn: 0,
+          offlineWindow: 0,
+          utilityMoveSpeed: 0,
+          utilityAttackRange: 0,
+          critCap: 0,
+          inventorySlots: 0,
+          resourceRespawn: 0
+        },
+        slotUpgrades: { head: 0, chest: 0, hand: 0 },
+        cards: { weapon: [], helmet: [], armor: [] },
+        prestigePerks: {},
+        reflectCompletions: 4,
+        aggroCompletions: 4,
+        prestige: 0,
+        guildBonus: 0,
+        mastery: {},
+        autoFarmSettings: {
+          "wildstat:autofarm-pull-groups:v1": '["stat:health","stat:regen","stat:damage","stat:armor"]',
+          "wildstat:autofarm-smart-autofarm:v1": '1',
+          "wildstat:autofarm-advance:v1": '1',
+        },
+        soulStats: {
+          damage: 0,
+          maxHp: 1000,
+          armor: 0,
+          regen: 1000,
+          attackSpeed: 0,
+          critDamage: 0
+        },
+        arrow: "fire_arrow",
+      },
+      mapId,
+    ).then(), 5000);
+  }
+
 
   // Set only by Run Wildstat Local.command. Release builds do not receive it.
   const localTestMultiplier = import.meta.env.VITE_LOCAL_TESTING === "1" ? 3 : 1;
@@ -741,13 +803,20 @@ import { installZoneTimeTracker, recordDeath, updateTimeValues } from "./game/zo
   installGraphicsReport({
     canvas: () => canvas, snapshot: performanceMonitor.snapshot, playing: () => session.isRunning(), fullRate: () => session.fullFrameRate(),
   });
-  installStatTracker({ storage: localStorage, read: createStatTrackerSource({ coop: () => coop, player, inventory,
-    hasStarted: session.hasStarted, isLoadedFor: progress.isLoadedFor, inTutorial, researchRanks, kills: () => totalKills,
-    displayedProgress: displayedPlayerPowerProgress, attackCap: coopAccess.attackCap,
-    critParts: () => ({ ...research.criticalDamageParts(), soul: soulDimension.critDamage(),
-      rating: (player.critRating ?? 0) + research.weaponRatings().crit }),
-    criticalChance: research.criticalChance }) });
-  installQuestTracker({ storage: localStorage, enabled: questTracker.enabled, set: questTracker.set, ensure: () => quests.refresh(),
+  installStatTracker({
+    storage: localStorage, read: createStatTrackerSource({
+      coop: () => coop, player, inventory,
+      hasStarted: session.hasStarted, isLoadedFor: progress.isLoadedFor, inTutorial, researchRanks, kills: () => totalKills,
+      displayedProgress: displayedPlayerPowerProgress, attackCap: coopAccess.attackCap,
+      critParts: () => ({
+        ...research.criticalDamageParts(), soul: soulDimension.critDamage(),
+        rating: (player.critRating ?? 0) + research.weaponRatings().crit
+      }),
+      criticalChance: research.criticalChance
+    })
+  });
+  installQuestTracker({
+    storage: localStorage, enabled: questTracker.enabled, set: questTracker.set, ensure: () => quests.refresh(),
     view: () => quests.trackerView(currentMapId),
     hiddenHere: () => !session.hasStarted() || inTutorial() || document.body.matches(".is-cutscene, .is-replaying, .is-dueling")
   });
@@ -929,6 +998,11 @@ import { installZoneTimeTracker, recordDeath, updateTimeValues } from "./game/zo
   updateProtocolGate();
 
   fullscreenMovement.watchWindows(document);
+
+
+
+
+
   startGameRuntime({
     loadProgress,
     rebuildWorld: playerController.rebuildWorld,
