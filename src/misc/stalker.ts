@@ -57,9 +57,26 @@ export function createStalker(dependencies: {
   directory: ProfileDirectory;
   progression: ProgressionService;
 }) {
-  const targets = new Set<string>;
 
-  async function loadPlayerProfile(identity: string): Promise<PlayerProfileData | null> {
+  const killValues = new Map<bigint, { name: string, data: { kills: number, timestamp: number }[] }>();
+
+  function printInterestingKillValues() {
+    const interestingValues = [...killValues.entries()].filter(([key, value]) => value.data.length > 1).map(([key, value]) => ({ identity: key, data: value.data, name: value.name }))
+    //console.log(interestingValues);
+    const intervalMs = 1000_000;
+
+    const processedData = interestingValues.map(v => {
+      const lastValue = v.data[v.data.length - 1];
+      const relevantDataIndex = Math.max(0, v.data.findIndex(d => lastValue.timestamp - d.timestamp < intervalMs) - 1);
+      const startValue = v.data[relevantDataIndex];
+      const kills = lastValue.kills - startValue.kills;
+      const time = lastValue.timestamp - startValue.timestamp + 1;
+      return { identity: v.identity.toString(), kills: kills, time: time, killRate: (kills / time * 1000), dataPoints: (v.data.length - relevantDataIndex), name: v.name };
+    });
+    console.log(processedData.filter(d => d.dataPoints > 2).sort((a, b) => b.killRate - a.killRate).map(d => JSON.stringify(d)).join('\n'));
+  }
+
+  async function loadPlayerProfile(identity: string): Promise<null> {
     const connection = dependencies.connection();
     const dbIdentity = new Identity(identity);
 
@@ -67,10 +84,26 @@ export function createStalker(dependencies: {
 
     const bonus = await connection.procedures.getStatGainBonus({ identity: dbIdentity });
 
-    console.log(bonus);
-
     const dumpRow: Parameters<typeof connection.db.player.onUpdate>[0] = row => {
+      const lifetimeRows = [...row.db.playerLifetime.iter()];
+      const profileRows = [...row.db.playerProfile.iter()];
+
+      lifetimeRows.forEach(r => {
+        const newData = { kills: Number(r.enemyKills), timestamp: performance.now() };
+        const killSlot = killValues.get(r.identity.__identity__);
+        if (killSlot) {
+          if (newData.kills > killSlot.data[killSlot.data.length - 1].kills)
+            killSlot.data.push(newData);
+        } else {
+          killValues.set(r.identity.__identity__, ({ name: (profileRows.find(p => r.identity.__identity__ === p.identity.__identity__)?.displayName ?? "<NAME MISSING FOR SOME REASON>"), data: ([newData]) }));
+        }
+      });
+
+      //console.log(killValues);
+      printInterestingKillValues();
+
       const fullData = {
+        bonus,
         playerProfile: [...row.db.playerProfile.iter()].find(row => row.identity.toHexString() === identity),
         playerAccountStatus: [...row.db.playerAccountStatus.iter()].find(row => row.identity.toHexString() === identity),
         playerProgress: [...row.db.playerProgress.iter()].find(row => row.identity.toHexString() === identity),
@@ -100,8 +133,12 @@ export function createStalker(dependencies: {
         playerMasteryLevel: [...row.db.playerMasteryLevel.iter()].find(row => row.identity.toHexString() === identity),
         playerCraftLevel: [...row.db.playerCraftLevel.iter()].find(row => row.identity.toHexString() === identity),
         player: [...row.db.player.iter()].find(row => row.identity.toHexString() === identity),
+
+        playerGold: [...row.db.playerGold.iter()].find(row => row.identity.toHexString() === identity),
+        leaderboardEntry: [...row.db.leaderboardEntry.iter()].find(row => row.identity.toHexString() === identity),
+        playerFreeRespec: [...row.db.playerFreeRespec.iter()].find(row => row.identity.toHexString() === identity),
       };
-      console.log(fullData);
+      //console.log(fullData);
     };
 
     const update: Parameters<typeof connection.db.player.onUpdate>[0] = dumpRow;
@@ -112,13 +149,13 @@ export function createStalker(dependencies: {
     };
 
     let settled = false;
-    const request = new Promise<PlayerProfileData | null>((resolve) => {
+    const request = new Promise<null>((resolve) => {
       let timeoutId: number | null = null;
       const finish = (profile: PlayerProfileData | null) => {
         if (settled) return;
         settled = true;
         if (timeoutId !== null) window.clearTimeout(timeoutId);
-        resolve(profile);
+        resolve(null);
       };
       const cancel = () => finish(null);
       let handle: ActiveSubscription | null = null;
@@ -167,35 +204,40 @@ export function createStalker(dependencies: {
             finish(null);
           })
           .subscribe([
-            tables.playerProfile.where((profile) => profile.identity.eq(dbIdentity)),
+            tables.playerProfile.where((profile) => true/*profile.identity.eq(dbIdentity)*/),
             tables.playerAccountStatus.where((status) => status.identity.eq(dbIdentity)),
             tables.playerProgress.where((progress) => progress.identity.eq(dbIdentity)),
             tables.playerInventory.where((bag) => bag.identity.eq(dbIdentity)),
-            tables.playerChatHearts.where(row => row.identity.eq(dbIdentity)),
-            tables.playerLifetime.where((lifetime) => lifetime.identity.eq(dbIdentity)),
+            tables.playerChatHearts.where((player) => player.identity.eq(dbIdentity)),
+            tables.playerLifetime.where((lifetime) => true/*lifetime.identity.eq(dbIdentity)*/),
             tables.playerResearch.where((research) => research.identity.eq(dbIdentity)),
             tables.playerLuckResearch.where((research) => research.identity.eq(dbIdentity)),
-            tables.playerPrestige.where(row => row.identity.eq(dbIdentity)),
-            tables.playerPrestigePerk.where(row => row.identity.eq(dbIdentity)),
-            tables.playerPrestigeChallenge.where(row => row.identity.eq(dbIdentity)),
-            tables.playerAggroChallenge.where(row => row.identity.eq(dbIdentity)),
-            tables.playerPrestigeExpansionPerk.where(row => row.identity.eq(dbIdentity)),
-            tables.profileSoulStats.where(row => row.identity.eq(dbIdentity)),
+            tables.playerPrestige.where((player) => player.identity.eq(dbIdentity)),
+            tables.playerPrestigePerk.where((player) => player.identity.eq(dbIdentity)),
+            tables.playerPrestigeChallenge.where((player) => player.identity.eq(dbIdentity)),
+            tables.playerAggroChallenge.where((player) => player.identity.eq(dbIdentity)),
+            tables.playerPrestigeExpansionPerk.where((player) => player.identity.eq(dbIdentity)),
+            tables.profileSoulStats.where((player) => player.identity.eq(dbIdentity)),
             tables.playerItemUpgrade.where((upgrade) => upgrade.identity.eq(dbIdentity)),
-            tables.playerItemRefine.where(row => row.identity.eq(dbIdentity)),
-            tables.playerWeaponStat.where(row => row.identity.eq(dbIdentity)),
-            tables.playerCosmeticRefine.where(row => row.identity.eq(dbIdentity)),
-            tables.playerActiveCard.where(row => row.identity.eq(dbIdentity)),
-            tables.playerPrestigeCardPerk.where(row => row.identity.eq(dbIdentity)),
-            tables.playerBonusToggle.where(row => row.identity.eq(dbIdentity)),
-            tables.playerWornSkill.where(row => row.identity.eq(dbIdentity)),
-            tables.playerWornStaffSkill.where(row => row.identity.eq(dbIdentity)),
-            tables.playerMiningLevel.where(row => row.identity.eq(dbIdentity)),
-            tables.playerWoodcuttingLevel.where(row => row.identity.eq(dbIdentity)),
-            tables.playerFishingLevel.where(row => row.identity.eq(dbIdentity)),
-            tables.playerMasteryLevel.where(row => row.identity.eq(dbIdentity)),
-            tables.playerCraftLevel.where(row => row.identity.eq(dbIdentity)),
-            tables.player.where((player) => player.identity.eq(dbIdentity)),
+            tables.playerItemRefine.where((player) => player.identity.eq(dbIdentity)),
+            tables.playerWeaponStat.where((player) => player.identity.eq(dbIdentity)),
+            tables.playerCosmeticRefine.where((player) => player.identity.eq(dbIdentity)),
+            tables.playerActiveCard.where((player) => player.identity.eq(dbIdentity)),
+            tables.playerPrestigeCardPerk.where((player) => player.identity.eq(dbIdentity)),
+            tables.playerBonusToggle.where((player) => player.identity.eq(dbIdentity)),
+            tables.playerWornSkill.where((player) => player.identity.eq(dbIdentity)),
+            tables.playerWornStaffSkill.where((player) => player.identity.eq(dbIdentity)),
+            tables.playerMiningLevel.where((player) => player.identity.eq(dbIdentity)),
+            tables.playerWoodcuttingLevel.where((player) => player.identity.eq(dbIdentity)),
+            tables.playerFishingLevel.where((player) => player.identity.eq(dbIdentity)),
+            tables.playerMasteryLevel.where((player) => player.identity.eq(dbIdentity)),
+            tables.playerCraftLevel.where((player) => player.identity.eq(dbIdentity)),
+            tables.player.where((player) => true/*player.identity.eq(dbIdentity)*/),
+
+
+            tables.playerGold.where((player) => player.identity.eq(dbIdentity)),
+            tables.leaderboardEntry.where((player) => player.identity.eq(dbIdentity)),
+            tables.playerFreeRespec.where((player) => player.identity.eq(dbIdentity)),
           ]);
       } catch {
         finish(null);
@@ -207,13 +249,6 @@ export function createStalker(dependencies: {
       }
     });
     return request;
-  }
-
-  function addTarget(id: string) {
-    targets.add(id);
-  }
-  function removeTarget(id: string) {
-    targets.delete(id);
   }
 
   return ({ loadPlayerProfile });
