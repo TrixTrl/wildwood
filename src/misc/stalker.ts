@@ -70,10 +70,38 @@ export function createStalker(dependencies: {
     console.log(bonus);
 
     const dumpRow: Parameters<typeof connection.db.player.onUpdate>[0] = row => {
-      console.log(`Row update :3`);
-      console.log(row.db);
-      console.log(Object.keys(row.db.player));
-      console.log(...row.db.player.iter());
+      const fullData = {
+        playerProfile: [...row.db.playerProfile.iter()].find(row => row.identity.toHexString() === identity),
+        playerAccountStatus: [...row.db.playerAccountStatus.iter()].find(row => row.identity.toHexString() === identity),
+        playerProgress: [...row.db.playerProgress.iter()].find(row => row.identity.toHexString() === identity),
+        playerInventory: [...row.db.playerInventory.iter()].find(row => row.identity.toHexString() === identity),
+        playerChatHearts: [...row.db.playerChatHearts.iter()].find(row => row.identity.toHexString() === identity),
+        playerLifetime: [...row.db.playerLifetime.iter()].find(row => row.identity.toHexString() === identity),
+        playerResearch: [...row.db.playerResearch.iter()].find(row => row.identity.toHexString() === identity),
+        playerLuckResearch: [...row.db.playerLuckResearch.iter()].find(row => row.identity.toHexString() === identity),
+        playerPrestige: [...row.db.playerPrestige.iter()].find(row => row.identity.toHexString() === identity),
+        playerPrestigePerk: [...row.db.playerPrestigePerk.iter()].find(row => row.identity.toHexString() === identity),
+        playerPrestigeChallenge: [...row.db.playerPrestigeChallenge.iter()].find(row => row.identity.toHexString() === identity),
+        playerAggroChallenge: [...row.db.playerAggroChallenge.iter()].find(row => row.identity.toHexString() === identity),
+        playerPrestigeExpansionPerk: [...row.db.playerPrestigeExpansionPerk.iter()].find(row => row.identity.toHexString() === identity),
+        profileSoulStats: [...row.db.profileSoulStats.iter()].find(row => row.identity.toHexString() === identity),
+        playerItemUpgrade: [...row.db.playerItemUpgrade.iter()].find(row => row.identity.toHexString() === identity),
+        playerItemRefine: [...row.db.playerItemRefine.iter()].find(row => row.identity.toHexString() === identity),
+        playerWeaponStat: [...row.db.playerWeaponStat.iter()].find(row => row.identity.toHexString() === identity),
+        playerCosmeticRefine: [...row.db.playerCosmeticRefine.iter()].find(row => row.identity.toHexString() === identity),
+        playerActiveCard: [...row.db.playerActiveCard.iter()].find(row => row.identity.toHexString() === identity),
+        playerPrestigeCardPerk: [...row.db.playerPrestigeCardPerk.iter()].find(row => row.identity.toHexString() === identity),
+        playerBonusToggle: [...row.db.playerBonusToggle.iter()].find(row => row.identity.toHexString() === identity),
+        playerWornSkill: [...row.db.playerWornSkill.iter()].find(row => row.identity.toHexString() === identity),
+        playerWornStaffSkill: [...row.db.playerWornStaffSkill.iter()].find(row => row.identity.toHexString() === identity),
+        playerMiningLevel: [...row.db.playerMiningLevel.iter()].find(row => row.identity.toHexString() === identity),
+        playerWoodcuttingLevel: [...row.db.playerWoodcuttingLevel.iter()].find(row => row.identity.toHexString() === identity),
+        playerFishingLevel: [...row.db.playerFishingLevel.iter()].find(row => row.identity.toHexString() === identity),
+        playerMasteryLevel: [...row.db.playerMasteryLevel.iter()].find(row => row.identity.toHexString() === identity),
+        playerCraftLevel: [...row.db.playerCraftLevel.iter()].find(row => row.identity.toHexString() === identity),
+        player: [...row.db.player.iter()].find(row => row.identity.toHexString() === identity),
+      };
+      console.log(fullData);
     };
 
     const update: Parameters<typeof connection.db.player.onUpdate>[0] = dumpRow;

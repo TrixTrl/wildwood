@@ -443,7 +443,7 @@ const stalker = createStalker({
   progression: progressionService,
 });
 
-setTimeout(() => stalker.loadPlayerProfile(DEVELOPER_IDENTITY).then(data => console.log(data)), 5000);
+//setTimeout(() => stalker.loadPlayerProfile("c200bf1bf314456aab0a392deb58ef788e9ec32ece6dbe61d467ae0812d31fbf").then(data => console.log(data)), 5000);
 
 const remoteCombatStatsService = createRemoteCombatStatsService({
   connection: () => connection,

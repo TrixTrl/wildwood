@@ -785,7 +785,6 @@ export function createAutoFarmController(options: {
     noteBossWin();
     const portal = exitPortal();
     const afterBoss = bossBeatenOn === options.mapId();
-    console.log(portal, afterBoss);
     // A trip under way, or one straight after a boss win, goes on whatever the health.
     if (portal && !finishingFight(!afterBoss) && (phase === 'portal' || afterBoss || healthyToSetOff())) { phase = 'portal'; travellingTo = portal.destination; return; }
     if (!portal) finishingFight(false);
