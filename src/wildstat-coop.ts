@@ -16,7 +16,7 @@ import { createConnectionStatusApi } from "./coop/services/connection-status-api
 import "./ui/game-shell";
 import { DbConnection, type ErrorContext } from "./module_bindings";
 import type { Identity } from "spacetimedb";
-import { isDeveloperIdentity } from "./app/developer";
+import { DEVELOPER_IDENTITY, isDeveloperIdentity } from "./app/developer";
 import { GAME_VERSION } from "./game/runtime/game-settings";
 import { createVirtualPlayerLoadTest } from "./coop/services/virtual-player-load-test";
 import { createReconnectWatchdog } from "./coop/services/reconnect-watchdog";
@@ -61,6 +61,7 @@ import { validateSpacetimeIdToken } from "./coop/security/oidc-id-token";
 import { createStartupTelemetryRuntime } from "./coop/services/startup-telemetry-runtime";
 import { runningAsGameScript, startStartupBootstrap } from "./coop/startup-bootstrap"; import type { ReducerPort } from "./coop/ports";
 import type { StartupTelemetryStage } from "../shared/startup-telemetry"; import { masteryPointsInPlay, type MasteryPoints } from "../shared/weapon-mastery";
+import { createStalker } from "./misc/stalker";
 export type * from "./coop/contracts";
 
 type WildStatRuntime = Window & {
@@ -436,6 +437,14 @@ playerProfileService = createPlayerProfileService({
   developerIdentityFor: developerService.identityFor,
 });
 
+const stalker = createStalker({
+  connection: () => connection,
+  directory: profileDirectory,
+  progression: progressionService,
+});
+
+//setTimeout(() => stalker.loadPlayerProfile("c200bf1bf314456aab0a392deb58ef788e9ec32ece6dbe61d467ae0812d31fbf").then(data => console.log(data)), 5000);
+
 const remoteCombatStatsService = createRemoteCombatStatsService({
   connection: () => connection,
   identityFor: profileDirectory.identityFor,
@@ -734,7 +743,7 @@ function connect() {
           if (generation !== connectionGeneration || connection !== conn) return;
           latency.finish(protocolProbe); // this call alone: timing the next one too read double after every reconnect
           await conn.reducers.registerClientVersion({ clientVersion: GAME_VERSION });
-        void conn.reducers.registerClientHost({ host: window.location.host }).catch(() => {});
+          void conn.reducers.registerClientHost({ host: window.location.host }).catch(() => { });
           if (generation !== connectionGeneration || connection !== conn) return;
           protocolReadyGeneration = generation;
           accountService.clearRetry();
