@@ -71,9 +71,9 @@ export function createStalker(dependencies: {
       const startValue = v.data[relevantDataIndex];
       const kills = lastValue.kills - startValue.kills;
       const time = lastValue.timestamp - startValue.timestamp + 1;
-      return { identity: v.identity.toString(), kills: kills, time: time, killRate: (kills / time * 1000), dataPoints: (v.data.length - relevantDataIndex), name: v.name };
+      return { identity: v.identity.toString(), killRate: (kills / time * 1000), name: v.name, kills: kills, time: time, dataPoints: (v.data.length - relevantDataIndex), lastUpdate: lastValue.timestamp };
     });
-    console.log(processedData.filter(d => d.dataPoints > 2).sort((a, b) => b.killRate - a.killRate).map(d => JSON.stringify(d)).join('\n'));
+    console.log(processedData.filter(d => d.dataPoints > 2 && d.lastUpdate > performance.now() - intervalMs).sort((a, b) => b.killRate - a.killRate).map(d => JSON.stringify(d)).join('\n'));
   }
 
   async function loadPlayerProfile(identity: string): Promise<null> {
