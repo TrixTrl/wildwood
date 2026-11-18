@@ -61,7 +61,7 @@ import { registerGradeShop } from "./grade-shop";
 import { registerGradeSale } from "./grade-sale";
 import { exchangeTables, registerExchange } from "./exchange";
 import { playerStarterWeapon, registerStarterChest } from "./starter-chest";
-import { playerCraftSkill, playerCraftLevel, registerCrafting } from "./crafting";
+import { cookingAttempt, playerCraftSkill, playerCraftLevel, registerCrafting } from "./crafting";
 import { playerTool, registerTools } from "./tools";
 import { mergeOldGearPayout, oldGearPayout, payOutOldGear } from "./old-gear-payout";
 import { playerCard, playerGearSlots, playerCopySlots, playerCardDrop, registerGearCards } from "./gear-cards"; import { playerActiveCard, registerActiveCards } from "./active-cards"; import { playerCardAttackCap, syncCardAttackCap } from "./card-attack-cap"; import { combatStampEpoch, keepsCombatProfile, playerCombatStamp, touchAllCombatProfiles, touchCombatProfile, touchCombatProfileAfterReducers } from "./combat-profile"; import { playerBuild, playerBuildName, registerBuilds } from "./builds"; import { playerWornSkill, syncWornSkill } from "./worn-skill";
@@ -132,7 +132,7 @@ import { createCombatReport } from "./boss-combat";
 import { createModuleMigrations } from "./module-migrations";
 import { UPGRADE_BENCH_SLOT_ONE, UPGRADE_BENCH_SLOT_TWO, UPGRADE_BENCH_SLOT_THREE, normalizeUpgradeBenchSlot, requireUpgradeBenchSlot, activeItemUpgradeForSlot, activeItemUpgradeEntriesFor, insertActiveItemUpgrade } from "./upgrade-bench-slots";
 import {
-  createPresenceRuntime, MOTION_DETAIL_FRAME_INTERVAL_MICROS, MAP_FRAME_INTERVAL_MICROS, playerZone,
+  createPresenceRuntime, MOTION_DETAIL_FRAME_INTERVAL_MICROS, MAP_FRAME_INTERVAL_MICROS, mapFrameDue, playerZone,
   playerWithMotion, stoppedMotionFields, syncPlayerMotion, syncPlayerMotionIdentity,
   ensureMotionDetailFrameSchedule, ensureRealtimeFrameSchedules, motionSample, persistWorldLocation,
   syncPlayerMapMarker, ensureWorldStatus, reconcileOnlinePlayers, requireScheduler, ensureRepeatingSchedule,
@@ -1431,7 +1431,7 @@ const spacetimedb = schema({
   dailyGemBonus,
   playerAdReward, playerAdWatch, playerChatMute, playerClientHost, offlineGatherChoice, playerGatherPicks, playerRunTiming, playerRunHistory, playerNockedArrow,
   balanceApologyNotice,
-  playerEquipmentLock, playerItemGift, playerBowSkill, playerSwordSkill, playerStaffSkill, playerWornStaffSkill, playerWeaponStat, playerEquipmentCopy, pendingEquipmentOffer, playerIgnoredDrop, playerLootSetting, playerItemRefine, playerCopyRefine, playerOre, playerRefineResult, playerRefinePity, playerCard, playerGearSlots, playerCopySlots, playerCardDrop, playerCardAttackCap, playerBossCardRoll, playerBuild, playerBuildName, playerWeaponMastery, playerMasteryLevel, playerGold, playerCardMeter, playerCardShopPurchase, playerItemCollection, playerWornSkill, playerMining, playerMinedNode, playerMiningLevel, playerWoodcutting, playerChoppedTree, playerWoodcuttingLevel, playerFishing, playerFishingLevel, playerCraftSkill, playerCraftLevel, playerTool, oldGearPayout, playerStarterWeapon, gemKillDaily, gemLedgerTrim,
+  playerEquipmentLock, playerItemGift, playerBowSkill, playerSwordSkill, playerStaffSkill, playerWornStaffSkill, playerWeaponStat, playerEquipmentCopy, pendingEquipmentOffer, playerIgnoredDrop, playerLootSetting, playerItemRefine, playerCopyRefine, playerOre, playerRefineResult, playerRefinePity, playerCard, playerGearSlots, playerCopySlots, playerCardDrop, playerCardAttackCap, playerBossCardRoll, playerBuild, playerBuildName, playerWeaponMastery, playerMasteryLevel, playerGold, playerCardMeter, playerCardShopPurchase, playerItemCollection, playerWornSkill, playerMining, playerMinedNode, playerMiningLevel, playerWoodcutting, playerChoppedTree, playerWoodcuttingLevel, playerFishing, playerFishingLevel, cookingAttempt, playerCraftSkill, playerCraftLevel, playerTool, oldGearPayout, playerStarterWeapon, gemKillDaily, gemLedgerTrim,
   mailboxLetter, mailboxReceipt, playerJoinDate, mailboxEquipment, accountDeletionRequest,
   playerOnboarding,
   regularEnemyLootCursor, regularEnemyStream, enemyDefeatBudget, enemyDefeatBank, playerDefeatClock, playerMapDeparture,
@@ -2240,8 +2240,9 @@ export const publishMapFrames = spacetimedb.reducer(
       // Home is private: it has no remote minimap dots or observers to serve.
       if (state.mapId === HOME_EXTERIOR_MAP_ID || state.playerCount === 0) continue;
       if (state.visibleCount > 1) continuePublishing = true;
+      // A final single/empty frame clears dots after a departure or hide; a map alone is not framed every tick.
+      if (!mapFrameDue(ctx, state.mapId, state.visibleCount)) continue;
       sampleVisiblePlayers ||= state.visibleCount > 0;
-      // Keep a final single/empty frame to clear dots after a departure or hide.
       maps.set(state.mapId, []);
     }
     // A map index on this hot movement table would add write cost to every
@@ -3734,9 +3735,10 @@ export const teleportToResearch = spacetimedb.reducer({ x: t.f64(), y: t.f64() }
 export const teleportToTownSquare = spacetimedb.reducer({}, (ctx) => teleportToSquare(ctx));
 export const travelToMap = spacetimedb.reducer({ mapId: t.string() }, (ctx, args) => travelStraightToMap(ctx, args));
 
+// Speed is not part of a combat profile.
 export const setSpeed = spacetimedb.reducer(
   { speed: t.f32() },
-  (ctx, args) => setPlayerSpeed(ctx, args),
+  keepsCombatProfile((ctx: any, args: any) => setPlayerSpeed(ctx, args)),
 );
 
 /** The database owner, or the module calling itself from a schedule. */
@@ -3870,7 +3872,7 @@ export const { buyGradeGear } = registerGradeShop(spacetimedb, { requireControll
 // The Starter Chest by the forest spawn (starter-chest.ts).
 export const { claimStarterWeapon, myStarterWeapon } = registerStarterChest(spacetimedb, { requireControllingPlayer, activeDuelFor });
 const craftingDeps = { requireControllingPlayer, activeDuelFor, inventoryForProgress, restoreItemToProgress, writeProgressAndPresentation };
-export const { craftGradeItem, reforgeWeapon, craftGradeGear, myCraftSkills } = registerCrafting(spacetimedb, craftingDeps);
+export const { beginCooking, cookFish, craftGradeItem, reforgeWeapon, craftGradeGear, myCraftSkills } = registerCrafting(spacetimedb, craftingDeps);
 export const { craftArrows, nockArrow, spendArrows, myNockedArrow } = registerArrows(spacetimedb, craftingDeps);
 export const setGatherPicks = registerGatherPicks(spacetimedb);
 export const { upgradeTool, myTools } = registerTools(spacetimedb, { requireControllingPlayer, activeDuelFor });

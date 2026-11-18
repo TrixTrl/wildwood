@@ -1,3 +1,4 @@
+import { setPrestigeBadgeLevel } from "../ui/prestige-badge";
 import { isAlteredDeveloperIdentity } from "../../shared/developer-identity";
 import { ALTERED_DEVELOPER_BADGE } from "../game/runtime/render/player-identity-renderer";
 import { isDeveloperIdentity } from "./developer";
@@ -69,7 +70,7 @@ export function appendPrestigeBadge(element: HTMLElement, identity?: string, lev
   if (level <= 0) return null;
   const badge = element.ownerDocument.createElement("span");
   badge.className = "player-prestige-badge";
-  badge.textContent = String(level);
+  setPrestigeBadgeLevel(badge, level);
   badge.setAttribute("aria-label", `Prestige ${level}`);
   element.append(badge);
   return badge;

@@ -525,7 +525,7 @@ export function createActorRenderer(options: {
     });
   }
 
-  function drawPlayer(identity: string | undefined, name: string, power: number) {
+  function drawPlayer(identity: string | undefined, name: string, power: number, falling = false) {
     const player = options.player;
     if (localStorage.getItem(ALT_RENDERER_KEY) === "true") {
       ctx.lineWidth = 3;
@@ -548,8 +548,9 @@ export function createActorRenderer(options: {
     if (death && drawDeadPlayer({ ...equipment, identity }, death, 1)) return;
     const x = screenX(player.x);
     const y = screenY(player.y);
-    options.drawShadow(x, y + 29, 34, .21);
+    if (!falling) options.drawShadow(x, y + 29, 34, .21);
     drawPlayerSprite({ ...player, ...equipment, x, y, identity });
+    if (falling) return;
     const headTop = headTopY({ ...equipment, y });
     if (ownNamePlateEnabled()) options.drawStatus({
       x,
