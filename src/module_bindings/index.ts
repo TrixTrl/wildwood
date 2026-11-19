@@ -225,6 +225,7 @@ import StartLoginMoveReducer from "./start_login_move_reducer";
 import StartPrestigeChallengeReducer from "./start_prestige_challenge_reducer";
 import StartResearchReducer from "./start_research_reducer";
 import StartServerBoostReducer from "./start_server_boost_reducer";
+import StepGuildCrossingReducer from "./step_guild_crossing_reducer";
 import TakeOverSessionReducer from "./take_over_session_reducer";
 import TeleportToResearchReducer from "./teleport_to_research_reducer";
 import TeleportToTownSquareReducer from "./teleport_to_town_square_reducer";
@@ -257,6 +258,7 @@ import * as GetDevReviewQueueProcedure from "./get_dev_review_queue_procedure";
 import * as GetDeveloperTravelTargetProcedure from "./get_developer_travel_target_procedure";
 import * as GetGuildBattleBadgesProcedure from "./get_guild_battle_badges_procedure";
 import * as GetGuildBattleHubProcedure from "./get_guild_battle_hub_procedure";
+import * as GetGuildCrossingProcedure from "./get_guild_crossing_procedure";
 import * as GetGuildHubProcedure from "./get_guild_hub_procedure";
 import * as GetGuildPreviewProcedure from "./get_guild_preview_procedure";
 import * as GetGuildReplayProcedure from "./get_guild_replay_procedure";
@@ -273,6 +275,7 @@ import * as GetPatreonStatusProcedure from "./get_patreon_status_procedure";
 import * as GetPlayerDirectoryProcedure from "./get_player_directory_procedure";
 import * as GetPlayerModerationHistoryProcedure from "./get_player_moderation_history_procedure";
 import * as GetPlayerPresenceProcedure from "./get_player_presence_procedure";
+import * as GetSkillLeaderboardRanksProcedure from "./get_skill_leaderboard_ranks_procedure";
 import * as GetSocialChatHistoryWithReactionsProcedure from "./get_social_chat_history_with_reactions_procedure";
 import * as GetSocialHubProcedure from "./get_social_hub_procedure";
 import * as GetStatGainBonusProcedure from "./get_stat_gain_bonus_procedure";
@@ -347,6 +350,7 @@ import MyMailboxV2Row from "./my_mailbox_v_2_table";
 import MyMinedNodesRow from "./my_mined_nodes_table";
 import MyMiningRow from "./my_mining_table";
 import MyNockedArrowRow from "./my_nocked_arrow_table";
+import MyOfflineFishingChoiceRow from "./my_offline_fishing_choice_table";
 import MyOfflineGatherChoiceRow from "./my_offline_gather_choice_table";
 import MyOfflinePreferenceRow from "./my_offline_preference_table";
 import MyOfflineProgressRow from "./my_offline_progress_table";
@@ -1712,6 +1716,13 @@ const tablesSchema = __schema({
     constraints: [
     ],
   }, MyNockedArrowRow),
+  myOfflineFishingChoice: __table({
+    name: 'my_offline_fishing_choice',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, MyOfflineFishingChoiceRow),
   myOfflineGatherChoice: __table({
     name: 'my_offline_gather_choice',
     indexes: [
@@ -2117,6 +2128,7 @@ const reducersSchema = __reducers(
   __reducerSchema("start_prestige_challenge", StartPrestigeChallengeReducer),
   __reducerSchema("start_research", StartResearchReducer),
   __reducerSchema("start_server_boost", StartServerBoostReducer),
+  __reducerSchema("step_guild_crossing", StepGuildCrossingReducer),
   __reducerSchema("take_over_session", TakeOverSessionReducer),
   __reducerSchema("teleport_to_research", TeleportToResearchReducer),
   __reducerSchema("teleport_to_town_square", TeleportToTownSquareReducer),
@@ -2151,6 +2163,7 @@ const proceduresSchema = __procedures(
   __procedureSchema("get_developer_travel_target", GetDeveloperTravelTargetProcedure.params, GetDeveloperTravelTargetProcedure.returnType),
   __procedureSchema("get_guild_battle_badges", GetGuildBattleBadgesProcedure.params, GetGuildBattleBadgesProcedure.returnType),
   __procedureSchema("get_guild_battle_hub", GetGuildBattleHubProcedure.params, GetGuildBattleHubProcedure.returnType),
+  __procedureSchema("get_guild_crossing", GetGuildCrossingProcedure.params, GetGuildCrossingProcedure.returnType),
   __procedureSchema("get_guild_hub", GetGuildHubProcedure.params, GetGuildHubProcedure.returnType),
   __procedureSchema("get_guild_preview", GetGuildPreviewProcedure.params, GetGuildPreviewProcedure.returnType),
   __procedureSchema("get_guild_replay", GetGuildReplayProcedure.params, GetGuildReplayProcedure.returnType),
@@ -2167,6 +2180,7 @@ const proceduresSchema = __procedures(
   __procedureSchema("get_player_directory", GetPlayerDirectoryProcedure.params, GetPlayerDirectoryProcedure.returnType),
   __procedureSchema("get_player_moderation_history", GetPlayerModerationHistoryProcedure.params, GetPlayerModerationHistoryProcedure.returnType),
   __procedureSchema("get_player_presence", GetPlayerPresenceProcedure.params, GetPlayerPresenceProcedure.returnType),
+  __procedureSchema("get_skill_leaderboard_ranks", GetSkillLeaderboardRanksProcedure.params, GetSkillLeaderboardRanksProcedure.returnType),
   __procedureSchema("get_social_chat_history_with_reactions", GetSocialChatHistoryWithReactionsProcedure.params, GetSocialChatHistoryWithReactionsProcedure.returnType),
   __procedureSchema("get_social_hub", GetSocialHubProcedure.params, GetSocialHubProcedure.returnType),
   __procedureSchema("get_stat_gain_bonus", GetStatGainBonusProcedure.params, GetStatGainBonusProcedure.returnType),

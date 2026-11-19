@@ -84,8 +84,10 @@ export function createTownRuntimes(deps: TownRuntimeDeps) {
   const oxShop = createOxShopRuntime({ coop: client, inventory, renderInventory: deps.renderInventory, showMessage, clearInput, inTown });
   const fire = createCookingFire({
     finished: message => showMessage(message, "#ffd796"),
+    levelUp: message => showMessage(message, "#ffd34d"),
     ores: () => client()?.ores?.() ?? {},
     xp: () => client()?.craftSkills?.().cooking ?? 0n,
+    skillet: () => client()?.toolLevel?.("skillet") ?? 0,
     cook: async (fish, recipe, begin) => {
       client()?.syncMovementState?.(player.x, player.y, 0, 0, "keyboard", true);
       return client()?.cookFish?.(fish, recipe, begin);
@@ -170,7 +172,7 @@ export function createTownRuntimes(deps: TownRuntimeDeps) {
   });
 
   return {
-    oxShop, smith, cardSeller, exchange, gearSellers, schools, starterChest, slotUpgrades,
+    fire, oxShop, smith, cardSeller, exchange, gearSellers, schools, starterChest, slotUpgrades,
     /** Research Ready's tap: through the Town teleport into the Research building; false when it cannot go now. */
     goToResearch() {
       const there = inTown() && townRoomAt(player.x, player.y)?.index === TOWN_RESEARCH_POSITION.door;
@@ -191,7 +193,6 @@ export function createTownRuntimes(deps: TownRuntimeDeps) {
         else showMessage("Cooking Fire · Bring fish from the Town river.", "#ffd796");
       }
       if (fireDistance > FIRE_REACH + 20 && fire.isOpen()) fire.close();
-      else fire.refresh();
       if (gathering() !== gatheringShown) {
         gatheringShown = !gatheringShown;
         paintTownTeleportButton(e.townButton, deps.currentMapId(), gatheringShown);

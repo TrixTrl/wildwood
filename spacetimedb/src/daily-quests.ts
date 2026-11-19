@@ -3,6 +3,7 @@ import { WEEKLY_QUEST_COUNT, GUILD_QUEST_COLLECT_LIMIT, GUILD_WEEK_QUEST_CAP, ap
 import { readPlayerProgress } from "./wide-stats";
 import { QUEST_BOARD_SEEN_BIT, unlockedPortalCutsceneMask } from "../../shared/portal-cutscenes";
 import { creditGuildHall } from "./guild-hall";
+import { guildCrossingBonusPoints } from "./guild-crossing";
 
 /**
  * A player's quests for one day, and what their guild stands at. The guild
@@ -163,7 +164,7 @@ function moveSoloQuests(ctx: Ctx, identity: any) {
   const week = questWeek(questDay(ctx.timestamp.microsSinceUnixEpoch));
   const solo = ctx.db.soloQuestWeek.identity.find(identity);
   const owned = solo?.week === week ? solo.points : 0;
-  const room = Math.max(0, GUILD_WEEK_QUEST_CAP - weekPoints(ctx, week, guild.id));
+  const room = Math.max(0, GUILD_WEEK_QUEST_CAP - questPoolPoints(ctx, week, guild.id));
   const moved = Math.min(owned, room);
   if (!moved) return 0;
   ctx.db.soloQuestWeek.identity.update({ ...solo, points: owned - moved });
@@ -190,17 +191,47 @@ function weekPoints(ctx: Ctx, week: number, guildId: bigint) {
   return ctx.db.guildQuestWeek.key.find(weekKey(week, guildId))?.points ?? 0;
 }
 
+/** Regular kill-quest points counted against the 300-quest pool (excluding Glass Crossing bonus points). */
+function questPoolPoints(ctx: Ctx, week: number, guildId: bigint) {
+  return Math.max(0, weekPoints(ctx, week, guildId) - guildCrossingBonusPoints(ctx, week, guildId));
+}
+
+/**
+ * Credits pure-bonus Glass Crossing points immediately to the guild's weekly total,
+ * its Hall Fund, and every member's live quest row + active stat bonus — without
+ * reducing the 300-quest pool.
+ */
+export function creditGuildCrossingPoints(ctx: Ctx, guildId: bigint, guildName: string, points: number) {
+  if (!(points > 0)) return 0;
+  const week = questWeek(questDay(ctx.timestamp.microsSinceUnixEpoch));
+  const key = weekKey(week, guildId);
+  const current = ctx.db.guildQuestWeek.key.find(key);
+  const next = { key, week, guildId, guildName, points: (current?.points ?? 0) + Math.floor(points) };
+  if (current) ctx.db.guildQuestWeek.key.update(next); else ctx.db.guildQuestWeek.insert(next);
+  creditGuildHall(ctx, guildId, points);
+  const liveBonus = guildQuestBonus(questPoolPoints(ctx, week - 1, guildId) + guildCrossingBonusPoints(ctx, week, guildId));
+  if (ctx.db.guildMember) {
+    for (const member of ctx.db.guildMember.guildId.filter(guildId)) {
+      const row = ctx.db.playerDailyQuest.identity.find(member.identity);
+      if (row && questWeek(row.day) === week && (row.guildPoints !== next.points || row.bonus !== liveBonus)) {
+        ctx.db.playerDailyQuest.identity.update({ ...row, guildPoints: next.points, bonus: liveBonus });
+      }
+    }
+  }
+  return next.points;
+}
+
 /**
  * This week's multiplier on every stat reward the player earns: 0.1% for
- * each point their guild earned last week, from the moment they join it
- * (joining a guild gives its bonus for the week, period). It is only
- * ever the current guild's, so leaving drops it and nothing stacks. Without a
- * guild it is their own week: 1% for each quest they finished, guild or not, up to 15%.
+ * each regular quest point their guild earned last week PLUS 0.1% for each
+ * Glass Crossing point their guild has already earned THIS week (immediate
+ * reward right away, never double-counted into next week). Without a guild it
+ * is their own week: 1% for each quest they finished, guild or not, up to 15%.
  */
 export function guildQuestBonusFor(ctx: Ctx, identity: any, guild = guildOf(ctx, identity), rows?: SoloRows) {
   const week = questWeek(questDay(ctx.timestamp.microsSinceUnixEpoch));
   if (!guild) return soloQuestBonus(questsDoneIn(ctx, identity, week - 1, rows ?? soloRowsFor(ctx, identity, ctx.db.playerDailyQuest.identity.find(identity))));
-  return guildQuestBonus(weekPoints(ctx, week - 1, guild.id));
+  return guildQuestBonus(questPoolPoints(ctx, week - 1, guild.id) + guildCrossingBonusPoints(ctx, week, guild.id));
 }
 
 /** guildQuestBonusFor with the rows it read, so a kill report's quest refresh can start from them. */
@@ -279,8 +310,8 @@ export function recordDailyQuestKills(ctx: Ctx, identity: any, mapId: string, ki
     const week = questWeek(row.day);
     settleSoloWeek(ctx, identity, week, soloPoints(ctx, identity, week) + completed);
   }
-  // A guild's week is worth at most GUILD_WEEK_QUEST_CAP, whatever its size.
-  const credited = guild ? Math.min(completed, Math.max(0, GUILD_WEEK_QUEST_CAP - weekPoints(ctx, questWeek(row.day), guild.id))) : 0;
+  // A guild's kill quests are worth at most GUILD_WEEK_QUEST_CAP, whatever its size (Glass Crossing points are bonus on top).
+  const credited = guild ? Math.min(completed, Math.max(0, GUILD_WEEK_QUEST_CAP - questPoolPoints(ctx, questWeek(row.day), guild.id))) : 0;
   if (guild && credited) {
     const week = questWeek(row.day), key = weekKey(week, guild.id);
     const current = ctx.db.guildQuestWeek.key.find(key);
@@ -358,7 +389,7 @@ export const GUILD_POOL_FROM = "your guild";
  */
 export function guildQuestPool(ctx: Ctx, guildId: bigint) {
   const week = questWeek(questDay(ctx.timestamp.microsSinceUnixEpoch));
-  return { size: GUILD_WEEK_QUEST_CAP, left: Math.max(0, GUILD_WEEK_QUEST_CAP - weekPoints(ctx, week, guildId)) };
+  return { size: GUILD_WEEK_QUEST_CAP, left: Math.max(0, GUILD_WEEK_QUEST_CAP - questPoolPoints(ctx, week, guildId)) };
 }
 
 /**

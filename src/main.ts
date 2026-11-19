@@ -57,6 +57,7 @@ import { createGiftsAndMail, createHudRuntime } from "./ui/hud-runtime";
 import { createReconnectOverlay, type FarmConnection } from "./ui/reconnect-overlay";
 import { createOnboardingRuntime } from "./ui/onboarding-runtime";
 import { beginNewPlayer, createStartupCoordination, createStartupScreen, type StartupCoordinator } from "./ui/startup-runtime";
+import { setNativeOtaReloadHooks } from "./app/native-updates";
 import { createPerformanceMonitor } from "./game/runtime/performance-monitor";
 import { createPresentationInterpolator } from "./game/runtime/render/presentation-interpolator";
 import { createGameBootstrap, createGameBootstrapAssets, startGameRuntime } from "./game/runtime/game-bootstrap";
@@ -726,6 +727,7 @@ import { convertFromMapIndex, simulate } from "./misc/simulator";
     showProgressCompletion: (kind, detail, icon, color) => runtimeHud.showProgressCompletion(kind, detail, icon, color),
     profileWindow, closeIconPicker: closeProfileIconPicker, clearInput: playerInput.clear,
     lowPerformanceMode: appShell.lowPerformanceMode, openGuildHall: () => guildHall.openWindow(),
+    enterGuildCrossing: id => { void guildHall.enterCrossing(id); },
     assets, playerAppearanceAssets, leaderboardPodiumPreview,
     paintProfileIconCanvas, previewPrestigeUnlock: prestigeUnlock.preview,
     stopAutoFarm: reason => autoFarm.stop(reason), teleportToMap: mapController.teleportToMap,
@@ -843,6 +845,7 @@ import { convertFromMapIndex, simulate } from "./misc/simulator";
     suspendPlayerVisibility: () => playerVisibility.suspend(),
     showNewPlayerIntro: () => beginNewPlayer({ recordGameplayReady, settings: appShell, onboarding, startGame, intro: startup }),
     startGame: () => startGame(false),
+    registerNativeOtaHooks: setNativeOtaReloadHooks,
   });
   finishStartup();
   startupCoordinator.startVersionPolling();
@@ -982,7 +985,8 @@ import { convertFromMapIndex, simulate } from "./misc/simulator";
 
   offlineProgressSummary = createCoopSessionWiring({
     coop: coopAccess, player, inventory, renderInventory, saveProgress, healthMultiplierBonus, showMessage,
-    windows: { playerSafety, profileWindow, inventory: inventoryController, smith, cardSeller, gearSellers }, leaderboard, runtimeHud, slotUpgrades,
+    windows: { fire: town.fire, playerSafety, profileWindow, inventory: inventoryController, smith, cardSeller, gearSellers },
+    leaderboard, runtimeHud, slotUpgrades,
     inTutorial, isRunning: session.isRunning, moveSpeed: () => playerStats.moveSpeed(), playerInput,
     reconcileMap: () => { if (!inTutorial()) mapController.reconcileMapFromServer(); },
     syncLifetimeKills: progress.syncLifetimeKills, refreshGemCounter, refreshGiftsAndMail: giftsAndMail.refresh,

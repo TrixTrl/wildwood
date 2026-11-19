@@ -717,6 +717,33 @@ export const GuildBattleReport = __t.object("GuildBattleReport", {
 });
 export type GuildBattleReport = __Infer<typeof GuildBattleReport>;
 
+export const GuildCrossingAttempt = __t.object("GuildCrossingAttempt", {
+  identity: __t.identity(),
+  day: __t.u32(),
+  used: __t.u32(),
+  streak: __t.u32(),
+  bestStreak: __t.u32(),
+  guildId: __t.u64(),
+});
+export type GuildCrossingAttempt = __Infer<typeof GuildCrossingAttempt>;
+
+export const GuildCrossingWeek = __t.object("GuildCrossingWeek", {
+  key: __t.string(),
+  week: __t.u32(),
+  guildId: __t.u64(),
+  secretMask: __t.u32(),
+  revealed: __t.u8(),
+  completed: __t.bool(),
+  completedBy: __t.string(),
+  completedByIdentity: __t.string(),
+  completedByIcon: __t.u32(),
+  completedAt: __t.u64(),
+  pointsAwarded: __t.u32(),
+  fallsJson: __t.string(),
+  pioneersJson: __t.string(),
+});
+export type GuildCrossingWeek = __Infer<typeof GuildCrossingWeek>;
+
 export const GuildHall = __t.object("GuildHall", {
   guildId: __t.u64(),
   fund: __t.u32(),
@@ -1176,6 +1203,9 @@ export type MyMining = __Infer<typeof MyMining>;
 export const MyNockedArrow = __t.object("MyNockedArrow", {});
 export type MyNockedArrow = __Infer<typeof MyNockedArrow>;
 
+export const MyOfflineFishingChoice = __t.object("MyOfflineFishingChoice", {});
+export type MyOfflineFishingChoice = __Infer<typeof MyOfflineFishingChoice>;
+
 export const MyOfflineGatherChoice = __t.object("MyOfflineGatherChoice", {});
 export type MyOfflineGatherChoice = __Infer<typeof MyOfflineGatherChoice>;
 
@@ -1267,6 +1297,15 @@ export const NameChangeStatus = __t.object("NameChangeStatus", {
   balance: __t.f64(),
 });
 export type NameChangeStatus = __Infer<typeof NameChangeStatus>;
+
+export const OfflineFishingChoice = __t.object("OfflineFishingChoice", {
+  identity: __t.identity(),
+  grantedAtMicros: __t.u64(),
+  catches: __t.u32(),
+  experienceGain: __t.u32(),
+  fishOres: __t.string(),
+});
+export type OfflineFishingChoice = __Infer<typeof OfflineFishingChoice>;
 
 export const OfflineGatherChoice = __t.object("OfflineGatherChoice", {
   identity: __t.identity(),
@@ -2400,6 +2439,12 @@ export const PlayerSessionAnalytics = __t.object("PlayerSessionAnalytics", {
 });
 export type PlayerSessionAnalytics = __Infer<typeof PlayerSessionAnalytics>;
 
+export const PlayerSkillStanding = __t.object("PlayerSkillStanding", {
+  identity: __t.identity(),
+  pages: __t.array(__t.u32()),
+});
+export type PlayerSkillStanding = __Infer<typeof PlayerSkillStanding>;
+
 export const PlayerSoloQuestWeek = __t.object("PlayerSoloQuestWeek", {
   identity: __t.identity(),
   week: __t.u32(),
@@ -2730,6 +2775,38 @@ export const ShardCoordinatorConnection = __t.object("ShardCoordinatorConnection
   token: __t.string(),
 });
 export type ShardCoordinatorConnection = __Infer<typeof ShardCoordinatorConnection>;
+
+export const SkillLeaderboardPage = __t.object("SkillLeaderboardPage", {
+  key: __t.string(),
+  identities: __t.array(__t.identity()),
+});
+export type SkillLeaderboardPage = __Infer<typeof SkillLeaderboardPage>;
+
+export const SkillLeaderboardRank = __t.object("SkillLeaderboardRank", {
+  rank: __t.u32(),
+  get entry() {
+    return LeaderboardEntryV2;
+  },
+  score: __t.u64(),
+});
+export type SkillLeaderboardRank = __Infer<typeof SkillLeaderboardRank>;
+
+export const SkillLeaderboardRanks = __t.object("SkillLeaderboardRanks", {
+  get entries() {
+    return __t.array(SkillLeaderboardRank);
+  },
+  startRank: __t.u32(),
+  endRank: __t.u32(),
+  localRank: __t.u32(),
+  total: __t.u32(),
+});
+export type SkillLeaderboardRanks = __Infer<typeof SkillLeaderboardRanks>;
+
+export const SkillLeaderboardSize = __t.object("SkillLeaderboardSize", {
+  board: __t.string(),
+  total: __t.u32(),
+});
+export type SkillLeaderboardSize = __Infer<typeof SkillLeaderboardSize>;
 
 export const SocialChatPageWithReactions = __t.object("SocialChatPageWithReactions", {
   get messages() {

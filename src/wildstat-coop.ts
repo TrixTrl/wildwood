@@ -1,5 +1,5 @@
 import { watchDefeatSession } from "./coop/services/defeat-session-watch";
-import { watchOfflineProgress, type OfflineActivity, type OfflineProgressSummary } from "./coop/services/offline-progress-watch";
+import { createOfflineProgressService } from "./coop/services/offline-progress-watch";
 import { createAccountAudioSettings } from "./coop/services/account-audio-settings";
 import { createAccountRowServices, keptCardSlots, presenceGatherClock } from "./coop/services/account-row-services";
 import { createFramePlayers } from "./coop/services/frame-players";
@@ -93,7 +93,7 @@ const updateResumeMode = consumeUpdateResumeMode({ version: GAME_VERSION, store:
 let connection: DbConnection | null = null;
 let localIdentity = "";
 /** Held until the UI has shown it; the server keeps its own copy until then. */
-let pendingOfflineProgress: OfflineProgressSummary | null = null;
+const offlineProgressService = createOfflineProgressService(() => connection, onChange);
 let localDbIdentity: Identity | null = null;
 let connecting = false;
 let connectionGeneration = 0;
@@ -693,65 +693,60 @@ function connect() {
   onChange();
   try {
     connection = guardConnectionActivity(DbConnection.builder()
-      .withUri(host)
-      .withDatabaseName(databaseName)
-      .withWSFn(diagnosticWebSocket(recordConnectionDiagnostic, {
-        transport: "account", database: databaseName, isCurrent: () => generation === connectionGeneration,
-        onFrameHandlerFailed: () => { staleBundle.frameHandlerFailed(); }
-      }, accountService.connectionToken))
-      .withToken(accountService.connectionCredential() || accountService.guestToken() || undefined)
-      .onConnect((conn: DbConnection, identity: Identity, token: string) => {
-        if (generation !== connectionGeneration) {
-          conn.disconnect();
-          return;
-        }
-        connection = conn;
-        connecting = false;
-        hydrationReady = false;
-        connectedSignedIn = signedIn;
-        protocolReadyGeneration = 0;
-        touchServerActivity();
-        protocolBlocked = false;
-        worldEntryPromise = null;
-        worldEntryGeneration = 0;
-        worldEntryBlocked = false;
-        reconnectScheduler.clear();
-        startupTelemetryRuntime.advanceConnection("preparing-session", generation);
-        connectionLifecycle.transition("preparing-session", SESSION_PREPARE_TIMEOUT_MS);
-        onChange();
-        const connectedIdentity = identity.toHexString();
-        const identityChanged = Boolean(localIdentity && localIdentity !== connectedIdentity);
-        localIdentity = connectedIdentity;
-        localDbIdentity = identity;
-        duelService.restoreCooldown();
-        profileDirectory.prepareSession(accountService.rememberedCharacter(signedIn));
-        progressionService.beginSession(identityChanged);
-        presenceService.beginSession(identityChanged);
-        latency.reset();
-        clearRealtimeCaches();
-        if (!signedIn) accountService.storeGuestToken(token);
-        accountService.watchLegalConsent(conn);
-        watchDefeatSession(conn, accountService.connectionCredential(), () => generation === connectionGeneration && connection === conn, message => accountService.handleDefeatRestriction(message));
-        watchOfflineProgress(conn, () => generation === connectionGeneration && connection === conn, summary => {
-          pendingOfflineProgress = summary;
-          onChange();
-        });
-        accountRows.watch(conn, () => generation === connectionGeneration && connection === conn);
-        accountAudio.watch(conn, () => generation === connectionGeneration && connection === conn, () => protocolReadyGeneration === generation && !protocolBlocked);
-        const protocolProbe = latency.begin(true);
-        void conn.reducers.registerProtocol({ protocolVersion: PROTOCOL_VERSION }).then(async () => {
-          if (generation !== connectionGeneration || connection !== conn) return;
-          latency.finish(protocolProbe); // this call alone: timing the next one too read double after every reconnect
-          await conn.reducers.registerClientVersion({ clientVersion: GAME_VERSION });
-          void conn.reducers.registerClientHost({ host: window.location.host }).catch(() => { });
-          if (generation !== connectionGeneration || connection !== conn) return;
-          protocolReadyGeneration = generation;
-          accountService.clearRetry();
-          const isCurrentConnection = () => {
-            const current = generation === connectionGeneration && connection === conn;
-            if (current) touchServerActivity();
-            return current;
-          };
+    .withUri(host)
+    .withDatabaseName(databaseName)
+    .withWSFn(diagnosticWebSocket(recordConnectionDiagnostic, { transport: "account", database: databaseName, isCurrent: () => generation === connectionGeneration,
+      onFrameHandlerFailed: () => { staleBundle.frameHandlerFailed(); } }, accountService.connectionToken))
+    .withToken(accountService.connectionCredential() || accountService.guestToken() || undefined)
+    .onConnect((conn: DbConnection, identity: Identity, token: string) => {
+      if (generation !== connectionGeneration) {
+        conn.disconnect();
+        return;
+      }
+      connection = conn;
+      connecting = false;
+      hydrationReady = false;
+      connectedSignedIn = signedIn;
+      protocolReadyGeneration = 0;
+      touchServerActivity();
+      protocolBlocked = false;
+      worldEntryPromise = null;
+      worldEntryGeneration = 0;
+      worldEntryBlocked = false;
+      reconnectScheduler.clear();
+      startupTelemetryRuntime.advanceConnection("preparing-session", generation);
+      connectionLifecycle.transition("preparing-session", SESSION_PREPARE_TIMEOUT_MS);
+      onChange();
+      const connectedIdentity = identity.toHexString();
+      const identityChanged = Boolean(localIdentity && localIdentity !== connectedIdentity);
+      localIdentity = connectedIdentity;
+      localDbIdentity = identity;
+      duelService.restoreCooldown();
+      profileDirectory.prepareSession(accountService.rememberedCharacter(signedIn));
+      progressionService.beginSession(identityChanged);
+      presenceService.beginSession(identityChanged);
+      latency.reset();
+      clearRealtimeCaches();
+      if (!signedIn) accountService.storeGuestToken(token);
+      accountService.watchLegalConsent(conn);
+      watchDefeatSession(conn, accountService.connectionCredential(), () => generation === connectionGeneration && connection === conn, message => accountService.handleDefeatRestriction(message));
+      offlineProgressService.watch(conn, () => generation === connectionGeneration && connection === conn);
+      accountRows.watch(conn, () => generation === connectionGeneration && connection === conn);
+      accountAudio.watch(conn, () => generation === connectionGeneration && connection === conn, () => protocolReadyGeneration === generation && !protocolBlocked);
+      const protocolProbe = latency.begin(true);
+      void conn.reducers.registerProtocol({ protocolVersion: PROTOCOL_VERSION }).then(async () => {
+        if (generation !== connectionGeneration || connection !== conn) return;
+        latency.finish(protocolProbe); // this call alone: timing the next one too read double after every reconnect
+        await conn.reducers.registerClientVersion({ clientVersion: GAME_VERSION });
+        void conn.reducers.registerClientHost({ host: window.location.host }).catch(() => {});
+        if (generation !== connectionGeneration || connection !== conn) return;
+        protocolReadyGeneration = generation;
+        accountService.clearRetry();
+        const isCurrentConnection = () => {
+          const current = generation === connectionGeneration && connection === conn;
+          if (current) touchServerActivity();
+          return current;
+        };
 
           await accountService.syncLegalConsent(conn);
           if (!isCurrentConnection()) return;
@@ -925,15 +920,11 @@ export const wildstatCoop = {
   localIdentity() {
     return localIdentity;
   },
-  pendingOfflineProgress: () => pendingOfflineProgress,
+  ...offlineProgressService.api,
   runTiming: () => accountRows.api.runTimingWith(progressionService.lifetimeFor(localIdentity)),
   ...accountRows.api,
   weaponMasteryInPlay: (): MasteryPoints => masteryPointsInPlay(accountRows.api.weaponMastery(), progressionService.api.prestigeChallenge().active || progressionService.api.aggroChallenge().active), // None during challenges.
   accountAudio: accountAudio.api,
-  async acknowledgeOfflineProgress(activity: OfflineActivity = "fight") {
-    if (connection?.isActive) await connection.reducers.collectOfflineProgressAs({ activity });
-    pendingOfflineProgress = null;
-  },
   async simulateTimeAway(seconds: number) {
     if (!connection?.isActive || !isDeveloperIdentity(localIdentity)) return false;
     await connection.reducers.simulateTimeAway({ seconds });
