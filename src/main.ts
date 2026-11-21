@@ -396,21 +396,21 @@ import { convertFromMapIndex, simulate } from "./misc/simulator";
     joystick: joystickEl,
     stick: stickEl,
     running: () => session.isRunning(),
-    onTapPlayer: (x, y) => !inTutorial() ? openPlayerAtScreenPoint(x, y) || soulDimension.tapTown(x, y) : false,
+    onTapPlayer: (x, y) => !inTutorial() ? openPlayerAtScreenPoint(x, y) || guildHall.tapCrossing(x, y) || soulDimension.tapTown(x, y) : false,
     onEscape: () => inTutorial() && playerProfileEl.hidden ? true : handleInputEscape(),
     desktop: {
       canMove: () => Boolean(session?.isRunning()) && !session.isPaused() && player.hp > 0 && !isArenaScene()
-        && !mapController.isMapTransitioning() && !mapController.isCutsceneActive() && !onboarding?.blocksInput(),
+        && !mapController.isMapTransitioning() && !mapController.isCutsceneActive() && !onboarding?.blocksInput() && !guildHall.blocksFreeMove(),
       player: () => player, speed: () => playerStats.moveSpeed(),
       view: () => ({ ...camera, ...canvasRuntime.viewport() }),
       bounds: () => ({ width: WORLD.w, height: WORLD.h, inset: player.r }),
     },
   });
-  const fullscreenMovement = createFullscreenMovementGate(visible => coop?.setRemotePlayersVisible(visible));
+  const fullscreenMovement = createFullscreenMovementGate((visible, idle) => coop?.setRemotePlayersVisible(visible, idle));
   const playerVisibility = createPlayerVisibilityToggle({
     button: gameElements.playerVisibilityToggle,
     setVisible: visible => { coop?.setMultiplayerEnabled(visible); fullscreenMovement.setWanted(visible); },
-    setReceiving: on => fullscreenMovement.setWanted(on), setShown: shown => coop?.setPresenceShown?.(shown), storage: localStorage,
+    setReceiving: on => fullscreenMovement.setIdle(!on), setShown: shown => coop?.setPresenceShown?.(shown), storage: localStorage,
   });
   let farmConnection: FarmConnection = "recovering";
   const { autoFarm, farmUnlocked, farmUnavailable } = createAutoFarm({
@@ -649,7 +649,7 @@ import { convertFromMapIndex, simulate } from "./misc/simulator";
       runtimeHud.clearTransientUi();
       updateHud(true);
     },
-    inputBlocked: () => Boolean(onboarding?.blocksInput()),
+    inputBlocked: () => Boolean(onboarding?.blocksInput()) || guildHall.blocksFreeMove(),
   });
 
   function saveProgress(immediate = false) {

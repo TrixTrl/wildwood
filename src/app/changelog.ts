@@ -1,4 +1,19 @@
 export const RELEASE_NOTES: Record<string, string[]> = {
+  "0.922.3": [
+    "Removed the light-grey outer outlines on game windows and cleaned up noisy inner card borders across Cooking Fire and shared sheets.",
+    "Town torches and braziers are no longer treated as Cooking Fires — only the 3 real stone-ring campfires open the Cooking Fire.",
+    "Going idle no longer makes standing players and autofarmers vanish from your screen — live movement frames still pause to save server work while everyone stays visible until you move again.",
+    "Smoother multiplayer movement with zero extra server load: fixed the 1.5s straight-walk freeze/teleport bug, false lag-spike rubberbanding on direction reversals, click-to-move turn overshoot, remote running-in-place after stalls, and same-map teleports walking through walls.",
+  ],
+  "0.922.2": [
+    "Cooking Fire redesigned with fish pictures, clean modal fit, and separate Recipes and Cooking Skill windows instead of cramming everything into one panel.",
+    "Cooking is now level-locked per fish (Minnow Lv 1 through Golden Koi Lv 90) with an early-level burn chance that drops to 0% as you level Cooking and upgrade your Skillet.",
+    "Cooked fish now stay in your inventory instead of auto-selling: sell them for gold or eat them for temporary combat buffs (+Max HP, +Damage, +Armor, +Regen; 5–30 min scaling by fish tier), shown live on the HUD.",
+    "Glass Crossing still credits Guild Quest Points and Hall Fund right away on every step (+2/step, +20 clear), while the stat-gain multiplier rolls over next week like regular guild quests.",
+  ],
+  "0.922.1": [
+    "Glass Crossing movement is now click/tap-to-leap: click or tap any solved crystal tile, active 50/50 frontier tile, island, or portal to arc cleanly onto it instead of free-roam running into empty space.",
+  ],
   "0.922": [
     "Glass Crossing is now a playable 2.5D cosmic bridge map: hop across 16 pairs of floating crystal slabs suspended in space between two floating stone islands toward the golden Victory Portal. Enter straight from Guilds → Quests or through the portal on the Guild Hall west lawn.",
     "Real fallen guildmate bodies drift in open space where fragile glass shattered, wearing the gear they fell in with comic last words — and you can visit and hop on tiles anytime even after spending your daily tries.",
@@ -4174,6 +4189,9 @@ const RELEASE_DATES: Record<string, string> = {
 };
 
 export const RELEASE_DAYS: Record<string, string> = {
+  "0.922.3": "2026-11-19",
+  "0.922.2": "2026-11-19",
+  "0.922.1": "2026-11-19",
   "0.922": "2026-11-18",
   "0.921": "2026-11-18",
   "0.920": "2026-11-18",
