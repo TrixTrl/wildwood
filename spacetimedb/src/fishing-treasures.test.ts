@@ -3,8 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 import { crystalFixture, server } from "../../tests/helpers/crystal-hollows-fixture";
 import { progressOf } from "../../tests/helpers/progress";
 import { fishingSpotAt } from "../../shared/fishing";
-import { fishingTimeFactor, rollFishingTreasure } from "../../shared/fishing-treasures";
+import { FISHING_TREASURE_BOOST_DURATION_MS, fishingTimeFactor, rollFishingTreasure } from "../../shared/fishing-treasures";
+import { FISHING_FILTER_MAIL_GEMS, FISHING_FILTER_MAIL_ID } from "../../shared/mailbox";
 import { TOWN_FEET_OFFSET } from "../../shared/town";
+import { MODULE_MIGRATION_VERSION } from "./module-migrations";
+import { fishingTreasureBoostMultiplierAt } from "./fishing";
 import { addOres, oreCount } from "./item-refine";
 import { isOldMapGear } from "./old-gear-payout";
 import { EQUIPMENT_DROP_ITEM_IDS, isCosmeticOnlyItem } from "../../shared/items";
@@ -46,6 +49,35 @@ describe("treasure on the line", () => {
     expect(rollFishingTreasure(99, .99)).toBeNull();
     expect(fishingTimeFactor("crown_of_the_wishing_deep", "drowned_court_mail")).toBeCloseTo(.84);
     expect(fishingTimeFactor("drowned_court_mail", "reedward_cap")).toBe(1);
+  });
+
+  it("ignores leftover loot filters, clears them in migration 69, sends apology gems, and doubles treasure odds for 24h", () => {
+    const f = crystalFixture(() => 0.01), spot = fishingSpotAt(0, 10_000);
+    f.patch("player", { mapId: "town", x: spot.x, y: spot.y - TOWN_FEET_OFFSET });
+    // Before migration 69: leftover slot:HEAD / slot:CHEST rows exist, and normal Reedward Cap odds (1/160 = 0.00625) miss a 0.01 roll.
+    f.seed("moduleMigrationState", { id: 0, version: 68 });
+    f.seed("playerIgnoredDrop", { key: `${f.ctx.sender.toHexString()}:slot:HEAD`, identity: f.ctx.sender, itemId: "slot:HEAD" });
+    f.seed("playerIgnoredDrop", { key: `${f.ctx.sender.toHexString()}:slot:CHEST`, identity: f.ctx.sender, itemId: "slot:CHEST" });
+    expect(fishingTreasureBoostMultiplierAt(f.ctx, Number(f.ctx.timestamp.microsSinceUnixEpoch / 1000n))).toBe(1);
+
+    // Run pending migrations via onConnect (same path Maincloud uses after publish).
+    const connectionId = f.ctx.connectionId;
+    f.ctx.connectionId = null;
+    f.run(server.onConnect);
+    f.ctx.connectionId = connectionId;
+    expect(f.db.moduleMigrationState.id.find(0).version).toBe(MODULE_MIGRATION_VERSION);
+    expect([...f.db.playerIgnoredDrop.iter()]).toEqual([]);
+    const letter = f.db.mailboxLetter.id.find(FISHING_FILTER_MAIL_ID);
+    expect(letter).toMatchObject({ id: FISHING_FILTER_MAIL_ID, gems: FISHING_FILTER_MAIL_GEMS });
+
+    // During the 24h window: boost is 2x, so a 0.01 roll (0.01 / 2 = 0.005 < 1/160) now drops Reedward Cap — even if a stale slot:HEAD row somehow existed.
+    f.seed("playerIgnoredDrop", { key: `${f.ctx.sender.toHexString()}:slot:HEAD`, identity: f.ctx.sender, itemId: "slot:HEAD" });
+    const startMs = Number(f.ctx.timestamp.microsSinceUnixEpoch / 1000n);
+    expect(fishingTreasureBoostMultiplierAt(f.ctx, startMs)).toBe(2);
+    expect(fishingTreasureBoostMultiplierAt(f.ctx, startMs + FISHING_TREASURE_BOOST_DURATION_MS - 1)).toBe(2);
+    expect(fishingTreasureBoostMultiplierAt(f.ctx, startMs + FISHING_TREASURE_BOOST_DURATION_MS)).toBe(1);
+    f.run(server.catchFish, { spot: spot.spot, site: spot.site });
+    expect(JSON.parse(progressOf(f).inventoryJson)).toContain("reedward_cap");
   });
 });
 

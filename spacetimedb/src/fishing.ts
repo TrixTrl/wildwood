@@ -1,6 +1,6 @@
-import { isDropIgnored } from "./ignored-drops";
 import { awardDrops } from "./enemy-loot-award";
-import { fishingTimeFactor, rollFishingTreasure } from "../../shared/fishing-treasures";
+import { FISHING_TREASURE_BOOST_DURATION_MS, FISHING_TREASURE_BOOST_MULTIPLIER, fishingTimeFactor, rollFishingTreasure } from "../../shared/fishing-treasures";
+import { FISHING_FILTER_MAIL_ID } from "../../shared/mailbox";
 import { touchCombatProfile, keepsCombatProfile } from "./combat-profile";
 import { SenderError, table, t } from "spacetimedb/server";
 import type { Identity } from "spacetimedb";
@@ -78,6 +78,14 @@ export function mergeFishingData(ctx: Ctx, guest: Identity, account: Identity) {
   writeFishingLevel(ctx, account);
 }
 
+/** Temporary 2x fishing treasure rate for 24h after the leftover loot-filter apology mail lands (Migration 69). */
+export function fishingTreasureBoostMultiplierAt(ctx: Ctx, nowMs: number) {
+  const letter = ctx.db.mailboxLetter?.id.find(FISHING_FILTER_MAIL_ID);
+  if (!letter) return 1;
+  const startMs = millisOf(letter.createdAt);
+  return nowMs >= startMs && nowMs < startMs + FISHING_TREASURE_BOOST_DURATION_MS ? FISHING_TREASURE_BOOST_MULTIPLIER : 1;
+}
+
 /** Whether the spot stood at this site now, or a moment ago: a catch may land just after the spot moved on. */
 function spotWasAt(spot: number, site: number, nowMs: number) {
   return fishingSpotAt(spot, nowMs).site === site || fishingSpotAt(spot, nowMs - FISHING_MOVE_GRACE_MS).site === site;
@@ -134,8 +142,9 @@ export function catchFishFor(ctx: Ctx, args: { spot: number; site: number }, dep
   const extra = (rod > 0 ? toolBonusYield(rod, ctx.random()) : 0) + (courtyard > 0 && ctx.random() < courtyard ? 1 : 0);
   const boost = serverBoostGatherMultiplierAt(ctx, nowMs);
   addOres(ctx, ctx.sender, fish.id, (1 + extra) * boost);
-  const treasure = rollFishingTreasure(fishingLevel(experience), ctx.random() / (1 + pondBonus));
-  if (treasure && !isDropIgnored(ctx, ctx.sender, treasure.id)) {
+  const treasureBoost = fishingTreasureBoostMultiplierAt(ctx, nowMs);
+  const treasure = rollFishingTreasure(fishingLevel(experience), ctx.random() / ((1 + pondBonus) * treasureBoost));
+  if (treasure) {
     awardDrops(ctx, new Map([[treasure.id, 1]]));
     touchCombatProfile(ctx, ctx.sender);
   }

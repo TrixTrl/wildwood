@@ -42,3 +42,15 @@ export const GEAR_OVERHAUL_MAIL_BODY = [
   "",
   "Here are 150 gems to say thanks for playing.",
 ].join("\n");
+
+/** Apology for leftover Loot Filter rows blocking fishing treasure drops after the filter window was removed. */
+export const FISHING_FILTER_MAIL_ID = "fishing-filter-fix-2026-11-21";
+export const FISHING_FILTER_MAIL_GEMS = 100n;
+export const FISHING_FILTER_MAIL_TITLE = "Sorry about missing fishing treasures";
+export const FISHING_FILTER_MAIL_BODY = [
+  "When the old Loot Filter window was removed, saved slot filters stayed on some accounts and silently blocked fishing treasures (Reedward Cap, Drowned Court Mail, and Crown of the Wishing Deep) from dropping.",
+  "",
+  "All leftover item filters have been cleared and disabled, so fishing treasures can drop normally for everyone again.",
+  "",
+  "As an apology, take 100 gems — plus fishing treasure drop rates are 2x for the next 24 hours!",
+].join("\n");

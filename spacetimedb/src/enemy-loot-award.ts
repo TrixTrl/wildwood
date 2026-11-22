@@ -1,6 +1,5 @@
 import type { InferSchema, ReducerCtx } from "spacetimedb/server";
 import type schema from "./index";
-import { keepWantedDrops } from "./ignored-drops";
 import { rollRegularEnemyLoot } from "./regular-enemy-loot";
 import { readPlayerProgress } from "./wide-stats";
 import { defaultPlayerProgress, inventoryForProgress, restoreItemToProgress } from "./progress-helpers";
@@ -13,12 +12,12 @@ import type { pinnedMapBalance } from "./map-balance";
 type Context = ReducerCtx<InferSchema<typeof schema>>;
 
 /**
- * Items from an accepted kill report (no gear: that comes from the Smith), less what the loot filter drops. With
+ * Items from an accepted kill report (no gear: that comes from the Smith). With
  * `checkpoint` the caller writes the bag.
  */
 export function awardRegularEnemyLoot(ctx: Context, mapId: string, count: number, balance: ReturnType<typeof pinnedMapBalance>,
   checkpoint?: { progress: any }) {
-  return awardDrops(ctx, keepWantedDrops(ctx, ctx.sender, rollRegularEnemyLoot(ctx, mapId, count, balance?.loot)), checkpoint);
+  return awardDrops(ctx, rollRegularEnemyLoot(ctx, mapId, count, balance?.loot), checkpoint);
 }
 
 /** Rolled drops into the bag: new items go in, or wait as offers when it is full, and owned ones are settled. */

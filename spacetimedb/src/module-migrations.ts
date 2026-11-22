@@ -22,7 +22,7 @@ import {
 } from "../../shared/rules";
 import { MAGMALISK_ID, TEMPEST_KIRIN_ID, MIREMAW_ID, DREADREAPER_ID, VOLTWARDEN_ID, GRAVEBLOOM_ID } from "./boss-combat";
 import { NAME_CHANGE_COOLDOWN_MS } from "../../shared/name-change";
-import { publishGearOverhaulMail, publishRebalanceMail, publishSlotUpgradeMail } from "./mailbox";
+import { publishFishingFilterApologyMail, publishGearOverhaulMail, publishRebalanceMail, publishSlotUpgradeMail } from "./mailbox";
 import { migrateGuildTags } from "./player-name-tags";
 import { compressLegacyMapPower } from "../../shared/map-power-rescale";
 import { rescaleEndgameProgress, rescaleRankingConflict, rescaleRankingStats } from "../../shared/endgame-power-rescale";
@@ -46,8 +46,9 @@ import { payOutAllOldGear } from "./old-gear-payout";
 import { giveEveryoneStarterWeapons } from "./starter-chest";
 import { touchAllCombatProfiles } from "./combat-profile";
 import { resetRunAttackSpeedAndCrit } from "./gear-rebalance-migration";
+import { clearAllIgnoredDrops } from "./ignored-drops";
 
-export const MODULE_MIGRATION_VERSION = 68;
+export const MODULE_MIGRATION_VERSION = 69;
 
 /**
  * Migration 50: the ranking snapshot moves to leaderboard_entry_v2,
@@ -567,6 +568,12 @@ export function createModuleMigrations(deps: ModuleMigrationDeps) {
         if (active) updateSnapshotRow(ctx, "player", { ...active, ...powerFieldsForProgress(ctx, readPlayerProgress(ctx, identity)) });
       }
       refreshLeaderboard(ctx);
+    }
+    // 69: the Loot Filter window was removed in 0.917.10, leaving saved slot filters blocking fishing treasures
+    // with no UI to clear them. Wipe all leftover rows and send the apology gem letter (which also anchors 24h 2x treasure odds).
+    if (currentVersion < 69) {
+      clearAllIgnoredDrops(ctx);
+      publishFishingFilterApologyMail(ctx);
     }
     const next = { id: 0, version: MODULE_MIGRATION_VERSION };
     if (state) ctx.db.moduleMigrationState.id.update(next);
