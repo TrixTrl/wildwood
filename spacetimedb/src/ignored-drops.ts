@@ -89,3 +89,8 @@ export function mergeIgnoredDrops(ctx: Ctx, guest: Identity, account: Identity) 
 export function removeIgnoredDrops(ctx: Ctx, identity: Identity) {
   for (const row of [...ctx.db.playerIgnoredDrop.identity.filter(identity)] as any[]) ctx.db.playerIgnoredDrop.key.delete(row.key);
 }
+
+/** Migration 69: wipe all leftover Loot Filter rows after the Loot Filter window was removed in 0.917.10. */
+export function clearAllIgnoredDrops(ctx: Ctx) {
+  for (const row of [...ctx.db.playerIgnoredDrop.iter()] as any[]) ctx.db.playerIgnoredDrop.key.delete(row.key);
+}

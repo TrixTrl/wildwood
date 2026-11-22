@@ -159,7 +159,8 @@ it("migration 62 wipes old gear from everywhere a player holds it and pays each 
   expect([...f.db.playerBowSkill.identity.filter(f.ctx.sender)].map((row: any) => row.itemId)).toEqual([RARE_BOW]);
   expect([...f.db.playerSwordSkill.identity.filter(f.ctx.sender)]).toEqual([]);
   expect([...f.db.playerEquipmentLock.identity.filter(f.ctx.sender)].map((row: any) => row.itemId)).toEqual([RARE_BOW]);
-  expect([...f.db.playerIgnoredDrop.identity.filter(f.ctx.sender)].map((row: any) => row.itemId)).toEqual(["slot:HAND"]);
+  // Migration 69 wipes all leftover Loot Filter rows (including slot:HAND) now that the filter window is gone.
+  expect([...f.db.playerIgnoredDrop.identity.filter(f.ctx.sender)].map((row: any) => row.itemId)).toEqual([]);
   expect(JSON.parse(f.db.playerBuild.key.find(`${hex(f)}:0`).gearJson)).toEqual({ HEAD: "", CHEST: RARE_ARMOR, FEET: BLACK_BOOTS, HAND: RARE_BOW });
 
   // Stored saves lose their old gear too.

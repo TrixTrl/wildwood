@@ -1,5 +1,8 @@
 import { equipmentStatDefinition } from "./equipment-budget";
 
+export const FISHING_TREASURE_BOOST_MULTIPLIER = 2;
+export const FISHING_TREASURE_BOOST_DURATION_MS = 24 * 60 * 60 * 1000;
+
 /** Each treasure keeps its own share of the catch roll as later treasures unlock. */
 export const FISHING_TREASURES = [
   { id: "reedward_cap", name: "Reedward Cap", rarity: "Rare", color: "#69b7ff", level: 1, odds: 160, tier: 2, faster: 4 },
